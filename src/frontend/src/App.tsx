@@ -1,30 +1,66 @@
-import { useState } from 'react'
+import { useState } from 'react';
+import Home from './pages/Home';
+import Template from './pages/Template';
 
-function App() {
-  const [count, setCount] = useState(0)
+type Tab = 'home' | 'template';
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState<Tab>('home');
+  const [isDark, setIsDark] = useState(true);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
-        <h1 className="text-4xl font-bold text-gray-800 mb-6 text-center">
-          Tailwind + React
-        </h1>
-
-        <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl p-6 mb-6">
-          <button
-            onClick={() => setCount((count) => count + 1)}
-            className="w-full bg-white text-purple-600 font-semibold py-3 px-6 rounded-lg hover:bg-gray-100 transition-colors duration-200 shadow-md"
-          >
-            Count idsadass {count}
-          </button>
-        </div>
-
-        <p className="text-gray-600 text-center text-sm">
-          Edfdsfsdfsdfdit <code className="bg-gray-100 px-2 py-1 rounded">App.tsx</code> and save to test HMR
-        </p>
+    <div className="min-h-screen bg-gradient-to-br from-[#000000] to-[#002a11]">
+      {/* Animated background grid */}
+      <div className="fixed inset-0 opacity-20 pointer-events-none">
+        <div className="absolute inset-0" style={{
+          backgroundImage: 'linear-gradient(rgba(139, 92, 246, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(139, 92, 246, 0.1) 1px, transparent 1px)',
+          backgroundSize: '50px 50px'
+        }}></div>
       </div>
-    </div>
-  )
-}
 
-export default App
+      {/* Header */}
+      <header className="relative bg-transparent backdrop-blur-xl sticky top-0 z-50">
+        <div className="relative px-6 py-3 flex items-center justify-between">
+          {/* Logo */}
+          <div className="flex items-center gap-2">
+            <svg width="32" height="17" viewBox="0 0 726 387" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect y="215" width="172" height="172" fill="#36C07D"/>
+              <path d="M136 0L446 215V387L136 172V0Z" fill="#36C07D"/>
+              <path d="M416 0L726 215V387L416 172V0Z" fill="#36C07D"/>
+            </svg>
+            <span className="font-bold text-lg text-slate-100">Mentra</span>
+          </div>
+
+          {/* Tab Navigation - moved to right */}
+          <div className="flex items-center gap-1 bg-slate-900/50 rounded-lg p-1">
+            <button
+              onClick={() => setActiveTab('home')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                activeTab === 'home'
+                  ? 'bg-slate-800 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Home
+            </button>
+            <button
+              onClick={() => setActiveTab('template')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                activeTab === 'template'
+                  ? 'bg-slate-800 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Template
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Content */}
+      <main>
+        {activeTab === 'home' ? <Home /> : <Template isDark={isDark} setIsDark={setIsDark} />}
+      </main>
+    </div>
+  );
+}
