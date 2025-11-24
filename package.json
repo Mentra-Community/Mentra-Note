@@ -3,15 +3,15 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "bun src/index.ts",
-    "dev": "bun --hot src/index.ts",
+    "start": "bun src/mentra-app/index.ts",
+    "dev": "bun --hot src/mentra-app/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
+  "author": "Aryan Farhang",
   "license": "ISC",
   "description": "Example app for taking photos with MentraOS",
   "dependencies": {
-    "@mentra/sdk": "latest",
+    "@mentra/sdk": "2.1.28",
     "ejs": "^3.1.10",
     "express": "^4.21.2",
     "ws": "^8.18.1"
