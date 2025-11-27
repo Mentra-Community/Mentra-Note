@@ -7,6 +7,7 @@ type Tab = 'home' | 'template';
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [isDark, setIsDark] = useState(true);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#000000] to-[#002a11]">
@@ -31,28 +32,77 @@ export default function App() {
             <span className="font-bold text-lg text-slate-100">Mentra</span>
           </div>
 
-          {/* Tab Navigation - moved to right */}
-          <div className="flex items-center gap-1 bg-slate-900/50 rounded-lg p-1">
+          {/* Tab Navigation - Desktop */}
+          <div className="hidden sm:flex items-center gap-6">
             <button
               onClick={() => setActiveTab('home')}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+              className={`px-2 py-1 text-sm font-medium transition-all border-b-2 ${
                 activeTab === 'home'
-                  ? 'bg-slate-800 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'text-[#00e2a2] border-[#00e2a2]'
+                  : 'text-emerald-400/40 hover:text-emerald-400/60 border-transparent'
               }`}
             >
               Home
             </button>
             <button
               onClick={() => setActiveTab('template')}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+              className={`px-2 py-1 text-sm font-medium transition-all border-b-2 ${
                 activeTab === 'template'
-                  ? 'bg-slate-800 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'text-[#00e2a2] border-[#00e2a2]'
+                  : 'text-emerald-400/40 hover:text-emerald-400/60 border-transparent'
               }`}
             >
               Template
             </button>
+          </div>
+
+          {/* Tab Navigation - Mobile Dropdown */}
+          <div className="relative sm:hidden">
+            <button
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-[#00e2a2] bg-slate-800/50 rounded-md"
+            >
+              {activeTab === 'home' ? 'Home' : 'Template'}
+              <svg
+                className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {isDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-32 border-[0.5px] border-[#00ff5e2d] bg-black rounded-md shadow-lg overflow-hidden z-50">
+                <button
+                  onClick={() => {
+                    setActiveTab('home');
+                    setIsDropdownOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                    activeTab === 'home'
+                      ? 'text-[#00e2a2] bg-slate-700'
+                      : 'text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  Home
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('template');
+                    setIsDropdownOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                    activeTab === 'template'
+                      ? 'text-[#00e2a2] bg-slate-700'
+                      : 'text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  Template
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>

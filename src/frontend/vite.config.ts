@@ -10,4 +10,7 @@ export default defineConfig({
       },
     }),
   ],
+  server: {
+    allowedHosts: ['webview.ngrok.dev'],
+  },
 })

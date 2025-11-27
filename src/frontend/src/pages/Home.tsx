@@ -4,11 +4,10 @@ export default function Home() {
       <div className="text-center space-y-6 sm:space-y-8 w-full max-w-4xl">
         <div className="space-y-2 sm:space-y-3">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-400 via-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-            Mentra Smart Glasses
+            MentraOS Camera Template App
           </h1>
           <p className="text-sm sm:text-base md:text-lg text-slate-400 max-w-2xl mx-auto px-4">
-            Frontend template for Mentra Glass — build real-time camera, audio,
-            and AI-powered apps using our open-source SDK.{" "}
+            Frontend template for Mentra Apps.
           </p>
         </div>
 
