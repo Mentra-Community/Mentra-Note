@@ -28,6 +28,57 @@ export default function App() {
     }
   }, [userId, isLoading, error, isAuthenticated]);
 
+  // Load theme preference from backend when user authenticates
+  useEffect(() => {
+    if (isAuthenticated && userId) {
+      console.log('🎨 [Theme] Loading theme preference for user:', userId);
+
+      fetch(`/api/theme-preference?userId=${encodeURIComponent(userId)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.theme) {
+            console.log('🎨 [Theme] Loaded theme preference:', data.theme);
+            setIsDark(data.theme === 'dark');
+          }
+        })
+        .catch(error => {
+          console.error('🎨 [Theme] Failed to load theme preference:', error);
+          // Keep default theme on error
+        });
+    }
+  }, [isAuthenticated, userId]);
+
+  // Handle theme change and save to backend
+  const handleThemeChange = async (newIsDark: boolean) => {
+    // Update UI immediately for responsive feel
+    setIsDark(newIsDark);
+
+    // Save to backend if user is authenticated
+    if (userId) {
+      const theme = newIsDark ? 'dark' : 'light';
+      console.log(`🎨 [Theme] Saving theme preference for user ${userId}:`, theme);
+
+      try {
+        const response = await fetch('/api/theme-preference', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, theme })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          console.log('🎨 [Theme] Theme preference saved successfully:', theme);
+        } else {
+          console.error('🎨 [Theme] Failed to save theme preference:', data);
+        }
+      } catch (error) {
+        console.error('🎨 [Theme] Error saving theme preference:', error);
+        // Continue using the theme locally even if save fails
+      }
+    }
+  };
+
   // Handle loading state
   if (isLoading) {
     return (
@@ -56,16 +107,16 @@ export default function App() {
   }
 
   // Handle unauthenticated state
-  if (!isAuthenticated || !userId) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900">
-        <div className="text-center p-8">
-          <h2 className="text-red-500 text-2xl font-semibold mb-4">Not Authenticated</h2>
-          <p className="text-gray-400">Please open this page from the MentraOS manager app.</p>
-        </div>
-      </div>
-    );
-  }
+  // if (!isAuthenticated || !userId) {
+  //   return (
+  //     <div className="min-h-screen flex items-center justify-center bg-slate-900">
+  //       <div className="text-center p-8">
+  //         <h2 className="text-red-500 text-2xl font-semibold mb-4">Not Authenticated</h2>
+  //         <p className="text-gray-400">Please open this page from the MentraOS manager app.</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className={`min-h-screen ${isDark ? 'dark' : 'light'}`} style={{
@@ -138,7 +189,11 @@ export default function App() {
             <div className="relative">
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-[#00e2a2] bg-slate-800/50 rounded-md"
+                className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  isDark
+                    ? 'text-[#00e2a2] bg-slate-800/50'
+                    : 'text-emerald-700 bg-emerald-100/80'
+                }`}
               >
                 {activeTab === 'home' ? 'Home' : 'Template'}
                 <svg
@@ -188,7 +243,7 @@ export default function App() {
 
       {/* Content */}
       <main>
-        {activeTab === 'home' ? <Home /> : <Template isDark={isDark} setIsDark={setIsDark} userId={userId} />}
+        {activeTab === 'home' ? <Home /> : <Template isDark={isDark} setIsDark={handleThemeChange} userId={userId || ''} />}
       </main>
     </div>
   );
