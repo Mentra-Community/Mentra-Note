@@ -17,7 +17,11 @@ export default defineConfig({
     port: 5173,
     // Allow any host for ngrok tunnels - users can use their own ngrok domains
     allowedHosts: true,
-    hmr: false, // Disable HMR when accessing through proxied ngrok
+    hmr: {
+      // HMR will work when accessing localhost:3000/webview directly
+      // When accessing through ngrok/Porter, you'll need to manually refresh
+      overlay: true,
+    },
     proxy: {
       '/api': {
         // Proxy API requests to backend
