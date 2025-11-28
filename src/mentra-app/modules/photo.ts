@@ -46,7 +46,8 @@ export async function takePhoto(
       size: photo.size
     };
 
-    photosMap.set(userId, storedPhoto);
+    // Store photo by requestId to support multiple photos per user
+    photosMap.set(photo.requestId, storedPhoto);
     logger.info(`Photo stored for user ${userId}, requestId: ${photo.requestId}`);
 
     // Broadcast to all SSE clients

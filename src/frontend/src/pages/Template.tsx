@@ -24,9 +24,10 @@ interface Log {
 interface TemplateProps {
   isDark: boolean;
   setIsDark: (value: boolean) => void;
+  userId: string;
 }
 
-export default function Template({ isDark, setIsDark }: TemplateProps) {
+export default function Template({ isDark, setIsDark, userId }: TemplateProps) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
@@ -47,7 +48,7 @@ export default function Template({ isDark, setIsDark }: TemplateProps) {
 
     const connectToPhotoStream = () => {
       try {
-        eventSource = new EventSource('/api/photo-stream');
+        eventSource = new EventSource(`/api/photo-stream?userId=${encodeURIComponent(userId)}`);
 
         eventSource.onopen = () => {
           console.log('Connected to photo stream');
@@ -105,7 +106,7 @@ export default function Template({ isDark, setIsDark }: TemplateProps) {
         eventSource.close();
       }
     };
-  }, [addLog]);
+  }, [addLog, userId]);
 
   // Connect to SSE transcription stream
   useEffect(() => {
@@ -114,7 +115,7 @@ export default function Template({ isDark, setIsDark }: TemplateProps) {
 
     const connectToTranscriptionStream = () => {
       try {
-        eventSource = new EventSource('/api/transcription-stream');
+        eventSource = new EventSource(`/api/transcription-stream?userId=${encodeURIComponent(userId)}`);
 
         eventSource.onopen = () => {
           console.log('Connected to transcription stream');
@@ -204,7 +205,7 @@ export default function Template({ isDark, setIsDark }: TemplateProps) {
         eventSource.close();
       }
     };
-  }, [addLog]);
+  }, [addLog, userId]);
 
   const handlePlayAudio = async () => {
     try {
@@ -217,7 +218,7 @@ export default function Template({ isDark, setIsDark }: TemplateProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ audioUrl }),
+        body: JSON.stringify({ audioUrl, userId }),
       });
 
       const data = await response.json();
@@ -276,7 +277,7 @@ export default function Template({ isDark, setIsDark }: TemplateProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text: speakText }),
+        body: JSON.stringify({ text: speakText, userId }),
       });
 
       const data = await response.json();

@@ -102,18 +102,18 @@ class ExampleMentraOSApp extends AppServer {
       session,
       (finalText) => {
         // Called when transcription is finalized
-        this.logger.info(`[FINAL] Transcription: ${finalText}`);
-        console.log(`✅ Final transcription: ${finalText}`);
+        this.logger.info(`[FINAL] Transcription for user ${userId}: ${finalText}`);
+        console.log(`✅ Final transcription (user ${userId}): ${finalText}`);
 
-        // Broadcast final transcription to all SSE clients
-        broadcastTranscriptionToClients(finalText, true);
+        // Broadcast final transcription to this user's SSE clients only
+        broadcastTranscriptionToClients(finalText, true, userId);
       },
       (partialText) => {
         // Called for interim/partial results (optional)
-        console.log(`⏳ Partial transcription: ${partialText}`);
+        console.log(`⏳ Partial transcription (user ${userId}): ${partialText}`);
 
-        // Broadcast partial transcription to all SSE clients
-        broadcastTranscriptionToClients(partialText, false);
+        // Broadcast partial transcription to this user's SSE clients only
+        broadcastTranscriptionToClients(partialText, false, userId);
       }
     );
 

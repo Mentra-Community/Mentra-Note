@@ -188,7 +188,7 @@ export default function App() {
 
       {/* Content */}
       <main>
-        {activeTab === 'home' ? <Home /> : <Template isDark={isDark} setIsDark={setIsDark} />}
+        {activeTab === 'home' ? <Home /> : <Template isDark={isDark} setIsDark={setIsDark} userId={userId} />}
       </main>
     </div>
   );
