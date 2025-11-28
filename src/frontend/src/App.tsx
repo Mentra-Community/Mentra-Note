@@ -1,13 +1,71 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useMentraAuth } from '@mentra/react';
 import Home from './pages/Home';
 import Template from './pages/Template';
 
 type Tab = 'home' | 'template';
 
 export default function App() {
+  const { userId, isLoading, error, isAuthenticated } = useMentraAuth();
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [isDark, setIsDark] = useState(true);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Log authentication state to console
+  useEffect(() => {
+    console.log('═══════════════════════════════════════════════════');
+    console.log('🔐 [Mentra Auth] Authentication State Update');
+    console.log('═══════════════════════════════════════════════════');
+    console.log('👤 User ID:', userId || 'Not authenticated');
+    console.log('🔄 Loading:', isLoading);
+    console.log('✅ Authenticated:', isAuthenticated);
+    console.log('❌ Error:', error || 'None');
+    console.log('🕐 Timestamp:', new Date().toISOString());
+    console.log('═══════════════════════════════════════════════════');
+
+    if (isAuthenticated && userId) {
+      console.log('✨ User successfully authenticated with ID:', userId);
+    }
+  }, [userId, isLoading, error, isAuthenticated]);
+
+  // Handle loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+          <p className="text-gray-400">Loading authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <div className="text-center p-8">
+          <h2 className="text-red-500 text-2xl font-semibold mb-4">Authentication Error</h2>
+          <p className="text-red-400 font-medium mb-2">{error}</p>
+          <p className="text-gray-400 text-sm">
+            Please ensure you are opening this page from the MentraOS app.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle unauthenticated state
+  if (!isAuthenticated || !userId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <div className="text-center p-8">
+          <h2 className="text-red-500 text-2xl font-semibold mb-4">Not Authenticated</h2>
+          <p className="text-gray-400">Please open this page from the MentraOS manager app.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen ${isDark ? 'dark' : 'light'}`} style={{
@@ -34,7 +92,7 @@ export default function App() {
             <span className="font-bold text-lg" style={{ color: isDark ? '#f1f5f9' : 'var(--accent-emerald)' }}>Mentra</span>
           </div>
 
-          {/* Tab Navigation - Desktop */}
+          {/* Center - Tab Navigation + User Info */}
           <div className="hidden sm:flex items-center gap-6">
             <button
               onClick={() => setActiveTab('home')}
@@ -58,53 +116,72 @@ export default function App() {
             </button>
           </div>
 
-          {/* Tab Navigation - Mobile Dropdown */}
-          <div className="relative sm:hidden">
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-[#00e2a2] bg-slate-800/50 rounded-md"
-            >
-              {activeTab === 'home' ? 'Home' : 'Template'}
-              <svg
-                className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+          {/* User Info - Desktop */}
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+            <span className="text-xs text-emerald-400 font-mono">
+              {userId?.substring(0, 8)}...
+            </span>
+          </div>
 
-            {isDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-32 border-[0.5px] border-[#00ff5e2d] bg-black rounded-md shadow-lg overflow-hidden z-50">
-                <button
-                  onClick={() => {
-                    setActiveTab('home');
-                    setIsDropdownOpen(false);
-                  }}
-                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                    activeTab === 'home'
-                      ? 'text-[#00e2a2] bg-slate-700'
-                      : 'text-slate-300 hover:bg-slate-700'
-                  }`}
+          {/* Tab Navigation & User - Mobile */}
+          <div className="flex sm:hidden items-center gap-3">
+            {/* User Info - Mobile */}
+            <div className="flex items-center gap-2 px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+              <span className="text-[10px] text-emerald-400 font-mono">
+                {userId?.substring(0, 6)}
+              </span>
+            </div>
+
+            {/* Tab Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-[#00e2a2] bg-slate-800/50 rounded-md"
+              >
+                {activeTab === 'home' ? 'Home' : 'Template'}
+                <svg
+                  className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  Home
-                </button>
-                <button
-                  onClick={() => {
-                    setActiveTab('template');
-                    setIsDropdownOpen(false);
-                  }}
-                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                    activeTab === 'template'
-                      ? 'text-[#00e2a2] bg-slate-700'
-                      : 'text-slate-300 hover:bg-slate-700'
-                  }`}
-                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-32 border-[0.5px] border-[#00ff5e2d] bg-black rounded-md shadow-lg overflow-hidden z-50">
+                  <button
+                    onClick={() => {
+                      setActiveTab('home');
+                      setIsDropdownOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                      activeTab === 'home'
+                        ? 'text-[#00e2a2] bg-slate-700'
+                        : 'text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    Home
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('template');
+                      setIsDropdownOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                      activeTab === 'template'
+                        ? 'text-[#00e2a2] bg-slate-700'
+                        : 'text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
                   Template
                 </button>
               </div>
             )}
+            </div>
           </div>
         </div>
       </header>

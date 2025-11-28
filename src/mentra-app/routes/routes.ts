@@ -282,6 +282,7 @@ export function setupWebviewRoutes(
   });
 
 
+
   // Route 2: Get the actual photo image data
   app.get('/api/photo/:requestId', (req: any, res: any) => {
     const userId = (req as AuthenticatedRequest).authUserId;
