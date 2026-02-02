@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
+import { Routes, Route } from 'react-router';
 import { useMentraAuth } from '@mentra/react';
-import Template from './pages/Template';
+import BottomNavigation from './components/BottomNavigation';
+import Files from './pages/Files';
+import Action from './pages/Action';
+import Settings from './pages/Settings';
+import Test from './pages/Test';
+import InFile from './pages/InFile';
 
 export default function App() {
   const { userId, isLoading, error, isAuthenticated } = useMentraAuth();
@@ -101,57 +107,16 @@ export default function App() {
     );
   }
 
-  // Handle unauthenticated state
-  // if (!isAuthenticated || !userId) {
-  //   return (
-  //     <div className="min-h-screen flex items-center justify-center bg-slate-900">
-  //       <div className="text-center p-8">
-  //         <h2 className="text-red-500 text-2xl font-semibold mb-4">Not Authenticated</h2>
-  //         <p className="text-gray-400">Please open this page from the MentraOS manager app.</p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
-
   return (
-    <div className={`min-h-screen ${isDark ? 'dark' : 'light'}`} style={{
-      background: 'linear-gradient(to bottom right, var(--bg-primary), var(--bg-secondary), var(--bg-tertiary))'
-    }}>
-      {/* Animated background grid */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute inset-0 animate-grid-pulse" style={{
-          backgroundImage: `linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px)`,
-          backgroundSize: '50px 50px'
-        }}></div>
-      </div>
-
-      {/* Header */}
-      <header className="relative bg-transparent backdrop-blur-xl sticky top-0 z-50">
-        <div className="relative px-6 py-3 flex items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center gap-2">
-            <svg width="32" height="17" viewBox="0 0 726 387" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect y="215" width="172" height="172" fill="#36C07D"/>
-              <path d="M136 0L446 215V387L136 172V0Z" fill="#36C07D"/>
-              <path d="M416 0L726 215V387L416 172V0Z" fill="#36C07D"/>
-            </svg>
-            <span className="font-bold text-lg" style={{ color: isDark ? '#f1f5f9' : 'var(--accent-emerald)' }}>Mentra</span>
-          </div>
-
-          {/* User Info */}
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            <span className="text-xs text-emerald-400 font-mono">
-              {userId?.substring(0, 8)}...
-            </span>
-          </div>
-        </div>
-      </header>
-
-      {/* Content */}
-      <main>
-        <Template isDark={isDark} setIsDark={handleThemeChange} userId={userId || ''} />
-      </main>
+    <div className={`min-h-screen bg-white ${isDark ? 'dark' : 'light'}`}>
+      <Routes>
+        <Route path="/" element={<Files />} />
+        <Route path="/file/:fileName" element={<InFile />} />
+        <Route path="/action" element={<Action />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/test" element={<Test />} />
+      </Routes>
+      <BottomNavigation />
     </div>
   );
 }

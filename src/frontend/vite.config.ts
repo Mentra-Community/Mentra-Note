@@ -11,7 +11,7 @@ export default defineConfig({
       },
     }),
   ],
-  base: '/webview/',
+  base: '/',
   envDir: path.resolve(__dirname, '../..'), // Use root .env file
   server: {
     port: 5173,
