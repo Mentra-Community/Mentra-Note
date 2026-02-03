@@ -1,20 +1,22 @@
-import { AppSession, TranscriptionData } from "@mentra/sdk";
+import { AppSession, TranscriptionData,  } from "@mentra/sdk";
 import { Transcript } from "./Transcript";
 import { sendTranscription } from "../../server/stream/sse";
-
+import { DisplayManager } from "./DisplayManger";
 export class User {
   private static readonly sessions: Map<string, User> = new Map();
 
   readonly userId: string;
   readonly session: AppSession;
   readonly transcript: Transcript;
-
+  readonly display: DisplayManager;
+  
   private transcriptionCleanup: (() => void) | null = null;
 
   constructor(session: AppSession) {
     this.userId = session.userId;
     this.session = session;
-    this.transcript = new Transcript();
+    this.transcript = new Transcript(session.userId, session.userId);
+    this.display = new DisplayManager();
 
     User.sessions.set(this.userId, this);
   }
@@ -28,11 +30,11 @@ export class User {
     }
 
     this.transcriptionCleanup = this.session.events.onTranscription(
-      (data: TranscriptionData) => {
+      async (data: TranscriptionData) => {
         const speaker = data.speakerId ?? "unknown";
         console.log(` ${this.userId}, [${speaker}]: ${data.text} (final: ${data.isFinal})`);
 
-        this.transcript.addSegment(data);
+        await this.transcript.addSegment(data);
         sendTranscription(this.userId, data);
       }
     );
