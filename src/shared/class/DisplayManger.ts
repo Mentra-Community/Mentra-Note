@@ -7,4 +7,4 @@ constructor () {
     this.test = "test";
   }
 }
- 
+  
