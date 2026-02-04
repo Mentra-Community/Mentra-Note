@@ -13,6 +13,7 @@ import { SyncedSession, SessionManager, manager } from "../lib/sync";
 import {
   TranscriptSyncedManager,
   NotesSyncedManager,
+  ChatSyncedManager,
   SettingsSyncedManager,
 } from "./managers";
 import type { AppSession } from "@mentra/sdk";
@@ -21,6 +22,7 @@ export class NotesSession extends SyncedSession {
   // Managers - @manager decorator handles all wiring automatically
   @manager transcript = new TranscriptSyncedManager();
   @manager notes = new NotesSyncedManager();
+  @manager chat = new ChatSyncedManager();
   @manager settings = new SettingsSyncedManager();
 
   // MentraOS AppSession - null if no glasses connected (not synced)

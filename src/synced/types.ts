@@ -30,6 +30,13 @@ export interface Note {
   };
 }
 
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
+
 // =============================================================================
 // Manager Interfaces (State + RPCs)
 // =============================================================================
@@ -60,6 +67,16 @@ export interface NotesManagerI {
   getAllNotes(): Promise<Note[]>;
 }
 
+export interface ChatManagerI {
+  // State
+  messages: ChatMessage[];
+  isTyping: boolean;
+
+  // RPCs
+  sendMessage(content: string): Promise<ChatMessage>;
+  clearHistory(): Promise<void>;
+}
+
 export interface SettingsManagerI {
   // State
   showLiveTranscript: boolean;
@@ -87,6 +104,7 @@ export interface SessionI {
   // Managers
   transcript: TranscriptManagerI;
   notes: NotesManagerI;
+  chat: ChatManagerI;
   settings: SettingsManagerI;
 }
 
