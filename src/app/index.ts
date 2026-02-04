@@ -1,0 +1,206 @@
+/**
+ * NotesApp - All-day transcription and AI-powered note generation
+ *
+ * Main application class that extends MentraOS AppServer.
+ * Manages user sessions and routes events to the appropriate managers.
+ *
+ * Architecture:
+ * - NotesApp handles MentraOS lifecycle (onSession, onStop)
+ * - Each user gets a NotesSession that contains all managers
+ * - Managers handle specific responsibilities (transcripts, notes, settings)
+ */
+
+import { AppServer, AppSession } from "@mentra/sdk";
+import { sessions, NotesSession } from "../synced/session";
+import { connectDB, disconnectDB } from "../services/db";
+
+export interface NotesAppConfig {
+  packageName: string;
+  apiKey: string;
+  port: number;
+  cookieSecret?: string;
+}
+
+/**
+ * NotesApp - All-day transcription and note generation
+ *
+ * Handles glasses connections and manages transcription
+ * for users who want to capture and organize their day.
+ */
+export class NotesApp extends AppServer {
+  constructor(config: NotesAppConfig) {
+    super({
+      packageName: config.packageName,
+      apiKey: config.apiKey,
+      port: config.port,
+      cookieSecret: config.cookieSecret,
+    });
+
+    // Connect to MongoDB on startup
+    this.initDatabase();
+  }
+
+  /**
+   * Initialize database connection
+   */
+  private async initDatabase(): Promise<void> {
+    try {
+      await connectDB();
+    } catch (error) {
+      console.error("[NotesApp] Failed to connect to database:", error);
+      // Continue without DB - app will work with in-memory storage
+    }
+  }
+
+  /**
+   * Called when a user connects their glasses to Notes
+   */
+  protected async onSession(
+    session: AppSession,
+    sessionId: string,
+    userId: string,
+  ): Promise<void> {
+    console.log(`\n📝 Notes session started for ${userId}`);
+    session.dashboard.content.write("// Notes Ready");
+
+    // Get or create NotesSession for this user (may already exist from webview)
+    const notesSession = await sessions.getOrCreate(userId);
+
+    // Set the AppSession (glasses are now connected)
+    notesSession.setAppSession(session);
+
+    // Log device capabilities
+    const caps = session.capabilities;
+    if (caps) {
+      console.log(`   Device: ${caps.modelName}`);
+      console.log(`   Microphone: ${caps.hasMicrophone ? "✅" : "❌"}`);
+      console.log(`   Display: ${caps.hasDisplay ? "✅" : "❌"}`);
+    }
+
+    // Subscribe to transcription events
+    session.events.onTranscription((data) => {
+      // Route to NotesSession for processing
+      notesSession.onTranscription(data.text, data.isFinal, data.speakerId);
+    });
+
+    // Subscribe to button events
+    session.events.onButtonPress((data) => {
+      console.log(`[${userId}] 🔘 Button: ${data.buttonId}`);
+      this.handleButtonPress(notesSession, session, data.buttonId);
+    });
+
+    // Show initial ready state
+    setTimeout(() => {
+      if (notesSession.settings.showLiveTranscript) {
+        session.dashboard.content.write("📝 Notes - Recording");
+      }
+    }, 2000);
+
+    console.log(`✅ Notes ready for ${userId}\n`);
+  }
+
+  /**
+   * Called when a user disconnects from Notes
+   */
+  protected async onStop(
+    sessionId: string,
+    userId: string,
+    reason: string,
+  ): Promise<void> {
+    console.log(`👋 Notes session ended for ${userId}: ${reason}`);
+
+    // Clear the AppSession (glasses disconnected) but keep the session
+    // so webview clients can still access data
+    const notesSession = sessions.get(userId);
+    if (notesSession) {
+      notesSession.clearAppSession();
+    }
+  }
+
+  /**
+   * Graceful shutdown - disconnect from database
+   */
+  async shutdown(): Promise<void> {
+    console.log("[NotesApp] Shutting down...");
+
+    // Clean up all user sessions
+    for (const userId of sessions.getActiveUserIds()) {
+      await sessions.remove(userId);
+    }
+
+    // Disconnect from database
+    await disconnectDB();
+
+    console.log("[NotesApp] Shutdown complete");
+  }
+
+  /**
+   * Handle button press events from glasses
+   */
+  private handleButtonPress(
+    notesSession: NotesSession,
+    appSession: AppSession,
+    button: string,
+  ): void {
+    switch (button) {
+      case "single_press":
+        // Show current status
+        const segmentCount = notesSession.transcript.segments.length;
+        appSession.dashboard.content.write(
+          `📝 ${segmentCount} segments recorded`,
+        );
+        break;
+
+      case "double_press":
+        // Toggle transcript display
+        const currentSetting = notesSession.settings.showLiveTranscript;
+        notesSession.settings
+          .updateSettings({ showLiveTranscript: !currentSetting })
+          .then(() => {
+            appSession.dashboard.content.write(
+              currentSetting ? "Display: OFF" : "Display: ON",
+            );
+          });
+        break;
+
+      case "long_press":
+        // Generate a note from recent transcript
+        notesSession.notes
+          .generateNote()
+          .then((note) => {
+            appSession.dashboard.content.write(
+              `📝 Note created: ${note.title}`,
+            );
+          })
+          .catch((err: Error) => {
+            console.error("[NotesApp] Error generating note:", err);
+            appSession.dashboard.content.write("❌ Failed to create note");
+          });
+        break;
+
+      default:
+        appSession.dashboard.content.write(`Button: ${button}`);
+    }
+  }
+
+  /**
+   * Get a NotesSession by userId (for API routes)
+   */
+  getSession(userId: string): NotesSession | undefined {
+    return sessions.get(userId);
+  }
+
+  /**
+   * Get all active user IDs
+   */
+  getActiveUserIds(): string[] {
+    return sessions.getActiveUserIds();
+  }
+
+  /**
+   * Get count of active sessions
+   */
+  getActiveSessionCount(): number {
+    return sessions.getActiveUserIds().length;
+  }
+}
