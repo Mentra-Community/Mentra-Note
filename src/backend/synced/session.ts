@@ -9,7 +9,7 @@
  * One session per user - created when any client (webview or glasses) connects.
  */
 
-import { SyncedSession, SessionManager, manager } from "../lib/sync";
+import { SyncedSession, SessionManager, manager } from "../../lib/sync";
 import {
   TranscriptSyncedManager,
   NotesSyncedManager,

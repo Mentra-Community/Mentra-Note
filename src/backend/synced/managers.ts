@@ -8,7 +8,7 @@
  * - No constructor needed - @manager decorator handles wiring
  */
 
-import { SyncedManager, synced, rpc, type Synced } from "../lib/sync";
+import { SyncedManager, synced, rpc, type Synced } from "../../lib/sync";
 import {
   getOrCreateDailyTranscript,
   appendTranscriptSegments,
