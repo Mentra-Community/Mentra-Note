@@ -21,8 +21,8 @@ import {
   Loader2,
   Plus,
 } from "lucide-react";
-import { useSynced } from "../../synced/useSynced";
-import type { SessionI, Note, TranscriptSegment } from "../../synced/types";
+import { useSynced } from "../hooks/useSynced";
+import type { SessionI, Note, TranscriptSegment } from "../../shared/types";
 import { clsx } from "clsx";
 import { format } from "date-fns";
 import { useMentraAuth } from "@mentra/react";

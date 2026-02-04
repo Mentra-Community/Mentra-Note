@@ -12,8 +12,8 @@ import { motion } from "framer-motion";
 import { useMentraAuth } from "@mentra/react";
 import { Toaster } from "sonner";
 import { clsx } from "clsx";
-import { useSynced } from "../synced/useSynced";
-import type { SessionI } from "../synced/types";
+import { useSynced } from "./hooks/useSynced";
+import type { SessionI } from "../shared/types";
 import { Settings, FileText, Wifi, WifiOff } from "lucide-react";
 
 // Views

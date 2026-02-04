@@ -7,8 +7,8 @@
 import React from "react";
 import { Wifi, WifiOff, Loader2 } from "lucide-react";
 import { clsx } from "clsx";
-import { useSynced } from "../../synced/useSynced";
-import type { SessionI } from "../../synced/types";
+import { useSynced } from "../hooks/useSynced";
+import type { SessionI } from "../../shared/types";
 import { useMentraAuth } from "@mentra/react";
 
 interface SettingsViewProps {

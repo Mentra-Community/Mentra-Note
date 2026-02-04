@@ -17,8 +17,8 @@ import {
   Plus,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { useSynced } from "../../../synced/useSynced";
-import type { SessionI, Note } from "../../../synced/types";
+import { useSynced } from "../../hooks/useSynced";
+import type { SessionI, Note } from "../../../shared/types";
 import { useMentraAuth } from "@mentra/react";
 
 // Display format for notes (matches mockData format for compatibility)

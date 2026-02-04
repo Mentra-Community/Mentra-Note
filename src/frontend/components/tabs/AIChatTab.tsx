@@ -7,8 +7,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ArrowUp, Sparkles, User, Trash2, Loader2 } from "lucide-react";
 import { clsx } from "clsx";
-import { useSynced } from "../../../synced/useSynced";
-import type { SessionI, ChatMessage } from "../../../synced/types";
+import { useSynced } from "../../hooks/useSynced";
+import type { SessionI, ChatMessage } from "../../../shared/types";
 import { useMentraAuth } from "@mentra/react";
 
 interface AIChatTabProps {

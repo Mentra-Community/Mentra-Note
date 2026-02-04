@@ -11,10 +11,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import type {
-  WSMessageToClient,
-  WSMessageToServer,
-} from "../../shared/synced-types";
+import type { WSMessageToClient, WSMessageToServer } from "../../shared/types";
 
 // =============================================================================
 // SyncClient
@@ -88,13 +85,23 @@ class SyncClient<T> {
         break;
 
       case "state_change":
-        if (!this.state[message.manager]) {
-          this.state[message.manager] = {};
+        console.log(
+          `[Synced] state_change: ${message.manager}.${message.property} =`,
+          message.value,
+        );
+        // For session-level state (hasGlassesConnected, isRecording, etc.),
+        // store at top level to match snapshot format
+        if (message.manager === "session") {
+          this.state[message.property] = message.value;
+        } else {
+          if (!this.state[message.manager]) {
+            this.state[message.manager] = {};
+          }
+          this.state[message.manager] = {
+            ...this.state[message.manager],
+            [message.property]: message.value,
+          };
         }
-        this.state[message.manager] = {
-          ...this.state[message.manager],
-          [message.property]: message.value,
-        };
         this._version++;
         this.notifyListeners();
         break;
@@ -195,17 +202,10 @@ export interface UseSyncedResult<T> {
  */
 export function useSynced<T>(userId: string): UseSyncedResult<T> {
   const clientRef = useRef<SyncClient<T> | null>(null);
+  const [version, setVersion] = useState(0);
 
-  // Don't connect if no userId
-  if (!userId) {
-    return {
-      session: null,
-      isConnected: false,
-      reconnect: () => {},
-    };
-  }
-
-  if (!clientRef.current) {
+  // Get or create client (only if userId is provided)
+  if (userId && !clientRef.current) {
     let client = clientCache.get(userId);
     if (!client) {
       client = new SyncClient<T>(userId);
@@ -216,16 +216,20 @@ export function useSynced<T>(userId: string): UseSyncedResult<T> {
 
   const client = clientRef.current;
 
-  const [version, setVersion] = useState(client.version);
-
+  // Subscribe to client updates
   useEffect(() => {
+    if (!client) return;
+
     const unsubscribe = client.subscribe(() => {
       setVersion(client.version);
     });
     return unsubscribe;
   }, [client]);
 
+  // Build session proxy
   const session = useMemo((): T | null => {
+    if (!client) return null;
+
     const state = client.currentState;
     if (!state || Object.keys(state).length === 0) {
       return null;
@@ -233,21 +237,56 @@ export function useSynced<T>(userId: string): UseSyncedResult<T> {
 
     // Create proxy that provides typed access to state and RPCs
     return new Proxy({} as object, {
-      get(target, managerName: string) {
+      get(target, prop: string) {
+        // Ignore React DevTools internal checks
+        if (
+          prop === "$$typeof" ||
+          prop === "_owner" ||
+          prop === "_store" ||
+          typeof prop === "symbol"
+        ) {
+          return undefined;
+        }
+
+        // Top-level session state (userId, hasGlassesConnected, etc.)
+        if (prop in state && typeof state[prop] !== "object") {
+          return state[prop];
+        }
+
+        // Manager access - return a proxy for the manager
+        const managerState = state[prop];
+        if (managerState === undefined) {
+          return undefined;
+        }
+
+        // If it's a primitive at top level, return it directly
+        if (typeof managerState !== "object" || managerState === null) {
+          return managerState;
+        }
+
+        // Return proxy for manager object
         return new Proxy(
           {},
           {
-            get(target, prop: string) {
-              const managerState = state[managerName] || {};
+            get(target, managerProp: string) {
+              // Ignore React DevTools internal checks
+              if (
+                managerProp === "$$typeof" ||
+                managerProp === "_owner" ||
+                managerProp === "_store" ||
+                typeof managerProp === "symbol"
+              ) {
+                return undefined;
+              }
 
               // If property exists in state, return it
-              if (prop in managerState) {
-                return managerState[prop];
+              if (managerProp in managerState) {
+                return managerState[managerProp];
               }
 
               // Otherwise it's an RPC call
               return (...args: any[]) =>
-                client.callRPC(managerName, prop, args);
+                client.callRPC(prop, managerProp, args);
             },
           },
         );
@@ -255,13 +294,16 @@ export function useSynced<T>(userId: string): UseSyncedResult<T> {
     }) as T;
   }, [client, version]);
 
+  // Reconnect callback
   const reconnect = useCallback(() => {
-    client.reconnect();
+    if (client) {
+      client.reconnect();
+    }
   }, [client]);
 
   return {
     session,
-    isConnected: client.isConnected,
+    isConnected: client?.isConnected ?? false,
     reconnect,
   };
 }

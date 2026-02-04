@@ -7,7 +7,7 @@
 
 import React, { useState } from "react";
 import { useSynced } from "../hooks/useSynced";
-import type { SessionI } from "../../shared/synced-types";
+import type { SessionI } from "../../shared/types";
 
 export function SyncedDebug({ userId }: { userId: string }) {
   const { session, isConnected, reconnect } = useSynced<SessionI>(userId);
@@ -54,7 +54,9 @@ export function SyncedDebug({ userId }: { userId: string }) {
       <div className="p-3 overflow-y-auto max-h-[400px]">
         {!session ? (
           <div className="text-zinc-400">
-            {isConnected ? "Connected, waiting for snapshot..." : "Connecting..."}
+            {isConnected
+              ? "Connected, waiting for snapshot..."
+              : "Connecting..."}
           </div>
         ) : (
           <div className="space-y-4">
@@ -69,7 +71,10 @@ export function SyncedDebug({ userId }: { userId: string }) {
                 label="segments"
                 value={`${session.transcript?.segments?.length || 0} items`}
               />
-              <Row label="currentDate" value={session.transcript?.currentDate} />
+              <Row
+                label="currentDate"
+                value={session.transcript?.currentDate}
+              />
               <Row
                 label="daySegmentCount"
                 value={session.transcript?.daySegmentCount}
@@ -84,9 +89,7 @@ export function SyncedDebug({ userId }: { userId: string }) {
               />
               <Row
                 label="activeMeeting"
-                value={
-                  session.meeting?.activeMeeting?.title || "(none)"
-                }
+                value={session.meeting?.activeMeeting?.title || "(none)"}
               />
               <Row
                 label="recentMeetings"
@@ -135,7 +138,10 @@ export function SyncedDebug({ userId }: { userId: string }) {
 
             {/* Settings */}
             <Section title="Settings">
-              <Row label="autonomyLevel" value={session.settings?.autonomyLevel} />
+              <Row
+                label="autonomyLevel"
+                value={session.settings?.autonomyLevel}
+              />
               <Row
                 label="showLiveTranscript"
                 value={session.settings?.showLiveTranscript ? "Yes" : "No"}
