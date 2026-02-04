@@ -1,5 +1,6 @@
 import { TranscriptionData } from "@mentra/sdk";
 import { Transcript as TranscriptModel } from "../schema/transcript.schema";
+import type { User } from "./User";
 
 export interface TranscriptSegment {
   speakerId: string;
@@ -14,10 +15,18 @@ export class Transcript {
   private segments: TranscriptSegment[] = [];
   private userEmail: string;
   private directionizationId: string;
+  private user: User | null = null;
 
   constructor(userEmail: string, directionizationId: string) {
     this.userEmail = userEmail;
     this.directionizationId = directionizationId;
+  }
+
+  /**
+   * Set parent User instance (called from User constructor)
+   */
+  setUser(user: User): void {
+    this.user = user;
   }
 
   // Converts incoming transcription data into a segment and adds it to the transcript if finalized
@@ -33,6 +42,15 @@ export class Transcript {
 
     if (data.isFinal) {
       this.segments.push(segment);
+
+      // Check batch cutoff before saving
+      if (this.user) {
+        try {
+          await this.user.checkAndHandleBatchCutoff();
+        } catch (error) {
+          console.error("Failed to check batch cutoff:", error);
+        }
+      }
 
       // Save to MongoDB when finalized
       try {
