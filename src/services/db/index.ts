@@ -567,7 +567,9 @@ export async function getNotesByDate(
 ): Promise<INote[]> {
   // Get meetings for the date, then get their notes
   const meetings = await Meeting.find({ userId, date });
-  const noteIds = meetings.map((m) => m.noteId).filter(Boolean);
+  const noteIds = meetings
+    .map((m) => m.noteId)
+    .filter((id): id is string => id !== undefined && id !== null);
 
   if (noteIds.length === 0) return [];
 
