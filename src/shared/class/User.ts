@@ -75,6 +75,12 @@ export class User {
 
         await this.transcript.addSegment(data);
         sendTranscription(this.userId, data);
+
+        if (data.isFinal) {
+          await this.timezone.isAfterEndOfDay();
+          console.log(`[User] ${this.userId} timezone: ${this.timezone.getLocalTime()}`);
+        }
+        
       }
     );
   }
@@ -118,9 +124,10 @@ export class User {
         }
       } else {
         const initialCutoff = initializeCutoff(timezone);
-        await initializeUserState(this.userId, initialCutoff);
+        const formattedCutoff = this.timezone.formatDateInTimezone(initialCutoff);
+        await initializeUserState(this.userId, formattedCutoff);
         this.batchCutoff = initialCutoff;
-        console.log(`[User] Initialized batch cutoff for ${this.userId}: ${this.batchCutoff.toISOString()}`);
+        console.log(`[User] Initialized batch cutoff for ${this.userId}: ${formattedCutoff}`);
       }
     } catch (error) {
       console.error(`[User] Error initializing batch state for ${this.userId}:`, error);
@@ -162,10 +169,11 @@ export class User {
       );
 
       const nextCutoff = getNextDayCutoff(this.batchCutoff!, timezone);
-      await updateBatchCutoff(this.userId, nextCutoff);
+      const formattedNextCutoff = this.timezone.formatDateInTimezone(nextCutoff);
+      await updateBatchCutoff(this.userId, formattedNextCutoff);
       this.batchCutoff = nextCutoff;
 
-      console.log(`[User] Updated batch cutoff to: ${nextCutoff.toISOString()}`);
+      console.log(`[User] Updated batch cutoff to: ${formattedNextCutoff}`);
     } catch (error) {
       console.error(`[User] Error handling batch cutoff for ${this.userId}:`, error);
     }
@@ -181,12 +189,13 @@ export class User {
       if (!timezone || !this.batchCutoff) return;
 
       const newCutoff = initializeCutoff(timezone);
-      await updateBatchCutoff(this.userId, newCutoff);
+      const formattedNewCutoff = this.timezone.formatDateInTimezone(newCutoff);
+      await updateBatchCutoff(this.userId, formattedNewCutoff);
       this.batchCutoff = newCutoff;
 
       console.log(
         `[User] Recalculated batch cutoff after timezone change:`,
-        `New cutoff: ${newCutoff.toISOString()}`
+        `New cutoff: ${formattedNewCutoff}`
       );
     } catch (error) {
       console.error(`[User] Error handling timezone change for ${this.userId}:`, error);

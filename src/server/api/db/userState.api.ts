@@ -11,7 +11,7 @@ import { UserState } from "../../../shared/schema/userState.schema";
  */
 interface IUserState {
   userEmail: string;
-  endOfDateBatchTranscriptions: Date;
+  endOfDateBatchTranscriptions: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -38,12 +38,12 @@ export async function getUserState(userEmail: string): Promise<IUserState | null
  * Checks if user already exists to prevent duplicates (handles race conditions)
  *
  * @param userEmail - User's email identifier
- * @param initialCutoff - Initial batch cutoff timestamp (usually today's 23:59)
+ * @param initialCutoff - Initial batch cutoff as formatted string (user's local timezone)
  * @returns Created or existing UserState document
  */
 export async function initializeUserState(
   userEmail: string,
-  initialCutoff: Date
+  initialCutoff: string
 ): Promise<IUserState> {
   try {
     // Check if user already exists (handles concurrent initialization)
@@ -63,7 +63,7 @@ export async function initializeUserState(
 
     const saved = await userState.save();
     console.log(
-      `[userState.api] Created UserState for ${userEmail}. Cutoff: ${initialCutoff.toISOString()}`
+      `[userState.api] Created UserState for ${userEmail}. Cutoff: ${initialCutoff}`
     );
 
     return saved;
@@ -78,12 +78,12 @@ export async function initializeUserState(
  * Called when timezone changes or when cutoff is crossed
  *
  * @param userEmail - User's email identifier
- * @param newCutoff - New batch cutoff timestamp
+ * @param newCutoff - New batch cutoff as formatted string (user's local timezone)
  * @returns void (updates in place)
  */
 export async function updateBatchCutoff(
   userEmail: string,
-  newCutoff: Date
+  newCutoff: string
 ): Promise<void> {
   try {
     const result = await UserState.updateOne(
@@ -102,7 +102,7 @@ export async function updateBatchCutoff(
     }
 
     console.log(
-      `[userState.api] Updated UserState for ${userEmail}. New cutoff: ${newCutoff.toISOString()}`
+      `[userState.api] Updated UserState for ${userEmail}. New cutoff: ${newCutoff}`
     );
   } catch (error) {
     console.error(`[userState.api] Error updating UserState for ${userEmail}:`, error);

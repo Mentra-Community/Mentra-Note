@@ -9,9 +9,9 @@ const userStateSchema = new Schema({
   },
 
   endOfDateBatchTranscriptions: {
-    type: Date,
+    type: String,
     required: true,
-    description: "Date and time when transcriptions are batched and sent to R2 Cloudflare",
+    description: "Date and time when transcriptions are batched and sent to R2 Cloudflare (user's local timezone)",
   },
 
   createdAt: {

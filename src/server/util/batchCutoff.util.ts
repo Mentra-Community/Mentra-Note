@@ -43,9 +43,29 @@ export function getEndOfDayInTimezone(
   const month = parseInt(parts.find((p) => p.type === "month")?.value || "1") - 1; // Month is 0-indexed
   const day = parseInt(parts.find((p) => p.type === "day")?.value || "1");
 
-  // Create a UTC date representing 23:59:59.999 in the user's timezone
-  // Date.UTC creates a UTC timestamp, but we want it to represent local 23:59:59.999
-  return new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
+  // Create two dates at midnight of the user's day to calculate timezone offset
+  const midnightLocal = new Date(year, month, day, 0, 0, 0, 0);
+  const midnightFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const midnightParts = midnightFormatter.formatToParts(midnightLocal);
+  const midnightYear = parseInt(midnightParts.find((p) => p.type === "year")?.value || "2024");
+  const midnightMonth = parseInt(midnightParts.find((p) => p.type === "month")?.value || "1") - 1;
+  const midnightDay = parseInt(midnightParts.find((p) => p.type === "day")?.value || "1");
+
+  // Calculate offset and create end-of-day UTC timestamp
+  const offset = midnightLocal.getTime() - new Date(midnightYear, midnightMonth, midnightDay).getTime();
+  const endOfDayLocal = new Date(year, month, day, 23, 59, 59, 999).getTime();
+
+  return new Date(endOfDayLocal - offset);
 }
 
 /**

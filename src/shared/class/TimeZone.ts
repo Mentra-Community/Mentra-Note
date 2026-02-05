@@ -3,9 +3,11 @@ import { AppSession } from "@mentra/sdk";
 export class TimeZone {
   private timezone: string | undefined;
   private userId: string;
+  private session: AppSession;
 
   constructor(session: AppSession) {
     this.userId = session.userId;
+    this.session = session;
     this.timezone = undefined;
     this.initializeTimezone(session);
   }
@@ -170,6 +172,56 @@ export class TimeZone {
     );
   }
 
+
+  /**
+   * Check if local time has passed the end of day batch transcriptions cutoff
+   * @returns true if current local time is after the batch cutoff time, false otherwise
+   */
+  async isAfterEndOfDay(): Promise<boolean> {
+    const { getUserState } = await import("../../server/api/db/userState.api");
+    const userState = await getUserState(this.userId);
+    if (!userState) return false;
+
+    const localTimeFormatted = this.getLocalTime();
+    const cutoffTimeFormatted = String(userState.endOfDateBatchTranscriptions);
+    const isAfter = localTimeFormatted > cutoffTimeFormatted;
+
+    console.log(`[TimeZone] Local time ${localTimeFormatted} is after endOfDateBatchTranscriptions ${cutoffTimeFormatted}: ${isAfter}`);
+    return isAfter;
+  }
+
+  /**
+   * Get current local time formatted in user's timezone
+   * @returns Formatted local time string (e.g., "02/04/2026, 05:07:14 PM")
+   */
+  public getLocalTime(): string {
+    return this.formatDateInTimezone(new Date());
+  }
+
+  /**
+   * Format any date in user's timezone
+   * @param date - Date to format
+   * @returns Formatted date string (e.g., "02/04/2026, 05:07:14 PM")
+   */
+  public formatDateInTimezone(date: Date): string {
+    if (!this.timezone) {
+      return date.toString();
+    }
+
+    const formatter = new Intl.DateTimeFormat(undefined, {
+      timeZone: this.timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+
+    return formatter.format(date);
+  }
+
   /**
    * Clean up timezone listener
    * Call the returned function from setupTimezoneListener to stop listening
@@ -177,4 +229,8 @@ export class TimeZone {
   public dispose(): void {
     this.timezone = undefined;
   }
+
+
+
+  
 }
