@@ -167,7 +167,18 @@ These areas we reviewed the figma-design and deliberately kept our implementatio
 
 **Why ours is better:** Production-ready architecture with real data flow. The synced lib provides automatic state synchronization between backend managers and frontend hooks (`useSynced`).
 
-### 4. Desktop + Mobile Responsive Design
+### 4. File/Component Organization
+
+**Figma:** Flat structure - all components in `components/`, all views in `views/`.
+
+**Ours:** Colocated structure:
+- Pages live in `pages/{pageName}/`
+- Page-specific components live in `pages/{pageName}/components/`
+- Shared components live in `components/shared/`
+
+**Why ours is better:** Code lives close to where it's used. Easy to find related files. Shared components are explicitly marked as shared.
+
+### 5. Desktop + Mobile Responsive Design
 
 **Figma:** Mobile-only design in a fixed 480px frame.
 
