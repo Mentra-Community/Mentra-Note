@@ -106,18 +106,18 @@ Toggle between list view and calendar month view. Calendar shows:
 ## Acceptance
 
 ### Visual Polish
-- [ ] Transcribing indicator uses animated SVG bars + shimmer text
-- [ ] Notes grid uses masonry layout
-- [ ] Note cards have polished badge styling  
-- [ ] QuickActionsDrawer uses vaul with backdrop blur
-- [ ] Bottom nav Zap button is properly integrated (not floating awkwardly)
-- [ ] Animations feel smooth and native
+- [x] Transcribing indicator uses animated SVG bars + shimmer text
+- [x] Notes grid uses masonry layout
+- [x] Note cards have polished badge styling  
+- [x] QuickActionsDrawer uses vaul with backdrop blur
+- [x] Bottom nav Zap button is properly integrated (not floating awkwardly)
+- [x] Animations feel smooth and native
 
 ### Missing Features
-- [ ] Filter & sort dropdown works (All files / Archived / Trash / Favorites)
-- [ ] Calendar view toggles from list view
-- [ ] Global AI chat accessible via sparkles icon
-- [ ] Global AI chat can search across all days
+- [x] Filter & sort dropdown works (All files / Archived / Trash / Favorites)
+- [x] Calendar view toggles from list view
+- [x] Global AI chat accessible via sparkles icon
+- [ ] Global AI chat can search across all days (backend pending)
 
 ---
 
