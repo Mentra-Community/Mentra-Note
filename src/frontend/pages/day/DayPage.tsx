@@ -156,7 +156,7 @@ export function DayPage() {
   // Loading state
   if (!session || isLoadingHistory) {
     return (
-      <div className="flex h-full bg-white dark:bg-black items-center justify-center">
+      <div className="flex h-full bg-white dark:bg-[#1e1f22] items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-zinc-400">
           <Loader2 size={32} className="animate-spin" />
           <p className="text-sm">
@@ -176,9 +176,9 @@ export function DayPage() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-black">
+    <div className="h-full flex flex-col bg-white dark:bg-[#1e1f22]">
       {/* Header */}
-      <div className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="shrink-0 border-b border-zinc-200 dark:border-[#3f4147]">
         {/* Top row with back button and actions */}
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <button
@@ -233,7 +233,7 @@ export function DayPage() {
 
         {/* Recording indicator */}
         {isToday && isRecording && (
-          <div className="px-4 py-2 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800">
+          <div className="px-4 py-2 bg-zinc-100 dark:bg-[#313338] border-t border-zinc-100 dark:border-[#3f4147]">
             <TranscribingIndicator size="sm" />
           </div>
         )}

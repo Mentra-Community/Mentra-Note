@@ -74,9 +74,9 @@ export function CalendarView({ folders, onSelectDate }: CalendarViewProps) {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-white dark:bg-black">
+    <div className="h-full overflow-y-auto bg-white dark:bg-[#1e1f22]">
       {/* Month Header */}
-      <div className="sticky top-0 bg-white dark:bg-black z-10 px-6 py-4 border-b border-zinc-100 dark:border-zinc-800">
+      <div className="sticky top-0 bg-white dark:bg-[#1e1f22] z-10 px-6 py-4 border-b border-zinc-100 dark:border-[#3f4147]">
         <div className="flex items-center justify-center gap-4">
           <button
             onClick={handlePrevMonth}
@@ -173,7 +173,7 @@ export function CalendarView({ folders, onSelectDate }: CalendarViewProps) {
                 {isDayToday && hasContent && (
                   <div className="flex items-center gap-0.5 mt-0.5">
                     {noteCount > 0 && (
-                      <span className="w-1 h-1 rounded-full bg-white/60 dark:bg-zinc-900/60" />
+                      <span className="w-1 h-1 rounded-full bg-white/60 dark:bg-[#313338]/60" />
                     )}
                     {hasTranscript && (
                       <span className="w-1 h-1 rounded-full bg-red-300 dark:bg-red-400" />

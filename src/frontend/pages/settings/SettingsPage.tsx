@@ -50,7 +50,7 @@ function SettingsRow({
       onClick={disabled ? undefined : onClick}
       disabled={disabled || type === "none"}
       className={clsx(
-        "w-full flex items-center justify-between py-4 border-b border-zinc-100 dark:border-zinc-800 transition-colors",
+        "w-full flex items-center justify-between py-4 border-b border-zinc-100 dark:border-[#3f4147] transition-colors",
         disabled && "opacity-50",
         (type === "link" || type === "toggle") &&
           !disabled &&
@@ -85,7 +85,7 @@ function SettingsRow({
           >
             <div
               className={clsx(
-                "w-5 h-5 rounded-full bg-white dark:bg-black shadow-sm transition-transform",
+                "w-5 h-5 rounded-full bg-white dark:bg-[#1e1f22] shadow-sm transition-transform",
                 active && "translate-x-5",
               )}
             />
@@ -193,7 +193,7 @@ export function SettingsPage() {
   // Loading state
   if (!session) {
     return (
-      <div className="flex h-full bg-white dark:bg-black items-center justify-center">
+      <div className="flex h-full bg-white dark:bg-[#1e1f22] items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-zinc-400">
           <Loader2 size={32} className="animate-spin" />
           <p className="text-sm">Loading...</p>
@@ -203,9 +203,9 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-black">
+    <div className="h-full flex flex-col bg-white dark:bg-[#1e1f22]">
       {/* Header */}
-      <div className="shrink-0 border-b border-zinc-200 dark:border-zinc-800 px-4 py-3">
+      <div className="shrink-0 border-b border-zinc-200 dark:border-[#3f4147] px-4 py-3">
         <div className="flex items-center">
           <button
             onClick={handleBack}
@@ -277,8 +277,8 @@ export function SettingsPage() {
                   className={clsx(
                     "w-full flex items-center justify-between p-4 rounded-xl border transition-all text-left",
                     glassesDisplayMode === option.value
-                      ? "bg-zinc-50 dark:bg-zinc-900 border-zinc-900 dark:border-white"
-                      : "bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700",
+                      ? "bg-zinc-50 dark:bg-[#313338] border-zinc-900 dark:border-white"
+                      : "bg-white dark:bg-[#2b2d31] border-zinc-200 dark:border-[#3f4147] hover:border-zinc-300 dark:hover:border-zinc-700",
                     !isConnected && "opacity-50 cursor-not-allowed",
                   )}
                 >

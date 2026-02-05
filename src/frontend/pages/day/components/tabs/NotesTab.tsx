@@ -51,7 +51,7 @@ export function NotesTab({ notes, dateString }: NotesTabProps) {
     return (
       <div className="h-full overflow-y-auto">
         <div className="flex flex-col items-center justify-center h-64 text-center px-6 mt-12">
-          <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4 text-zinc-300 dark:text-zinc-600">
+          <div className="w-16 h-16 bg-zinc-100 dark:bg-[#3f4147] rounded-full flex items-center justify-center mb-4 text-zinc-300 dark:text-zinc-600">
             <FileText size={24} />
           </div>
           <h3 className="text-zinc-900 dark:text-white font-medium mb-1">

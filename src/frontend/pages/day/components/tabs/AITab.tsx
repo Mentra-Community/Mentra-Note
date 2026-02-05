@@ -101,7 +101,7 @@ export function AITab({ date }: AITabProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-black relative">
+    <div className="flex flex-col h-full bg-white dark:bg-[#1e1f22] relative">
       {/* Chat Area */}
       <div
         ref={scrollRef}
@@ -110,7 +110,7 @@ export function AITab({ date }: AITabProps) {
         {/* Welcome message if no messages */}
         {messages.length === 0 && (
           <div className="flex gap-3 items-start">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border bg-white dark:bg-black border-zinc-200 dark:border-zinc-800">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border bg-white dark:bg-[#1e1f22] border-zinc-200 dark:border-[#3f4147]">
               <Sparkles
                 size={14}
                 className="text-zinc-600 dark:text-zinc-400"
@@ -141,7 +141,7 @@ export function AITab({ date }: AITabProps) {
                 className={clsx(
                   "w-8 h-8 rounded-full flex items-center justify-center shrink-0 border",
                   isAssistant
-                    ? "bg-white dark:bg-black border-zinc-200 dark:border-zinc-800"
+                    ? "bg-white dark:bg-[#1e1f22] border-zinc-200 dark:border-[#3f4147]"
                     : "bg-zinc-900 dark:bg-zinc-100 border-transparent",
                 )}
               >
@@ -167,7 +167,7 @@ export function AITab({ date }: AITabProps) {
                     "px-4 py-3 text-sm leading-relaxed",
                     isAssistant
                       ? "text-zinc-700 dark:text-zinc-300"
-                      : "bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-2xl rounded-tr-sm whitespace-pre-wrap",
+                      : "bg-zinc-100 dark:bg-[#313338] text-zinc-900 dark:text-zinc-100 rounded-2xl rounded-tr-sm whitespace-pre-wrap",
                   )}
                 >
                   {isAssistant ? (
@@ -213,7 +213,7 @@ export function AITab({ date }: AITabProps) {
                           <em className="italic">{children}</em>
                         ),
                         code: ({ children }) => (
-                          <code className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs font-mono">
+                          <code className="px-1.5 py-0.5 bg-zinc-100 dark:bg-[#3f4147] rounded text-xs font-mono">
                             {children}
                           </code>
                         ),
@@ -241,7 +241,7 @@ export function AITab({ date }: AITabProps) {
         {/* Typing indicator */}
         {isTyping && (
           <div className="flex gap-3 items-start">
-            <div className="w-8 h-8 rounded-full bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-full bg-white dark:bg-[#1e1f22] border border-zinc-200 dark:border-[#3f4147] flex items-center justify-center shrink-0">
               <Sparkles size={14} className="text-zinc-400" />
             </div>
             <div className="flex items-center gap-2 h-8 px-2">
@@ -259,7 +259,7 @@ export function AITab({ date }: AITabProps) {
                 key={suggestion}
                 onClick={() => handleSend(suggestion)}
                 disabled={!isConnected}
-                className="w-full text-left text-sm py-3 px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full text-left text-sm py-3 px-4 rounded-xl border border-zinc-200 dark:border-[#3f4147] text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {suggestion}
               </button>
@@ -282,7 +282,7 @@ export function AITab({ date }: AITabProps) {
             </button>
           )}
 
-          <div className="relative flex-1 flex items-center bg-zinc-100 dark:bg-zinc-900 rounded-full border border-zinc-200 dark:border-zinc-800">
+          <div className="relative flex-1 flex items-center bg-zinc-100 dark:bg-[#313338] rounded-full border border-zinc-200 dark:border-[#3f4147]">
             <input
               type="text"
               value={input}
@@ -301,7 +301,7 @@ export function AITab({ date }: AITabProps) {
                 "absolute right-1.5 p-2 rounded-full transition-all duration-200",
                 input.trim() && isConnected && !isTyping
                   ? "bg-zinc-900 dark:bg-white text-white dark:text-black"
-                  : "bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600",
+                  : "bg-zinc-200 dark:bg-[#3f4147] text-zinc-400 dark:text-zinc-600",
               )}
             >
               {isTyping ? (

@@ -102,7 +102,7 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
         "flex items-center justify-between p-3 rounded-lg border",
         isConnected
           ? "bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800"
-          : "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800",
+          : "bg-zinc-50 dark:bg-[#313338] border-zinc-200 dark:border-[#3f4147]",
         className
       )}
     >
@@ -113,7 +113,7 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
             "w-8 h-8 rounded-full flex items-center justify-center",
             isConnected
               ? "bg-emerald-100 dark:bg-emerald-900/30"
-              : "bg-zinc-100 dark:bg-zinc-800"
+              : "bg-zinc-100 dark:bg-[#3f4147]"
           )}
         >
           {isConnected ? (
@@ -156,7 +156,7 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
               "w-8 h-8 rounded-full flex items-center justify-center",
               hasGlassesConnected
                 ? "bg-emerald-100 dark:bg-emerald-900/30"
-                : "bg-zinc-100 dark:bg-zinc-800"
+                : "bg-zinc-100 dark:bg-[#3f4147]"
             )}
           >
             <Glasses
@@ -227,7 +227,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 }) => (
   <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
     {icon && (
-      <div className="p-4 bg-zinc-100 dark:bg-zinc-900 rounded-2xl text-zinc-400">
+      <div className="p-4 bg-zinc-100 dark:bg-[#313338] rounded-2xl text-zinc-400">
         {icon}
       </div>
     )}

@@ -61,12 +61,12 @@ export function FolderList({ folders, onSelectFolder }: FolderListProps) {
   const monthKeys = Object.keys(groupedFolders);
 
   return (
-    <div className="h-full overflow-y-auto bg-zinc-50 dark:bg-zinc-950">
+    <div className="h-full overflow-y-auto bg-zinc-50 dark:bg-[#2b2d31]">
       {monthKeys.map((monthKey, monthIndex) => (
         <div key={monthKey}>
           {/* Month divider - skip for current month if it's the first */}
           {monthIndex > 0 && (
-            <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="px-4 py-3 border-b border-zinc-200 dark:border-[#3f4147]">
               <span className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
                 {monthKey}
               </span>
@@ -77,7 +77,7 @@ export function FolderList({ folders, onSelectFolder }: FolderListProps) {
             <button
               key={folder.id}
               onClick={() => onSelectFolder(folder)}
-              className="w-full text-left p-4 border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-white dark:hover:bg-zinc-900/50 transition-colors"
+              className="w-full text-left p-4 border-b border-zinc-100 dark:border-[#3f4147]/50 hover:bg-white dark:hover:bg-zinc-900/50 transition-colors"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -100,7 +100,7 @@ export function FolderList({ folders, onSelectFolder }: FolderListProps) {
 
                   {/* Note count badge */}
                   {folder.noteCount > 0 && !folder.isTranscribing && (
-                    <span className="px-2 py-0.5 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-full">
+                    <span className="px-2 py-0.5 text-xs font-medium bg-zinc-100 dark:bg-[#3f4147] text-zinc-600 dark:text-zinc-400 rounded-full">
                       {folder.noteCount}{" "}
                       {folder.noteCount === 1 ? "Note" : "Notes"}
                     </span>

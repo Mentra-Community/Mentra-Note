@@ -57,9 +57,9 @@ export function Shell({ children }: ShellProps) {
   };
 
   return (
-    <div className="flex h-screen w-full bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100">
+    <div className="flex h-screen w-full bg-zinc-50 dark:bg-[#1e1f22] text-zinc-900 dark:text-zinc-100">
       {/* Desktop Sidebar */}
-      <div className="w-16 shrink-0 border-r border-zinc-200 dark:border-zinc-800 hidden md:flex flex-col items-center py-4 gap-2 bg-white dark:bg-zinc-950">
+      <div className="w-16 shrink-0 border-r border-zinc-200 dark:border-[#3f4147] hidden md:flex flex-col items-center py-4 gap-2 bg-white dark:bg-[#2b2d31]">
         {/* App Icon */}
         <div className="w-10 h-10 rounded-xl bg-zinc-900 dark:bg-white flex items-center justify-center mb-4">
           <span className="text-white dark:text-zinc-900 text-lg">📝</span>
@@ -73,7 +73,7 @@ export function Shell({ children }: ShellProps) {
             className={clsx(
               "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
               isActive(item)
-                ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
+                ? "bg-zinc-100 dark:bg-[#3f4147] text-zinc-900 dark:text-white"
                 : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900",
             )}
             title={item.label}
@@ -98,14 +98,14 @@ export function Shell({ children }: ShellProps) {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-black relative">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-[#1e1f22] relative">
         <main className="flex-1 overflow-hidden relative pb-16 md:pb-0">
           {children}
         </main>
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 md:hidden bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 safe-area-bottom z-30">
+      <div className="fixed bottom-0 left-0 right-0 md:hidden bg-white dark:bg-[#2b2d31] border-t border-zinc-200 dark:border-[#3f4147] safe-area-bottom z-30">
         <div className="flex items-center justify-between h-[72px] px-12 pb-2">
           {/* Home */}
           <button
@@ -113,7 +113,7 @@ export function Shell({ children }: ShellProps) {
             className={clsx(
               "w-12 h-12 rounded-full flex items-center justify-center transition-colors",
               isActive(navItems[0])
-                ? "text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800"
+                ? "text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-[#3f4147]"
                 : "text-zinc-400 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400",
             )}
           >
@@ -144,7 +144,7 @@ export function Shell({ children }: ShellProps) {
             className={clsx(
               "w-12 h-12 rounded-full flex items-center justify-center transition-colors",
               isActive(navItems[1])
-                ? "text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800"
+                ? "text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-[#3f4147]"
                 : "text-zinc-400 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400",
             )}
           >

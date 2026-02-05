@@ -13,7 +13,7 @@ export function AudioTab() {
   return (
     <div className="h-full flex items-center justify-center">
       <div className="text-center py-12 px-4">
-        <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center mx-auto mb-4">
+        <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-[#313338] flex items-center justify-center mx-auto mb-4">
           <Headphones size={28} className="text-zinc-400 dark:text-zinc-500" />
         </div>
         <h3 className="font-medium text-zinc-600 dark:text-zinc-400 mb-1">

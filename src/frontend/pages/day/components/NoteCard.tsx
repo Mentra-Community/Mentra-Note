@@ -115,7 +115,7 @@ export function NoteCard({ note, onClick }: NoteCardProps) {
   return (
     <div
       onClick={onClick}
-      className="w-full bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm rounded-2xl p-4 cursor-pointer transition-all duration-200 flex flex-col gap-2"
+      className="w-full bg-white dark:bg-[#313338] border border-zinc-100 dark:border-[#3f4147] hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm rounded-2xl p-4 cursor-pointer transition-all duration-200 flex flex-col gap-2"
     >
       {/* Title */}
       <h3 className="font-semibold text-sm leading-snug text-zinc-900 dark:text-white line-clamp-2">
@@ -135,14 +135,14 @@ export function NoteCard({ note, onClick }: NoteCardProps) {
       </div>
 
       {/* Metadata Footer */}
-      <div className="mt-auto pt-2 flex flex-wrap gap-1.5 items-center border-t border-zinc-100 dark:border-zinc-800">
+      <div className="mt-auto pt-2 flex flex-wrap gap-1.5 items-center border-t border-zinc-100 dark:border-[#3f4147]">
         {/* Badge */}
         {isAIGenerated ? (
           <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
             AI Generated
           </span>
         ) : (
-          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600 dark:bg-[#3f4147] dark:text-zinc-400">
             Manual
           </span>
         )}

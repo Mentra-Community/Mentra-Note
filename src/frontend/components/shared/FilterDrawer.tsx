@@ -63,7 +63,7 @@ function FilterOption({
       className={clsx(
         "w-full flex items-center justify-between p-4 rounded-xl transition-colors",
         isActive
-          ? "bg-zinc-100 dark:bg-zinc-800"
+          ? "bg-zinc-100 dark:bg-[#3f4147]"
           : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
       )}
     >
@@ -118,7 +118,7 @@ export function FilterDrawer({
     <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-        <Drawer.Content className="bg-white dark:bg-zinc-900 flex flex-col rounded-t-2xl mt-24 fixed bottom-0 left-0 right-0 z-50 max-w-lg mx-auto outline-none border-t border-zinc-100 dark:border-zinc-800">
+        <Drawer.Content className="bg-white dark:bg-[#313338] flex flex-col rounded-t-2xl mt-24 fixed bottom-0 left-0 right-0 z-50 max-w-lg mx-auto outline-none border-t border-zinc-100 dark:border-[#3f4147]">
           {/* Handle */}
           <div className="mx-auto w-12 h-1.5 shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-700 mt-4 mb-2" />
 

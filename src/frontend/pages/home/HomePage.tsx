@@ -145,7 +145,7 @@ export function HomePage() {
   // Loading state - no session yet
   if (!session) {
     return (
-      <div className="flex h-full bg-zinc-50 dark:bg-black overflow-hidden items-center justify-center">
+      <div className="flex h-full bg-zinc-50 dark:bg-[#1e1f22] overflow-hidden items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-zinc-400">
           <Loader2 size={32} className="animate-spin" />
           <p className="text-sm">Connecting...</p>
@@ -157,9 +157,9 @@ export function HomePage() {
   // Empty state
   if (folders.length === 0) {
     return (
-      <div className="flex h-full flex-col bg-zinc-50 dark:bg-black">
+      <div className="flex h-full flex-col bg-zinc-50 dark:bg-[#1e1f22]">
         {/* Header */}
-        <div className="px-6 pt-4 pb-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+        <div className="px-6 pt-4 pb-4 border-b border-zinc-200 dark:border-[#3f4147] bg-white dark:bg-[#2b2d31]">
           <div className="flex items-center justify-between">
             <button
               onClick={() => setIsFilterOpen(true)}
@@ -210,7 +210,7 @@ export function HomePage() {
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 gap-4 p-8">
-          <div className="p-4 bg-zinc-100 dark:bg-zinc-900 rounded-2xl">
+          <div className="p-4 bg-zinc-100 dark:bg-[#313338] rounded-2xl">
             <FileText size={32} />
           </div>
           <div className="text-center max-w-sm">
@@ -246,9 +246,9 @@ export function HomePage() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-zinc-50 dark:bg-black overflow-hidden">
+    <div className="flex h-full flex-col bg-zinc-50 dark:bg-[#1e1f22] overflow-hidden">
       {/* Header */}
-      <div className="px-6 pt-4 pb-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
+      <div className="px-6 pt-4 pb-4 border-b border-zinc-200 dark:border-[#3f4147] bg-white dark:bg-[#2b2d31] shrink-0">
         <div className="flex items-center justify-between">
           <button
             onClick={() => setIsFilterOpen(true)}

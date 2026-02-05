@@ -315,7 +315,7 @@ export function TranscriptTab({
           return (
             <div
               key={hourKey}
-              className="border-b border-zinc-100 dark:border-zinc-800 last:border-0"
+              className="border-b border-zinc-100 dark:border-[#3f4147] last:border-0"
             >
               {/* Hour Header - Sticky when expanded */}
               <button
@@ -325,10 +325,10 @@ export function TranscriptTab({
                 onClick={() => toggleHour(hourKey)}
                 className={clsx(
                   "w-full flex items-start gap-3 px-4 py-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors text-left",
-                  isExpanded && "bg-white dark:bg-zinc-950 sticky top-0 z-10",
+                  isExpanded && "bg-white dark:bg-[#2b2d31] sticky top-0 z-10",
                   isExpanded &&
                     isStuck &&
-                    "shadow-sm border-b border-zinc-200 dark:border-zinc-700",
+                    "shadow-sm border-b border-zinc-200 dark:border-[#4f545c]",
                 )}
               >
                 {/* Hour Label */}
@@ -423,7 +423,7 @@ export function TranscriptTab({
 
               {/* Expanded Segments */}
               {isExpanded && (
-                <div className="px-4 pb-4 space-y-3 bg-zinc-50/50 dark:bg-zinc-900/20">
+                <div className="px-4 pb-4 space-y-3 bg-zinc-50/50 dark:bg-[#313338]/20">
                   {hourSegments.map((segment, idx) => (
                     <div key={segment.id || idx} className="flex gap-3">
                       {/* Timestamp */}
