@@ -8,12 +8,12 @@
 
 import { Hono } from "hono";
 import { createAuthMiddleware } from "@mentra/sdk";
-import { sessions } from "../synced/session";
+import { sessions } from "../session";
 import {
   getOrCreateDailyTranscript,
   Note as NoteModel,
   UserSettings,
-} from "../services/db";
+} from "../models";
 
 // Environment
 const API_KEY = process.env.MENTRAOS_API_KEY || "";

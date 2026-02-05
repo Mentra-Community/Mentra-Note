@@ -107,10 +107,12 @@ export interface ChatManagerI {
   // State
   messages: ChatMessage[];
   isTyping: boolean;
+  loadedDate: string; // Currently loaded date (YYYY-MM-DD)
 
   // RPCs
   sendMessage(content: string): Promise<ChatMessage>;
   clearHistory(): Promise<void>;
+  loadDateChat(date: string): Promise<ChatMessage[]>; // Load chat for specific date
 }
 
 export interface SettingsManagerI {

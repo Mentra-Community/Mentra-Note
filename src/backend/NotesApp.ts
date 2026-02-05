@@ -11,8 +11,8 @@
  */
 
 import { AppServer, AppSession } from "@mentra/sdk";
-import { sessions, NotesSession } from "../synced/session";
-import { connectDB, disconnectDB } from "../services/db";
+import { sessions, NotesSession } from "./session";
+import { connectDB, disconnectDB } from "./services/db";
 
 export interface NotesAppConfig {
   packageName: string;

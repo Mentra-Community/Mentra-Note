@@ -8,12 +8,12 @@
  * - Syncs state in real-time via WebSocket
  */
 
-import { NotesApp } from "./backend/app";
+import { NotesApp } from "./backend/NotesApp";
 import { api } from "./backend/api/router";
 import { createMentraAuthRoutes } from "@mentra/sdk";
 import indexDev from "./frontend/index.html";
 import indexProd from "./frontend/index.prod.html";
-import { sessions } from "./backend/synced/session";
+import { sessions } from "./backend/session";
 
 // Configuration from environment
 const PORT = parseInt(process.env.PORT || "3000", 10);

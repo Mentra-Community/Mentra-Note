@@ -37,6 +37,22 @@ export function AITab({ date }: AITabProps) {
   // Get chat state from session
   const messages = session?.chat?.messages ?? [];
   const isTyping = session?.chat?.isTyping ?? false;
+  const loadedDate = session?.chat?.loadedDate ?? "";
+
+  // Load chat history when date changes
+  useEffect(() => {
+    if (!session?.chat?.loadDateChat || !isConnected) return;
+
+    // Format date to YYYY-MM-DD
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+    // Only load if different from currently loaded date
+    if (dateStr !== loadedDate) {
+      session.chat.loadDateChat(dateStr).catch((err: Error) => {
+        console.error("[AITab] Failed to load chat for date:", err);
+      });
+    }
+  }, [date, loadedDate, session?.chat?.loadDateChat, isConnected]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
