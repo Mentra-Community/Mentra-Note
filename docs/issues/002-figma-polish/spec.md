@@ -69,8 +69,51 @@ Animated expanding FAB with pill options instead of opening drawer.
 - [ ] QuickActionsDrawer uses vaul with backdrop blur
 - [ ] Animations feel smooth and native
 
+## Intentionally Different (Our Implementation is Better)
+
+These areas we reviewed the figma-design and deliberately kept our implementation:
+
+### 1. Note Editor (NotePage.tsx)
+
+**Figma:** Basic `contentEditable` div with static bottom toolbar (Bold/Italic/List buttons always visible).
+
+**Ours:** Full TipTap rich text editor with:
+- Bubble menu that appears on text selection (cleaner, less cluttered)
+- Proper markdown parsing for AI-generated content
+- Auto-save with debounce and "Saved" indicator
+- Placeholder extension for empty state
+- Proper heading levels, lists, formatting
+
+**Why ours is better:** Actually functional editor vs demo. The bubble menu pattern (like Notion) is more modern than a fixed toolbar.
+
+### 2. Transcript Tab (TranscriptTab.tsx)
+
+**Figma:** Simple collapsible hours, no summary system, just raw transcript display.
+
+**Ours:** Smart transcript with:
+- Hour summaries with AI generation (click sparkle icon)
+- Smart banner logic: Interim text → Hour Summary → First segment preview
+- Sticky headers while scrolling expanded sections
+- Auto-scroll for new segments (only when near bottom)
+- Historical date loading from backend
+- Loading states for summary generation
+
+**Why ours is better:** The hour summary feature is a core product differentiator. Figma shows the UI shell but no actual intelligence.
+
+### 3. Data Architecture
+
+**Figma:** All mock data in `mockData.ts`, no real backend connection.
+
+**Ours:** Full synced state with:
+- Real-time transcript from glasses via WebSocket
+- Persistent notes in SQLite
+- Historical transcript loading by date
+- Live "isRecording" state from backend
+
+**Why ours is better:** Production-ready vs prototype.
+
 ## Out of Scope
 
 - Bottom navigation (different navigation paradigm)
-- Global AI chat (feature scope difference)
+- Global AI chat (feature scope difference)  
 - Calendar view (future feature)
