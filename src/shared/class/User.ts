@@ -10,7 +10,6 @@ import {
 } from "../../server/util/batchCutoff.util";
 import {
   getUserState,
-  initializeUserState,
   updateBatchCutoff,
 } from "../../server/api/db/userState.api";
 import { batchTranscriptionsToR2, deleteProcessedTranscriptions, extractDateFromFormatted } from "../../server/manager/r2-batch.manager";
@@ -40,11 +39,6 @@ export class User {
     const userTimezone = this.timezone.getTimezone();
     const formattedTime = this.timezone.formatTimeInTimezone();
     console.log(`[User] 🕐 User ${this.userId} timezone: ${userTimezone || "NOT SET"} | Time: ${formattedTime}`);
-
-    // Initialize batch state asynchronously
-    // this.initializeBatchState().catch(error => {
-    //   console.error(`[User] Failed to initialize batch state for ${this.userId}:`, error);
-    // });
 
     this.timezoneCleanup = this.timezone.setupTimezoneListener(session, () => {
       const newTimezone = this.timezone.getTimezone();
@@ -123,47 +117,6 @@ export class User {
     if (this.transcriptionCleanup) {
       this.transcriptionCleanup();
       this.transcriptionCleanup = null;
-    }
-  }
-
-  /**
-   * Initialize batch cutoff from database or create new
-   * Called asynchronously from constructor
-   */
-  private async initializeBatchState(): Promise<void> {
-    if (this.isInitializingBatchState) return;
-    this.isInitializingBatchState = true;
-
-    try {
-      const timezone = this.timezone.getTimezone();
-      if (!timezone) {
-        console.warn(`[User] Batch state initialization skipped for ${this.userId}: timezone not set`);
-        this.isInitializingBatchState = false;
-        return;
-      }
-
-      const userState = await getUserState(this.userId);
-
-      if (userState) {
-        this.batchCutoff = new Date(userState.endOfDateBatchTranscriptions);
-        console.log(`[User] Loaded batch cutoff for ${this.userId}: ${this.batchCutoff.toISOString()}`);
-
-        // Check if cutoff crossed while offline
-        if (hasCrossedCutoff(this.batchCutoff, timezone)) {
-          console.log(`[User] Batch cutoff crossed while ${this.userId} was offline`);
-          await this.handleBatchCutoffCrossed();
-        }
-      } else {
-        const initialCutoff = initializeCutoff(timezone);
-        const formattedCutoff = this.timezone.formatDateInTimezone(initialCutoff);
-        await initializeUserState(this.userId, formattedCutoff);
-        this.batchCutoff = initialCutoff;
-        console.log(`[User] Initialized batch cutoff for ${this.userId}: ${formattedCutoff}`);
-      }
-    } catch (error) {
-      console.error(`[User] Error initializing batch state for ${this.userId}:`, error);
-    } finally {
-      this.isInitializingBatchState = false;
     }
   }
 
