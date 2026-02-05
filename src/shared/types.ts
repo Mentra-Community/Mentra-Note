@@ -1,0 +1,171 @@
+/**
+ * Notes App Synced Types
+ *
+ * Shared types for frontend and backend.
+ * Import these on the frontend for full type safety with useSynced().
+ */
+
+// =============================================================================
+// Domain Types
+// =============================================================================
+
+export interface TranscriptSegment {
+  id: string;
+  text: string;
+  timestamp: Date;
+  isFinal: boolean;
+  speakerId?: string;
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  summary?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  transcriptRange?: {
+    startTime: Date;
+    endTime: Date;
+  };
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
+
+/**
+ * Rolling summary of what happened during a specific hour
+ * Generated automatically as hours complete
+ */
+export interface HourSummary {
+  id: string;
+  date: string; // YYYY-MM-DD in user's timezone
+  hour: number; // 0-23
+  hourLabel: string; // "9 AM", "2 PM", etc.
+  summary: string; // AI-generated 1-2 sentence summary
+  segmentCount: number; // Number of transcript segments in this hour
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Display modes for glasses
+ */
+export type GlassesDisplayMode =
+  | "off" // Nothing shown on glasses
+  | "live_transcript" // Real-time transcription text
+  | "hour_summary" // Rolling hour description/summary
+  | "key_points"; // Only show when AI detects something important
+
+// =============================================================================
+// Manager Interfaces (State + RPCs)
+// =============================================================================
+
+export interface TranscriptManagerI {
+  // State (auto-syncs)
+  segments: TranscriptSegment[];
+  interimText: string;
+  isRecording: boolean;
+  hourSummaries: HourSummary[];
+  currentHourSummary: string; // Rolling summary for glasses display
+  loadedDate: string; // Currently loaded date (YYYY-MM-DD)
+  availableDates: string[]; // Dates with transcripts (for folder list)
+  isLoadingHistory: boolean; // Loading indicator for historical data
+
+  // RPCs
+  getRecentSegments(count?: number): Promise<TranscriptSegment[]>;
+  getFullText(): Promise<string>;
+  clear(): Promise<void>;
+  generateHourSummary(hour?: number): Promise<HourSummary>;
+  refreshHourSummary(): Promise<string>; // Force immediate summary update
+  loadDateTranscript(date: string): Promise<{
+    segments: TranscriptSegment[];
+    hourSummaries: HourSummary[];
+  }>; // Load historical transcript
+  loadTodayTranscript(): Promise<void>; // Switch back to today
+}
+
+export interface NotesManagerI {
+  // State
+  notes: Note[];
+  generating: boolean;
+
+  // RPCs
+  generateNote(title?: string, startTime?: Date, endTime?: Date): Promise<Note>;
+  createManualNote(title: string, content: string): Promise<Note>;
+  updateNote(noteId: string, updates: Partial<Note>): Promise<Note>;
+  deleteNote(noteId: string): Promise<void>;
+  getNoteById(noteId: string): Promise<Note | null>;
+  getAllNotes(): Promise<Note[]>;
+}
+
+export interface ChatManagerI {
+  // State
+  messages: ChatMessage[];
+  isTyping: boolean;
+  loadedDate: string; // Currently loaded date (YYYY-MM-DD)
+
+  // RPCs
+  sendMessage(content: string): Promise<ChatMessage>;
+  clearHistory(): Promise<void>;
+  loadDateChat(date: string): Promise<ChatMessage[]>; // Load chat for specific date
+}
+
+export interface SettingsManagerI {
+  // State
+  showLiveTranscript: boolean;
+  displayName: string | null;
+  timezone: string | null; // IANA timezone e.g. "America/Los_Angeles"
+  glassesDisplayMode: GlassesDisplayMode;
+
+  // RPCs
+  updateSettings(settings: {
+    showLiveTranscript?: boolean;
+    displayName?: string;
+    timezone?: string;
+    glassesDisplayMode?: GlassesDisplayMode;
+  }): Promise<void>;
+}
+
+// =============================================================================
+// Session Interface
+// =============================================================================
+
+export interface SessionI {
+  userId: string;
+
+  // Session-level state
+  hasGlassesConnected: boolean;
+  hasActiveSession: boolean;
+  isRecording: boolean;
+
+  // Managers
+  transcript: TranscriptManagerI;
+  notes: NotesManagerI;
+  chat: ChatManagerI;
+  settings: SettingsManagerI;
+}
+
+// =============================================================================
+// WebSocket Message Types
+// =============================================================================
+
+export type WSMessageToClient =
+  | { type: "connected" }
+  | { type: "snapshot"; state: Record<string, any> }
+  | { type: "state_change"; manager: string; property: string; value: any }
+  | { type: "rpc_response"; id: string; result?: any; error?: string };
+
+export type WSMessageToServer =
+  | { type: "request_snapshot" }
+  | {
+      type: "rpc_request";
+      id: string;
+      manager: string;
+      method: string;
+      args: any[];
+    };

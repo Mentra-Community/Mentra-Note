@@ -1,0 +1,162 @@
+/**
+ * Notes App - All-day transcription and AI-powered note generation
+ *
+ * Uses file-based routing with Wouter and responsive Shell layout.
+ * Supports both mobile and desktop views.
+ */
+
+import { useState, useEffect, createContext, useContext } from "react";
+import { motion } from "framer-motion";
+import { useMentraAuth } from "@mentra/react";
+import { Toaster } from "sonner";
+import { clsx } from "clsx";
+import { Router } from "./router";
+import { Shell } from "./components/layout/Shell";
+
+// =============================================================================
+// Theme Context
+// =============================================================================
+
+interface ThemeContextValue {
+  theme: "light" | "dark";
+  isDarkMode: boolean;
+  toggleTheme: () => void;
+}
+
+const ThemeContext = createContext<ThemeContextValue>({
+  theme: "light",
+  isDarkMode: false,
+  toggleTheme: () => {},
+});
+
+export function useTheme() {
+  return useContext(ThemeContext);
+}
+
+// =============================================================================
+// App Component
+// =============================================================================
+
+export function App() {
+  const { isLoading, error } = useMentraAuth();
+
+  // Theme state
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    // Check for saved preference or system preference
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("theme");
+      if (saved === "dark" || saved === "light") return saved;
+      if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        return "dark";
+      }
+    }
+    return "light";
+  });
+
+  // Toggle Theme Function
+  const toggleTheme = () => {
+    setTheme((prev) => {
+      const next = prev === "light" ? "dark" : "light";
+      localStorage.setItem("theme", next);
+      return next;
+    });
+  };
+
+  // Apply theme class to document
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      // Toggle dark mode with Cmd+Shift+D
+      if (e.key === "d" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+        e.preventDefault();
+        toggleTheme();
+      }
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, []);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div
+        className={clsx(
+          "min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black",
+          theme,
+        )}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-4"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="w-16 h-16 rounded-2xl bg-zinc-900 dark:bg-white flex items-center justify-center shadow-lg"
+          >
+            <span className="text-white dark:text-zinc-900 font-bold text-2xl">
+              📝
+            </span>
+          </motion.div>
+          <p className="text-zinc-500 dark:text-zinc-400">Loading Notes...</p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div
+        className={clsx(
+          "min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black",
+          theme,
+        )}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center p-8 max-w-md"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-red-500 mx-auto mb-4 flex items-center justify-center">
+            <span className="text-white text-2xl">!</span>
+          </div>
+          <h2 className="text-xl font-semibold text-red-500 mb-2">
+            Authentication Error
+          </h2>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm">{error}</p>
+          <p className="text-zinc-400 dark:text-zinc-500 text-xs mt-2">
+            Open this page from the MentraOS app.
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  const themeValue: ThemeContextValue = {
+    theme,
+    isDarkMode: theme === "dark",
+    toggleTheme,
+  };
+
+  return (
+    <ThemeContext.Provider value={themeValue}>
+      <div
+        className={clsx(
+          "font-sans bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 selection:bg-zinc-200 dark:selection:bg-zinc-800",
+          theme,
+        )}
+      >
+        <Toaster position="top-center" theme={theme} />
+        <Shell>
+          <Router />
+        </Shell>
+      </div>
+    </ThemeContext.Provider>
+  );
+}
