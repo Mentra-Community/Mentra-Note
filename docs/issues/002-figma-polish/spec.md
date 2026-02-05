@@ -104,13 +104,16 @@ These areas we reviewed the figma-design and deliberately kept our implementatio
 
 **Figma:** All mock data in `mockData.ts`, no real backend connection.
 
-**Ours:** Full synced state with:
-- Real-time transcript from glasses via WebSocket
-- Persistent notes in SQLite
-- Historical transcript loading by date
-- Live "isRecording" state from backend
+**Ours:** Full synced state architecture with:
+- Custom `@synced` decorator system for reactive state (see `src/lib/sync`)
+- `SyncedManager` classes with `@rpc` decorated methods callable from frontend
+- Real-time transcript from glasses via MentraOS WebSocket
+- MongoDB persistence for notes, transcripts, hour summaries
+- Historical transcript loading by date via `loadDateTranscript` RPC
+- Live `isRecording` state synced from backend
+- Session management per-user with glasses connect/disconnect handling
 
-**Why ours is better:** Production-ready vs prototype.
+**Why ours is better:** Production-ready architecture with real data flow. The synced lib provides automatic state synchronization between backend managers and frontend hooks (`useSynced`).
 
 ## Out of Scope
 
