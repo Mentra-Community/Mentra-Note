@@ -5,18 +5,14 @@
  * - Chat with AI about transcripts and notes
  * - Suggested prompts for common queries
  * - Real-time typing indicator
+ * - Markdown rendering for AI responses
  */
 
 import { useState, useRef, useEffect } from "react";
 import { useMentraAuth } from "@mentra/react";
 import { clsx } from "clsx";
-import {
-  ArrowUp,
-  Sparkles,
-  User,
-  Trash2,
-  Loader2,
-} from "lucide-react";
+import { ArrowUp, Sparkles, User, Trash2, Loader2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { useSynced } from "../../../../hooks/useSynced";
 import type { SessionI, ChatMessage } from "../../../../../shared/types";
 
@@ -112,12 +108,15 @@ export function AITab({ date }: AITabProps) {
         {messages.length === 0 && (
           <div className="flex gap-3 items-start">
             <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border bg-white dark:bg-black border-zinc-200 dark:border-zinc-800">
-              <Sparkles size={14} className="text-zinc-600 dark:text-zinc-400" />
+              <Sparkles
+                size={14}
+                className="text-zinc-600 dark:text-zinc-400"
+              />
             </div>
             <div className="flex flex-col max-w-[85%] items-start">
               <div className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
-                I can analyze your audio, notes, and transcriptions for this day.
-                What would you like to know?
+                I can analyze your audio, notes, and transcriptions for this
+                day. What would you like to know?
               </div>
             </div>
           </div>
@@ -131,7 +130,7 @@ export function AITab({ date }: AITabProps) {
               key={msg.id}
               className={clsx(
                 "flex gap-3",
-                isAssistant ? "items-start" : "flex-row-reverse"
+                isAssistant ? "items-start" : "flex-row-reverse",
               )}
             >
               {/* Avatar */}
@@ -140,11 +139,14 @@ export function AITab({ date }: AITabProps) {
                   "w-8 h-8 rounded-full flex items-center justify-center shrink-0 border",
                   isAssistant
                     ? "bg-white dark:bg-black border-zinc-200 dark:border-zinc-800"
-                    : "bg-zinc-900 dark:bg-zinc-100 border-transparent"
+                    : "bg-zinc-900 dark:bg-zinc-100 border-transparent",
                 )}
               >
                 {isAssistant ? (
-                  <Sparkles size={14} className="text-zinc-600 dark:text-zinc-400" />
+                  <Sparkles
+                    size={14}
+                    className="text-zinc-600 dark:text-zinc-400"
+                  />
                 ) : (
                   <User size={14} className="text-white dark:text-zinc-900" />
                 )}
@@ -154,18 +156,76 @@ export function AITab({ date }: AITabProps) {
               <div
                 className={clsx(
                   "flex flex-col max-w-[85%]",
-                  isAssistant ? "items-start" : "items-end"
+                  isAssistant ? "items-start" : "items-end",
                 )}
               >
                 <div
                   className={clsx(
-                    "px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap",
+                    "px-4 py-3 text-sm leading-relaxed",
                     isAssistant
                       ? "text-zinc-700 dark:text-zinc-300"
-                      : "bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-2xl rounded-tr-sm"
+                      : "bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-2xl rounded-tr-sm whitespace-pre-wrap",
                   )}
                 >
-                  {msg.content}
+                  {isAssistant ? (
+                    <ReactMarkdown
+                      components={{
+                        h1: ({ children }) => (
+                          <h1 className="text-lg font-bold mt-4 mb-2 first:mt-0">
+                            {children}
+                          </h1>
+                        ),
+                        h2: ({ children }) => (
+                          <h2 className="text-base font-bold mt-3 mb-2 first:mt-0">
+                            {children}
+                          </h2>
+                        ),
+                        h3: ({ children }) => (
+                          <h3 className="text-sm font-semibold mt-3 mb-1 first:mt-0">
+                            {children}
+                          </h3>
+                        ),
+                        p: ({ children }) => (
+                          <p className="mb-2 last:mb-0">{children}</p>
+                        ),
+                        ul: ({ children }) => (
+                          <ul className="list-disc list-outside ml-4 mb-2 space-y-1">
+                            {children}
+                          </ul>
+                        ),
+                        ol: ({ children }) => (
+                          <ol className="list-decimal list-outside ml-4 mb-2 space-y-1">
+                            {children}
+                          </ol>
+                        ),
+                        li: ({ children }) => (
+                          <li className="pl-1">{children}</li>
+                        ),
+                        strong: ({ children }) => (
+                          <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
+                            {children}
+                          </strong>
+                        ),
+                        em: ({ children }) => (
+                          <em className="italic">{children}</em>
+                        ),
+                        code: ({ children }) => (
+                          <code className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs font-mono">
+                            {children}
+                          </code>
+                        ),
+                        blockquote: ({ children }) => (
+                          <blockquote className="border-l-2 border-zinc-300 dark:border-zinc-600 pl-3 my-2 text-zinc-600 dark:text-zinc-400 italic">
+                            {children}
+                          </blockquote>
+                        ),
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  ) : (
+                    msg.content
+                  )}
                 </div>
                 <span className="text-[10px] text-zinc-400 mt-1 px-1">
                   {formatTime(msg.timestamp)}
@@ -226,7 +286,7 @@ export function AITab({ date }: AITabProps) {
               "absolute right-1.5 p-2 rounded-full transition-all duration-200",
               input.trim() && isConnected && !isTyping
                 ? "bg-zinc-900 dark:bg-white text-white dark:text-black"
-                : "bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600"
+                : "bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600",
             )}
           >
             {isTyping ? (
