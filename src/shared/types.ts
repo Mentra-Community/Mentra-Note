@@ -37,6 +37,30 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
+/**
+ * Rolling summary of what happened during a specific hour
+ * Generated automatically as hours complete
+ */
+export interface HourSummary {
+  id: string;
+  date: string; // YYYY-MM-DD in user's timezone
+  hour: number; // 0-23
+  hourLabel: string; // "9 AM", "2 PM", etc.
+  summary: string; // AI-generated 1-2 sentence summary
+  segmentCount: number; // Number of transcript segments in this hour
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Display modes for glasses
+ */
+export type GlassesDisplayMode =
+  | "off" // Nothing shown on glasses
+  | "live_transcript" // Real-time transcription text
+  | "hour_summary" // Rolling hour description/summary
+  | "key_points"; // Only show when AI detects something important
+
 // =============================================================================
 // Manager Interfaces (State + RPCs)
 // =============================================================================
@@ -46,11 +70,23 @@ export interface TranscriptManagerI {
   segments: TranscriptSegment[];
   interimText: string;
   isRecording: boolean;
+  hourSummaries: HourSummary[];
+  currentHourSummary: string; // Rolling summary for glasses display
+  loadedDate: string; // Currently loaded date (YYYY-MM-DD)
+  availableDates: string[]; // Dates with transcripts (for folder list)
+  isLoadingHistory: boolean; // Loading indicator for historical data
 
   // RPCs
   getRecentSegments(count?: number): Promise<TranscriptSegment[]>;
   getFullText(): Promise<string>;
   clear(): Promise<void>;
+  generateHourSummary(hour?: number): Promise<HourSummary>;
+  refreshHourSummary(): Promise<string>; // Force immediate summary update
+  loadDateTranscript(date: string): Promise<{
+    segments: TranscriptSegment[];
+    hourSummaries: HourSummary[];
+  }>; // Load historical transcript
+  loadTodayTranscript(): Promise<void>; // Switch back to today
 }
 
 export interface NotesManagerI {
@@ -81,11 +117,15 @@ export interface SettingsManagerI {
   // State
   showLiveTranscript: boolean;
   displayName: string | null;
+  timezone: string | null; // IANA timezone e.g. "America/Los_Angeles"
+  glassesDisplayMode: GlassesDisplayMode;
 
   // RPCs
   updateSettings(settings: {
     showLiveTranscript?: boolean;
     displayName?: string;
+    timezone?: string;
+    glassesDisplayMode?: GlassesDisplayMode;
   }): Promise<void>;
 }
 

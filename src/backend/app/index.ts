@@ -83,12 +83,6 @@ export class NotesApp extends AppServer {
       notesSession.onTranscription(data.text, data.isFinal, data.speakerId);
     });
 
-    // Subscribe to button events
-    session.events.onButtonPress((data) => {
-      console.log(`[${userId}] 🔘 Button: ${data.buttonId}`);
-      this.handleButtonPress(notesSession, session, data.buttonId);
-    });
-
     // Show initial ready state
     setTimeout(() => {
       if (notesSession.settings.showLiveTranscript) {
@@ -132,55 +126,6 @@ export class NotesApp extends AppServer {
     await disconnectDB();
 
     console.log("[NotesApp] Shutdown complete");
-  }
-
-  /**
-   * Handle button press events from glasses
-   */
-  private handleButtonPress(
-    notesSession: NotesSession,
-    appSession: AppSession,
-    button: string,
-  ): void {
-    switch (button) {
-      case "single_press":
-        // Show current status
-        const segmentCount = notesSession.transcript.segments.length;
-        appSession.dashboard.content.write(
-          `📝 ${segmentCount} segments recorded`,
-        );
-        break;
-
-      case "double_press":
-        // Toggle transcript display
-        const currentSetting = notesSession.settings.showLiveTranscript;
-        notesSession.settings
-          .updateSettings({ showLiveTranscript: !currentSetting })
-          .then(() => {
-            appSession.dashboard.content.write(
-              currentSetting ? "Display: OFF" : "Display: ON",
-            );
-          });
-        break;
-
-      case "long_press":
-        // Generate a note from recent transcript
-        notesSession.notes
-          .generateNote()
-          .then((note) => {
-            appSession.dashboard.content.write(
-              `📝 Note created: ${note.title}`,
-            );
-          })
-          .catch((err: Error) => {
-            console.error("[NotesApp] Error generating note:", err);
-            appSession.dashboard.content.write("❌ Failed to create note");
-          });
-        break;
-
-      default:
-        appSession.dashboard.content.write(`Button: ${button}`);
-    }
   }
 
   /**

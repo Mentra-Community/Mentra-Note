@@ -1,2 +1,149 @@
 @import "tailwindcss";
 @import "./styles/sega.css";
+
+/* TipTap Editor Styles */
+.tiptap {
+  outline: none;
+}
+
+.tiptap p {
+  margin: 0.75em 0;
+}
+
+.tiptap p:first-child {
+  margin-top: 0;
+}
+
+.tiptap p:last-child {
+  margin-bottom: 0;
+}
+
+.tiptap h1 {
+  font-size: 1.5em;
+  font-weight: 700;
+  margin: 1em 0 0.5em;
+}
+
+.tiptap h2 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin: 1em 0 0.5em;
+}
+
+.tiptap h3 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0.75em 0 0.5em;
+}
+
+.tiptap ul,
+.tiptap ol {
+  margin: 0.75em 0;
+  padding-left: 1.5em;
+}
+
+.tiptap ul {
+  list-style-type: disc;
+}
+
+.tiptap ol {
+  list-style-type: decimal;
+}
+
+.tiptap li {
+  margin: 0.25em 0;
+}
+
+.tiptap blockquote {
+  border-left: 3px solid #e4e4e7;
+  margin: 1em 0;
+  padding-left: 1em;
+  color: #71717a;
+}
+
+.dark .tiptap blockquote {
+  border-left-color: #3f3f46;
+  color: #a1a1aa;
+}
+
+.tiptap code {
+  background-color: #f4f4f5;
+  border-radius: 0.25em;
+  padding: 0.15em 0.3em;
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.dark .tiptap code {
+  background-color: #27272a;
+}
+
+.tiptap pre {
+  background-color: #18181b;
+  border-radius: 0.5em;
+  margin: 1em 0;
+  padding: 1em;
+  overflow-x: auto;
+}
+
+.tiptap pre code {
+  background: none;
+  padding: 0;
+  color: #e4e4e7;
+}
+
+.tiptap strong {
+  font-weight: 600;
+}
+
+.tiptap em {
+  font-style: italic;
+}
+
+.tiptap hr {
+  border: none;
+  border-top: 1px solid #e4e4e7;
+  margin: 1.5em 0;
+}
+
+.dark .tiptap hr {
+  border-top-color: #3f3f46;
+}
+
+/* Placeholder styles */
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #a1a1aa;
+  pointer-events: none;
+  height: 0;
+}
+
+.dark .tiptap p.is-editor-empty:first-child::before {
+  color: #52525b;
+}
+
+/* Prose overrides for note content display */
+.prose-zinc {
+  --tw-prose-body: #3f3f46;
+  --tw-prose-headings: #18181b;
+  --tw-prose-bold: #18181b;
+  --tw-prose-links: #18181b;
+}
+
+.dark .prose-invert {
+  --tw-prose-body: #a1a1aa;
+  --tw-prose-headings: #fafafa;
+  --tw-prose-bold: #fafafa;
+  --tw-prose-links: #fafafa;
+}
+
+/* Safe area for bottom navigation */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.h-safe-area-bottom {
+  height: env(safe-area-inset-bottom);
+}

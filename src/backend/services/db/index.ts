@@ -89,6 +89,18 @@ export interface IDailyTranscript extends Document {
   updatedAt: Date;
 }
 
+// Hour Summary
+export interface IHourSummary extends Document {
+  userId: string;
+  date: string; // YYYY-MM-DD
+  hour: number; // 0-23
+  hourLabel: string; // "9 AM", "2 PM", etc.
+  summary: string; // AI-generated summary
+  segmentCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Meeting
 export interface IMeeting extends Document {
   userId: string;
@@ -244,6 +256,23 @@ const DailyTranscriptSchema = new Schema<IDailyTranscript>(
 
 // Compound index for userId + date (unique per user per day)
 DailyTranscriptSchema.index({ userId: 1, date: 1 }, { unique: true });
+
+const HourSummarySchema = new Schema<IHourSummary>(
+  {
+    userId: { type: String, required: true, index: true },
+    date: { type: String, required: true, index: true },
+    hour: { type: Number, required: true },
+    hourLabel: { type: String, required: true },
+    summary: { type: String, required: true },
+    segmentCount: { type: Number, default: 0 },
+  },
+  {
+    timestamps: true,
+  },
+);
+
+// Compound index for userId + date + hour (unique per user per hour)
+HourSummarySchema.index({ userId: 1, date: 1, hour: 1 }, { unique: true });
 
 const MeetingSchema = new Schema<IMeeting>(
   {
@@ -446,6 +475,10 @@ export const DailyTranscript: Model<IDailyTranscript> =
   mongoose.models.DailyTranscript ||
   mongoose.model<IDailyTranscript>("DailyTranscript", DailyTranscriptSchema);
 
+export const HourSummary: Model<IHourSummary> =
+  mongoose.models.HourSummary ||
+  mongoose.model<IHourSummary>("HourSummary", HourSummarySchema);
+
 export const Meeting: Model<IMeeting> =
   mongoose.models.Meeting || mongoose.model<IMeeting>("Meeting", MeetingSchema);
 
@@ -596,4 +629,105 @@ export async function getResearchByMeeting(
   meetingId: string,
 ): Promise<IResearchResult[]> {
   return ResearchResult.find({ userId, meetingId });
+}
+
+/**
+ * Get daily transcript for a specific date (returns null if not found)
+ */
+export async function getDailyTranscript(
+  userId: string,
+  date: string,
+): Promise<IDailyTranscript | null> {
+  return DailyTranscript.findOne({ userId, date });
+}
+
+/**
+ * Get all dates that have transcripts for a user
+ * Returns array of date strings (YYYY-MM-DD) sorted newest first
+ */
+export async function getAvailableDates(
+  userId: string,
+  limit: number = 90,
+): Promise<string[]> {
+  const transcripts = await DailyTranscript.find(
+    { userId, totalSegments: { $gt: 0 } },
+    { date: 1 },
+  )
+    .sort({ date: -1 })
+    .limit(limit);
+
+  return transcripts.map((t) => t.date);
+}
+
+/**
+ * Get transcript dates with segment counts (for folder list)
+ */
+export async function getTranscriptSummaries(
+  userId: string,
+  limit: number = 90,
+): Promise<Array<{ date: string; segmentCount: number }>> {
+  const transcripts = await DailyTranscript.find(
+    { userId, totalSegments: { $gt: 0 } },
+    { date: 1, totalSegments: 1 },
+  )
+    .sort({ date: -1 })
+    .limit(limit);
+
+  return transcripts.map((t) => ({
+    date: t.date,
+    segmentCount: t.totalSegments,
+  }));
+}
+
+/**
+ * Save or update an hour summary
+ */
+export async function saveHourSummary(
+  userId: string,
+  date: string,
+  hour: number,
+  hourLabel: string,
+  summary: string,
+  segmentCount: number,
+): Promise<IHourSummary> {
+  const result = await HourSummary.findOneAndUpdate(
+    { userId, date, hour },
+    {
+      $set: {
+        hourLabel,
+        summary,
+        segmentCount,
+        updatedAt: new Date(),
+      },
+      $setOnInsert: {
+        userId,
+        date,
+        hour,
+        createdAt: new Date(),
+      },
+    },
+    { upsert: true, new: true },
+  );
+  return result;
+}
+
+/**
+ * Get all hour summaries for a specific date
+ */
+export async function getHourSummaries(
+  userId: string,
+  date: string,
+): Promise<IHourSummary[]> {
+  return HourSummary.find({ userId, date }).sort({ hour: 1 });
+}
+
+/**
+ * Get hour summary for a specific hour
+ */
+export async function getHourSummary(
+  userId: string,
+  date: string,
+  hour: number,
+): Promise<IHourSummary | null> {
+  return HourSummary.findOne({ userId, date, hour });
 }

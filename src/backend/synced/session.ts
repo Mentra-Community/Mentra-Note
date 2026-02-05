@@ -64,10 +64,14 @@ export class NotesSession extends SyncedSession {
 
     this._appSession = null;
 
+    // Reset recording state since glasses are disconnected
+    this.transcript.stopRecording();
+
     console.log(
       `[NotesSession] Glasses disconnected for ${this.userId} - headless mode`,
     );
     this.broadcastStateChange("session", "hasGlassesConnected", false);
+    this.broadcastStateChange("session", "isRecording", false);
   }
 
   // ===========================================================================
@@ -81,9 +85,64 @@ export class NotesSession extends SyncedSession {
     // Add to transcript
     this.transcript.addSegment(text, isFinal, speakerId);
 
-    // Show on glasses display if connected and enabled
-    if (this._appSession && this.settings.showLiveTranscript) {
-      this._appSession.dashboard.content.write(text);
+    // Show on glasses display based on display mode
+    if (this._appSession) {
+      this.updateGlassesDisplay(text);
+    }
+  }
+
+  // ===========================================================================
+  // Lifecycle
+  // ===========================================================================
+
+  /**
+   * Clean up resources when session is disposed
+   */
+  async dispose(): Promise<void> {
+    // Clean up transcript manager timers
+    this.transcript.destroy();
+
+    // Call parent dispose (persists data, clears clients)
+    await super.dispose();
+  }
+
+  /**
+   * Update glasses display based on current display mode
+   */
+  private updateGlassesDisplay(transcriptText: string): void {
+    if (!this._appSession) return;
+
+    const mode = this.settings.glassesDisplayMode;
+
+    switch (mode) {
+      case "off":
+        // Don't show anything on glasses
+        break;
+
+      case "live_transcript":
+        // Show real-time transcription (original behavior)
+        if (this.settings.showLiveTranscript) {
+          this._appSession.dashboard.content.write(transcriptText);
+        }
+        break;
+
+      case "hour_summary":
+        // Show the rolling hour summary instead of raw text
+        // Only update on final segments to avoid flickering
+        const summary = this.transcript.getCurrentHourSummary();
+        this._appSession.dashboard.content.write(`📝 ${summary}`);
+        break;
+
+      case "key_points":
+        // Future: Show only AI-detected important moments
+        // For now, treat as "off" until we implement key point detection
+        break;
+
+      default:
+        // Fallback to live transcript
+        if (this.settings.showLiveTranscript) {
+          this._appSession.dashboard.content.write(transcriptText);
+        }
     }
   }
 

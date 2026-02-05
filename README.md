@@ -77,22 +77,35 @@ src/
 ├── shared/                     # Types shared between frontend & backend
 │   └── types.ts                # SessionI, Note, ChatMessage, etc.
 ├── frontend/                   # All React/webview code
-│   ├── App.tsx                 # Main React app
+│   ├── App.tsx                 # Main React app with theme context
+│   ├── router.tsx              # Wouter route definitions
 │   ├── frontend.tsx            # React entry point
 │   ├── index.html              # HTML template
-│   ├── views/
-│   │   ├── NotesView.tsx       # Main notes view with folder list
-│   │   └── SettingsView.tsx    # Settings page
-│   ├── components/
-│   │   ├── tabs/
-│   │   │   ├── TranscriptionsTab.tsx
-│   │   │   ├── NotesTab.tsx
-│   │   │   └── AIChatTab.tsx
-│   │   ├── notes/
-│   │   │   ├── FolderList.tsx
-│   │   │   └── FolderDetail.tsx
-│   │   ├── shared/
-│   │   └── ui/                 # Radix UI components
+│   ├── pages/                  # Page-based routing (each page has its own components)
+│   │   ├── home/
+│   │   │   ├── HomePage.tsx    # Main folder list view
+│   │   │   └── components/
+│   │   │       └── FolderList.tsx
+│   │   ├── day/
+│   │   │   ├── DayPage.tsx     # Day detail with tabs
+│   │   │   └── components/
+│   │   │       ├── NoteCard.tsx
+│   │   │       └── tabs/
+│   │   │           ├── NotesTab.tsx
+│   │   │           ├── TranscriptTab.tsx
+│   │   │           ├── AudioTab.tsx
+│   │   │           └── AITab.tsx
+│   │   ├── note/
+│   │   │   ├── NotePage.tsx    # Individual note view/editor
+│   │   │   └── components/
+│   │   └── settings/
+│   │       ├── SettingsPage.tsx
+│   │       └── components/
+│   ├── components/             # Shared components across pages
+│   │   ├── layout/
+│   │   │   └── Shell.tsx       # Responsive layout (sidebar + bottom nav)
+│   │   ├── shared/             # Reusable components
+│   │   └── ui/                 # Radix UI primitives
 │   ├── hooks/
 │   │   ├── useSynced.ts        # React hook for synced state
 │   │   └── useSSE.ts
@@ -481,21 +494,48 @@ class MyManager extends SyncedManager {
 
 ## What's Left to Do
 
+### In Progress
+
+#### Transcript Tab - Sticky Hour Headers
+- [ ] When an hour section is expanded and user scrolls, the hour header (e.g., "8 PM") should stick to the top
+- [ ] Allows user to always collapse the expanded section without scrolling back up
+- [ ] Add subtle shadow when header is stuck to indicate floating state
+
+#### Recording State Bug Fix
+- [ ] "Capturing now" indicator stays on even after MentraOS session disconnects
+- [ ] Need to handle `onSessionEnd` / `onDisconnect` to reset `isRecording = false`
+- [ ] Properly sync glasses connection state with UI
+
+#### Rich Text Note Editor (TipTap)
+- [ ] Replace plain textarea with TipTap WYSIWYG editor
+- [ ] Support markdown formatting (headings, bold, italic, lists)
+- [ ] Slash commands for quick formatting
+- [ ] Proper rendering of AI-generated note structure (Overview, Key Points, etc.)
+
+#### Quick Actions FAB Redesign
+- [ ] Plus button on Notes tab → Opens "Quick Actions" drawer
+- [ ] Lightning button in bottom nav → Also opens "Quick Actions" drawer
+- [ ] Quick Actions drawer contains:
+  - "Add Note" - Creates blank note, navigates to editor
+  - "Generate note from current hour" - Opens time range picker
+- [ ] Time range picker defaults to current hour (e.g., 8:00 PM - 9:00 PM)
+- [ ] Background blur effect when drawer is open
+- [ ] Smooth slide-up animation for drawers
+
 ### Cleanup
 - [ ] Rename `src/frontend/styles/sega.css` to `notes.css`
 - [ ] Remove unused landing page assets in `src/frontend/assets/landing/`
 - [ ] Remove unused onboarding assets in `src/frontend/assets/onboarding/`
 - [ ] Clean up any remaining SEGA references in comments
 
-### Features
+### Features (Backlog)
 - [ ] Historical transcript loading (currently only loads today)
 - [ ] Search across transcripts and notes
 - [ ] Export notes as markdown/PDF
 - [ ] Note tagging/categorization
 - [ ] Transcript speaker labeling UI
 
-### UI Polish
-- [ ] FolderList/FolderDetail still have some meeting-related code paths
+### UI Polish (Backlog)
 - [ ] Mobile responsive improvements
 - [ ] Empty states for new users
 - [ ] Onboarding flow (removed, might want minimal version)

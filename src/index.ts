@@ -96,6 +96,9 @@ Bun.serve({
     // Serve webview at root and /app
     "/": isDevelopment ? indexDev : indexProd,
     "/app": isDevelopment ? indexDev : indexProd,
+    "/day/*": isDevelopment ? indexDev : indexProd,
+    "/note/*": isDevelopment ? indexDev : indexProd,
+    "/settings": isDevelopment ? indexDev : indexProd,
   },
   fetch(request, server) {
     const url = new URL(request.url);
