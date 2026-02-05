@@ -182,9 +182,15 @@ export class TimeZone {
     const userState = await getUserState(this.userId);
     if (!userState) return false;
 
+    if (!this.timezone) return false;
+
+    // Use proper date comparison instead of string comparison
+    const now = new Date();
+    const cutoffDate = new Date(userState.endOfDateBatchTranscriptions);
+    const isAfter = now > cutoffDate;
+
     const localTimeFormatted = this.getLocalTime();
-    const cutoffTimeFormatted = String(userState.endOfDateBatchTranscriptions);
-    const isAfter = localTimeFormatted > cutoffTimeFormatted;
+    const cutoffTimeFormatted = this.formatDateInTimezone(cutoffDate);
 
     console.log(`[TimeZone] Local time ${localTimeFormatted} is after endOfDateBatchTranscriptions ${cutoffTimeFormatted}: ${isAfter}`);
     return isAfter;
