@@ -1,15 +1,16 @@
 # Notes App
 
-A MentraOS app that transcribes your day and helps you generate AI-powered notes. This serves as the canonical example of how to build MentraOS apps using the `@ballah/synced` state synchronization library.
+A MentraOS app that transcribes your day and helps you generate AI-powered notes. Built with the `@ballah/synced` state synchronization library for real-time sync between glasses and webview.
 
 ## Features
 
 - **All-day Transcription**: Continuously captures speech via MentraOS glasses
 - **AI Note Generation**: Summarize transcripts into structured notes using Gemini or Anthropic
+- **Hour Summaries**: AI-generated rolling summaries for each hour of your day
 - **Manual Notes**: Create and edit notes directly
-- **AI Chat**: Ask questions about your transcripts and notes
+- **AI Chat**: Ask questions about your transcripts and notes (per-day history)
 - **Real-time Sync**: All state syncs instantly across devices via WebSocket
-- **Persistent Storage**: MongoDB persistence for transcripts and notes
+- **Persistent Storage**: MongoDB persistence for transcripts, notes, and chat history
 
 ## Quick Start
 
@@ -22,15 +23,13 @@ A MentraOS app that transcribes your day and helps you generate AI-powered notes
 
 ### Environment Setup
 
-The app uses a symlink to SEGA's `.env` file:
+Copy the example env file:
 
 ```bash
-# Already set up - points to ../sega/.env
-ls -la .env
-# .env -> ../sega/.env
+cp env.example .env
 ```
 
-Or create your own `.env`:
+Then edit `.env`:
 
 ```bash
 # Required
@@ -81,11 +80,10 @@ src/
 │   ├── router.tsx              # Wouter route definitions
 │   ├── frontend.tsx            # React entry point
 │   ├── index.html              # HTML template
-│   ├── pages/                  # Page-based routing (each page has its own components)
+│   ├── pages/                  # Page-based routing
 │   │   ├── home/
 │   │   │   ├── HomePage.tsx    # Main folder list view
 │   │   │   └── components/
-│   │   │       └── FolderList.tsx
 │   │   ├── day/
 │   │   │   ├── DayPage.tsx     # Day detail with tabs
 │   │   │   └── components/
@@ -96,11 +94,9 @@ src/
 │   │   │           ├── AudioTab.tsx
 │   │   │           └── AITab.tsx
 │   │   ├── note/
-│   │   │   ├── NotePage.tsx    # Individual note view/editor
-│   │   │   └── components/
+│   │   │   └── NotePage.tsx    # Individual note view/editor
 │   │   └── settings/
-│   │       ├── SettingsPage.tsx
-│   │       └── components/
+│   │       └── SettingsPage.tsx
 │   ├── components/             # Shared components across pages
 │   │   ├── layout/
 │   │   │   └── Shell.tsx       # Responsive layout (sidebar + bottom nav)
@@ -109,26 +105,36 @@ src/
 │   ├── hooks/
 │   │   ├── useSynced.ts        # React hook for synced state
 │   │   └── useSSE.ts
-│   ├── lib/
-│   │   ├── mockData.ts         # UI data types
-│   │   └── utils.ts
-│   └── assets/
+│   └── lib/
+│       ├── mockData.ts         # UI data types
+│       └── utils.ts
 └── backend/                    # All server-side code
-    ├── app/
-    │   └── index.ts            # NotesApp class (extends AppServer)
+    ├── NotesApp.ts             # Main app class (extends AppServer)
     ├── api/
     │   └── router.ts           # REST API endpoints
+    ├── models/                 # Mongoose models
+    │   ├── index.ts            # Re-exports all models
+    │   ├── daily-transcript.model.ts
+    │   ├── hour-summary.model.ts
+    │   ├── note.model.ts
+    │   ├── user-settings.model.ts
+    │   └── chat-history.model.ts
     ├── services/
-    │   ├── db/
-    │   │   └── index.ts        # MongoDB models and helpers
+    │   ├── db.ts               # MongoDB connection management
     │   └── llm/
     │       ├── index.ts        # Provider factory
     │       ├── gemini.ts
     │       ├── anthropic.ts
     │       └── types.ts
-    └── synced/
-        ├── managers.ts         # TranscriptManager, NotesManager, ChatManager, SettingsManager
-        └── session.ts          # NotesSession class
+    └── session/
+        ├── index.ts            # Re-exports session + managers
+        ├── NotesSession.ts     # Session class
+        └── managers/
+            ├── index.ts
+            ├── TranscriptManager.ts
+            ├── NotesManager.ts
+            ├── ChatManager.ts
+            └── SettingsManager.ts
 ```
 
 ---
@@ -139,58 +145,43 @@ This app demonstrates the `@ballah/synced` library for building real-time Mentra
 
 ### Core Concepts
 
-```typescript
-// Decorators
-@synced    // Mark property to sync to all connected frontends
-@rpc       // Mark method as callable from frontend
-@manager   // Auto-wire manager to session
-
-// Types
-Synced<T>  // Wrapper for arrays/objects with .mutate(), .set()
-
-// Base Classes
-SyncedManager   // Extend for each domain (transcript, notes, etc.)
-SyncedSession   // Extend for user session, contains managers
-SessionManager  // Factory that creates one session per user
-```
+1. **Managers** - Classes that own synced state and business logic
+2. **Sessions** - Container for all managers for a user
+3. **@synced decorator** - Marks properties that sync to frontend
+4. **@rpc decorator** - Marks methods callable from frontend
 
 ### Example Manager
 
 ```typescript
-// src/backend/synced/managers.ts
-export class NotesSyncedManager extends SyncedManager {
-  @synced notes = synced<Note[]>([]);
+export class NotesManager extends SyncedManager {
+  @synced notes = synced<NoteData[]>([]);
   @synced generating = false;
 
   @rpc
-  async generateNote(title?: string): Promise<Note> {
+  async generateNote(title?: string): Promise<NoteData> {
     this.generating = true;
-    
-    // Get transcript from session
-    const transcriptManager = (this._session as any)?.transcript;
-    const segments = transcriptManager?.segments ?? [];
-    const transcriptText = segments.map(s => s.text).join(" ");
-    
-    // Call AI to generate summary
-    const provider = this.getProvider();
-    const response = await provider.chat([...], { tier: "fast" });
-    
-    const note: Note = {
-      id: `note_${Date.now()}`,
-      title: title || "Generated Note",
-      content: transcriptText,
-      summary: response.content,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    
-    this.notes.mutate(n => n.unshift(note));
-    this.generating = false;
-    
-    // Persist to DB
-    await this.persistNote(note);
-    
-    return note;
+    try {
+      const transcriptManager = (this._session as any)?.transcript;
+      const segments = transcriptManager?.segments ?? [];
+      const transcriptText = segments.map((s) => s.text).join(" ");
+
+      const provider = this.getProvider();
+      const response = await provider.chat([...], { tier: "fast" });
+
+      const note: NoteData = {
+        id: `note_${Date.now()}`,
+        title: title || "Generated Note",
+        content: transcriptText,
+        summary: response.content,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      this.notes.mutate((n) => n.unshift(note));
+      return note;
+    } finally {
+      this.generating = false;
+    }
   }
 }
 ```
@@ -198,18 +189,16 @@ export class NotesSyncedManager extends SyncedManager {
 ### Example Session
 
 ```typescript
-// src/backend/synced/session.ts
 export class NotesSession extends SyncedSession {
-  @manager transcript = new TranscriptSyncedManager();
-  @manager notes = new NotesSyncedManager();
-  @manager chat = new ChatSyncedManager();
-  @manager settings = new SettingsSyncedManager();
+  @manager transcript = new TranscriptManager();
+  @manager notes = new NotesManager();
+  @manager chat = new ChatManager();
+  @manager settings = new SettingsManager();
 
   private _appSession: AppSession | null = null;
 
   setAppSession(appSession: AppSession): void {
     this._appSession = appSession;
-    this.broadcastStateChange("session", "hasGlassesConnected", true);
   }
 
   onTranscription(text: string, isFinal: boolean, speakerId?: string): void {
@@ -225,28 +214,27 @@ export const sessions = new SessionManager<NotesSession>(
 ### Frontend Usage
 
 ```typescript
-// src/frontend/hooks/useSynced.ts usage
-import { useSynced } from "./hooks/useSynced";
-import type { SessionI } from "../shared/types";
-
 function MyComponent() {
   const { userId } = useMentraAuth();
   const { session, isConnected } = useSynced<SessionI>(userId || "");
 
-  // Reactive state - updates automatically
+  // State auto-syncs from backend
   const notes = session?.notes?.notes ?? [];
   const generating = session?.notes?.generating ?? false;
 
-  // RPC calls - returns Promise
+  // RPCs are just async function calls
   const handleGenerate = async () => {
     await session?.notes?.generateNote("My Note");
   };
 
   return (
     <div>
-      {generating && <Spinner />}
-      {notes.map(note => <NoteCard key={note.id} note={note} />)}
-      <button onClick={handleGenerate}>Generate Note</button>
+      {notes.map((note) => (
+        <div key={note.id}>{note.title}</div>
+      ))}
+      <button onClick={handleGenerate} disabled={generating}>
+        {generating ? "Generating..." : "Generate Note"}
+      </button>
     </div>
   );
 }
@@ -256,64 +244,54 @@ function MyComponent() {
 
 ## Managers
 
-| Manager | State | RPCs |
-|---------|-------|------|
-| `TranscriptSyncedManager` | `segments`, `interimText`, `isRecording` | `getRecentSegments()`, `getFullText()`, `clear()` |
-| `NotesSyncedManager` | `notes`, `generating` | `generateNote()`, `createManualNote()`, `updateNote()`, `deleteNote()` |
-| `ChatSyncedManager` | `messages`, `isTyping` | `sendMessage()`, `clearHistory()` |
-| `SettingsSyncedManager` | `showLiveTranscript`, `displayName` | `updateSettings()` |
+### TranscriptManager
 
-### TranscriptSyncedManager
+Handles speech transcription from glasses.
 
-Handles real-time transcription from glasses:
+- **State**: `segments`, `interimText`, `isRecording`, `hourSummaries`, `loadedDate`, `availableDates`
+- **RPCs**: `getRecentSegments()`, `getFullText()`, `clear()`, `generateHourSummary()`, `loadDateTranscript()`, `loadTodayTranscript()`
 
-- `addSegment(text, isFinal, speakerId)` - Called by session on transcription events
-- `hydrate()` - Loads today's transcript from MongoDB on session start
-- `persist()` - Batched save to DB every 30 seconds
-- Interim text shown in UI but not persisted
+### NotesManager
 
-### NotesSyncedManager
+Manages user notes (manual and AI-generated).
 
-Handles notes with AI generation:
+- **State**: `notes`, `generating`
+- **RPCs**: `generateNote()`, `createManualNote()`, `updateNote()`, `deleteNote()`, `getNoteById()`, `getAllNotes()`
 
-- `generateNote()` - Creates AI summary from transcript using Gemini/Anthropic
-- `createManualNote()` - Creates user-written note
-- `hydrate()` - Loads notes from MongoDB on session start
-- All CRUD operations persist to DB
+### ChatManager
 
-### ChatSyncedManager
+AI chat with per-day history.
 
-AI chat with transcript/notes context:
+- **State**: `messages`, `isTyping`, `loadedDate`
+- **RPCs**: `sendMessage()`, `clearHistory()`, `loadDateChat()`
 
-- `sendMessage()` - Sends user message, gets AI response
-- Builds context from recent transcript (last 50 segments) + recent notes (last 5)
-- Uses same AI provider as note generation
+### SettingsManager
+
+User preferences.
+
+- **State**: `showLiveTranscript`, `displayName`, `timezone`, `glassesDisplayMode`
+- **RPCs**: `updateSettings()`, `getSettings()`
 
 ---
 
 ## Data Flow
 
 ```
-Glasses → MentraOS SDK → NotesApp.onSession()
-                              ↓
-                        NotesSession.onTranscription()
-                              ↓
-                        TranscriptManager.addSegment()
-                              ↓
-                        @synced segments updates
-                              ↓
-                        WebSocket broadcast to all clients
-                              ↓
-                        useSynced hook receives state_change
-                              ↓
-                        React re-renders
+┌─────────────┐     WebSocket      ┌──────────────┐
+│   Webview   │ ◄────────────────► │   Backend    │
+│   (React)   │                    │  (Managers)  │
+└─────────────┘                    └──────────────┘
+       │                                  │
+       │ useSynced()                      │ @synced
+       │                                  │
+       ▼                                  ▼
+  Read synced state              State changes sync
+  Call RPCs                      to all connected clients
 ```
 
 ### WebSocket Protocol
 
-Connect to `/ws/sync?userId=<userId>` for real-time state sync.
-
-**Messages from server:**
+**Server → Client:**
 ```typescript
 type WSMessageToClient =
   | { type: "connected" }
@@ -322,7 +300,7 @@ type WSMessageToClient =
   | { type: "rpc_response"; id: string; result?: any; error?: string };
 ```
 
-**Messages to server:**
+**Client → Server:**
 ```typescript
 type WSMessageToServer =
   | { type: "request_snapshot" }
@@ -333,67 +311,110 @@ type WSMessageToServer =
 
 ## REST API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/health` | GET | Health check |
-| `/api/auth/status` | GET | Auth status |
-| `/api/transcripts/today` | GET | Get today's transcript |
-| `/api/transcripts/:date` | GET | Get transcript by date |
-| `/api/transcripts/today` | DELETE | Clear today's transcript |
-| `/api/notes` | GET | List all notes |
-| `/api/notes` | POST | Create manual note |
-| `/api/notes/generate` | POST | Generate AI note |
-| `/api/notes/:id` | GET | Get specific note |
-| `/api/notes/:id` | PUT | Update note |
-| `/api/notes/:id` | DELETE | Delete note |
-| `/api/settings` | GET | Get user settings |
-| `/api/settings` | PUT | Update user settings |
-| `/api/session/status` | GET | Get session status |
+Available at `/api/*`:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health` | Health check |
+| GET | `/api/auth/status` | Check auth status |
+| GET | `/api/transcripts/today` | Get today's transcript |
+| GET | `/api/transcripts/:date` | Get transcript for date |
+| DELETE | `/api/transcripts/today` | Clear today's transcript |
+| GET | `/api/notes` | Get all notes |
+| GET | `/api/notes/:id` | Get a note |
+| POST | `/api/notes` | Create manual note |
+| POST | `/api/notes/generate` | Generate note from transcript |
+| PUT | `/api/notes/:id` | Update a note |
+| DELETE | `/api/notes/:id` | Delete a note |
+| GET | `/api/settings` | Get user settings |
+| PUT | `/api/settings` | Update user settings |
+| GET | `/api/session/status` | Get session status |
 
 ---
 
 ## Database Models
 
-Located in `src/backend/services/db/index.ts`:
+Located in `src/backend/models/`:
 
-### DailyTranscript
+### DailyTranscript (`daily-transcript.model.ts`)
 ```typescript
-{
+interface DailyTranscriptI {
   userId: string;
   date: string;  // YYYY-MM-DD
-  segments: [{
-    text: string;
-    timestamp: Date;
-    isFinal: boolean;
-    speakerId?: string;
-    index: number;
-  }];
+  segments: TranscriptSegmentI[];
   totalSegments: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface TranscriptSegmentI {
+  text: string;
+  timestamp: Date;
+  isFinal: boolean;
+  speakerId?: string;
+  index: number;
 }
 ```
 
-### Note
+### HourSummary (`hour-summary.model.ts`)
 ```typescript
-{
+interface HourSummaryI {
+  userId: string;
+  date: string;
+  hour: number;       // 0-23
+  hourLabel: string;  // "9 AM", "2 PM"
+  summary: string;
+  segmentCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### Note (`note.model.ts`)
+```typescript
+interface NoteI {
   userId: string;
   title: string;
   summary: string;
   content: string;
-  keyPoints: string[];
-  decisions: string[];
-  detailLevel: "brief" | "standard" | "detailed";
   isStarred: boolean;
-  meetingId?: string;  // Legacy, not used in Notes app
+  transcriptRange?: {
+    startTime: Date;
+    endTime: Date;
+  };
+  createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
-### UserSettings
+### ChatHistory (`chat-history.model.ts`)
 ```typescript
-{
+interface ChatHistoryI {
   userId: string;
+  date: string;  // YYYY-MM-DD
+  messages: ChatMessageI[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ChatMessageI {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
+```
+
+### UserSettings (`user-settings.model.ts`)
+```typescript
+interface UserSettingsI {
+  userId: string;
+  showTranscriptOnGlasses: boolean;
   showLiveTranscript: boolean;
+  glassesDisplayMode: "off" | "live_transcript" | "hour_summary" | "key_points";
   displayName?: string;
-  // Legacy fields from SEGA still in schema
+  createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
@@ -403,9 +424,12 @@ Located in `src/backend/services/db/index.ts`:
 
 ### Adding a New Manager
 
-1. Create the manager class in `src/backend/synced/managers.ts`:
+1. Create the manager in `src/backend/session/managers/`:
 
 ```typescript
+// src/backend/session/managers/MyManager.ts
+import { SyncedManager, synced, rpc } from "../../../lib/sync";
+
 export class MyManager extends SyncedManager {
   @synced myState = synced<MyType[]>([]);
 
@@ -413,22 +437,26 @@ export class MyManager extends SyncedManager {
   async myMethod(): Promise<void> {
     // Implementation
   }
-  
+
   async hydrate(): Promise<void> {
-    // Load from DB
+    // Load initial state from DB
   }
 }
 ```
 
-2. Add to session in `src/backend/synced/session.ts`:
+2. Export from `src/backend/session/managers/index.ts`:
 
 ```typescript
-export class NotesSession extends SyncedSession {
-  @manager myManager = new MyManager();
-}
+export { MyManager } from "./MyManager";
 ```
 
-3. Add types in `src/shared/types.ts`:
+3. Add to session in `src/backend/session/NotesSession.ts`:
+
+```typescript
+@manager myManager = new MyManager();
+```
+
+4. Add types in `src/shared/types.ts`:
 
 ```typescript
 export interface MyManagerI {
@@ -437,8 +465,8 @@ export interface MyManagerI {
 }
 
 export interface SessionI {
+  // ... existing managers
   myManager: MyManagerI;
-  // ...
 }
 ```
 
@@ -446,31 +474,33 @@ export interface SessionI {
 
 | File | Purpose |
 |------|---------|
-| `src/lib/sync.ts` | Core synced library - decorators, base classes |
-| `src/backend/synced/managers.ts` | All manager implementations |
-| `src/backend/synced/session.ts` | Session class with @manager decorators |
-| `src/shared/types.ts` | TypeScript interfaces for frontend |
-| `src/frontend/hooks/useSynced.ts` | React hook for consuming synced state |
-| `src/backend/services/db/index.ts` | MongoDB models and helpers |
-| `src/backend/services/llm/index.ts` | AI provider factory |
+| `src/index.ts` | App entry point, WebSocket setup |
+| `src/backend/NotesApp.ts` | Main app class |
+| `src/backend/session/NotesSession.ts` | User session with all managers |
+| `src/backend/session/managers/` | Business logic managers |
+| `src/backend/models/` | Mongoose schemas |
+| `src/frontend/hooks/useSynced.ts` | React hook for synced state |
+| `src/shared/types.ts` | Shared type definitions |
 
 ### Persistence Pattern
 
+Managers should batch writes to avoid excessive DB calls:
+
 ```typescript
-class MyManager extends SyncedManager {
+export class MyManager extends SyncedManager {
   private pendingItems: Item[] = [];
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   async hydrate(): Promise<void> {
-    const data = await loadFromDB(this._session.userId);
-    this.items.set(data);
+    const data = await loadFromDB(this._session?.userId);
+    this.myState.set(data);
   }
 
   async persist(): Promise<void> {
     if (this.pendingItems.length === 0) return;
     const toSave = [...this.pendingItems];
     this.pendingItems = [];
-    await saveToDB(this._session.userId, toSave);
+    await saveToDB(toSave);
   }
 
   private scheduleSave(): void {
@@ -478,17 +508,17 @@ class MyManager extends SyncedManager {
     this.saveTimer = setTimeout(async () => {
       this.saveTimer = null;
       await this.persist();
-    }, 30000);  // Batch every 30 seconds
+    }, 30000); // 30 second debounce
   }
 }
 ```
 
 ### Common Gotchas
 
-1. **Proxy must be used** - `initializeManager()` returns a proxy, must assign it back
-2. **Session-level state** - Properties like `hasGlassesConnected` are broadcast with `manager: "session"` but stored at top level
-3. **Timezone issues** - Use local date formatting, not `toISOString().split("T")[0]`
-4. **React DevTools** - Filter out `$$typeof`, `_owner`, etc. in proxy getter
+1. **Mutating arrays**: Use `this.myArray.mutate(arr => arr.push(item))` not `this.myArray.push()`
+2. **Date serialization**: Dates come as strings over WebSocket, parse them on frontend
+3. **Session access**: Use `this._session?.userId` to get user ID in managers
+4. **RPC errors**: Wrap in try/catch, errors are sent back to client
 
 ---
 
@@ -496,79 +526,24 @@ class MyManager extends SyncedManager {
 
 ### In Progress
 
-#### Transcript Tab - Sticky Hour Headers
-- [ ] When an hour section is expanded and user scrolls, the hour header (e.g., "8 PM") should stick to the top
-- [ ] Allows user to always collapse the expanded section without scrolling back up
-- [ ] Add subtle shadow when header is stuck to indicate floating state
+- Transcript Tab sticky hour headers
+- Rich text note editor (TipTap)
+- Quick Actions FAB redesign
 
-#### Recording State Bug Fix
-- [ ] "Capturing now" indicator stays on even after MentraOS session disconnects
-- [ ] Need to handle `onSessionEnd` / `onDisconnect` to reset `isRecording = false`
-- [ ] Properly sync glasses connection state with UI
+### Backlog
 
-#### Rich Text Note Editor (TipTap)
-- [ ] Replace plain textarea with TipTap WYSIWYG editor
-- [ ] Support markdown formatting (headings, bold, italic, lists)
-- [ ] Slash commands for quick formatting
-- [ ] Proper rendering of AI-generated note structure (Overview, Key Points, etc.)
-
-#### Quick Actions FAB Redesign
-- [ ] Plus button on Notes tab → Opens "Quick Actions" drawer
-- [ ] Lightning button in bottom nav → Also opens "Quick Actions" drawer
-- [ ] Quick Actions drawer contains:
-  - "Add Note" - Creates blank note, navigates to editor
-  - "Generate note from current hour" - Opens time range picker
-- [ ] Time range picker defaults to current hour (e.g., 8:00 PM - 9:00 PM)
-- [ ] Background blur effect when drawer is open
-- [ ] Smooth slide-up animation for drawers
-
-### Cleanup
-- [ ] Rename `src/frontend/styles/sega.css` to `notes.css`
-- [ ] Remove unused landing page assets in `src/frontend/assets/landing/`
-- [ ] Remove unused onboarding assets in `src/frontend/assets/onboarding/`
-- [ ] Clean up any remaining SEGA references in comments
-
-### Features (Backlog)
-- [ ] Historical transcript loading (currently only loads today)
-- [ ] Search across transcripts and notes
-- [ ] Export notes as markdown/PDF
-- [ ] Note tagging/categorization
-- [ ] Transcript speaker labeling UI
-
-### UI Polish (Backlog)
-- [ ] Mobile responsive improvements
-- [ ] Empty states for new users
-- [ ] Onboarding flow (removed, might want minimal version)
-
-### Testing
-- [ ] End-to-end test with glasses connected
-- [ ] Test AI generation with both Gemini and Anthropic
-- [ ] Test DB persistence across server restarts
-- [ ] Test WebSocket reconnection
+- Audio recordings (store/playback)
+- Search across transcripts and notes
+- Export notes to markdown/PDF
+- Share notes functionality
+- Offline support
 
 ---
 
-## Git History
+## Repository
 
-```
-93402e0 Initial Notes app - cloned from SEGA and simplified
-fd5f8fd Add ChatManager, AI note generation, and DB persistence
-64b3ea2 Fix TypeScript error in getNotesByDate filter
-8615699 Add comprehensive README documentation
-87e28d9 Symlink .env to SEGA, update env.example for Notes
-ba27b8a Restructure to src/frontend, src/backend, src/shared
-b9bf4ab Move lib/ to src/lib (shared infrastructure)
-```
-
----
-
-## Related Files in Monorepo
-
-- `apps/sega/` - Original app this was cloned from
-- `packages/sdk/` - MentraOS SDK (@mentra/sdk)
-- `packages/react/` - React helpers (@mentra/react)
-
----
+This app is part of the Mentra Community:
+- **GitHub**: https://github.com/Mentra-Community/Mentra-Note
 
 ## License
 
@@ -576,4 +551,4 @@ MIT
 
 ## Contributing
 
-This is an example app for MentraOS development. Feel free to use it as a starting point for your own apps!
+Contributions welcome! Please open an issue or PR on GitHub.
