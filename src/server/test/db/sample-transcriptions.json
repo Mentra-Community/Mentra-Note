@@ -1,0 +1,167 @@
+{
+  "description": "Sample transcriptions for testing batch functionality with today and yesterday dates",
+  "today": "2026-02-04",
+  "yesterday": "2026-02-04",
+  "transcriptions": [
+    {
+      "_id": "698418bd0625a5643e3d4a2e",
+      "userEmail": "aryan.mentra.dev.public@gmail.com",
+      "directionizationId": "1",
+      "content": "Test.",
+      "createdAt": "2026-02-03T04:12:45.240Z",
+      "date": "2026-02-03:20:12:45"
+    },
+    {
+      "_id": "698418be0625a5643e3d4a2f",
+      "userEmail": "aryan.mentra.dev.public@gmail.com",
+      "directionizationId": "1",
+      "content": "Yesterday morning.",
+      "createdAt": "2026-02-03T14:30:00.000Z",
+      "date": "2026-02-03:14:30:00"
+    },
+    {
+      "_id": "698418bf0625a5643e3d4a30",
+      "userEmail": "aryan.mentra.dev.public@gmail.com",
+      "directionizationId": "2",
+      "content": "Good afternoon.",
+      "createdAt": "2026-02-03T17:45:30.000Z",
+      "date": "2026-02-03:17:45:30"
+    },
+    {
+      "_id": "698418c00625a5643e3d4a31",
+      "userEmail": "aryan.mentra.dev.public@gmail.com",
+      "directionizationId": "1",
+      "content": "Evening check in.",
+      "createdAt": "2026-02-03T21:15:00.000Z",
+      "date": "2026-02-03:21:15:00"
+    },
+    {
+      "_id": "698418c10625a5643e3d4a32",
+      "userEmail": "aryan.mentra.dev.public@gmail.com",
+      "directionizationId": "2",
+      "content": "Late night notes.",
+      "createdAt": "2026-02-04T23:30:45.000Z",
+      "date": "2026-02-04:23:30:45"
+    },
+    {
+      "_id": "698418c20625a5643e3d4a33",
+      "userEmail": "aryan.mentra.dev.public@gmail.com",
+      "directionizationId": "1",
+      "content": "Today morning.",
+      "createdAt": "2026-02-04T08:00:00.000Z",
+      "date": "2026-02-04:08:00:00"
+    },
+    {
+      "_id": "698418c30625a5643e3d4a34",
+      "userEmail": "aryan.mentra.dev.public@gmail.com",
+      "directionizationId": "1",
+      "content": "Midday thoughts.",
+      "createdAt": "2026-02-04T12:30:15.000Z",
+      "date": "2026-02-04:12:30:15"
+    },
+    {
+      "_id": "698418c40625a5643e3d4a35",
+      "userEmail": "aryan.mentra.dev.public@gmail.com",
+      "directionizationId": "2",
+      "content": "Afternoon update.",
+      "createdAt": "2026-02-04T16:45:00.000Z",
+      "date": "2026-02-04:16:45:00"
+    },
+    {
+      "_id": "698418c40625a5643e3d4a36",
+      "userEmail": "aryan.mentra.dev.public@gmail.com",
+      "directionizationId": "2",
+      "content": "Morning notes.",
+      "createdAt": "2026-02-06T08:15:00.000Z",
+      "date": "2026-02-06:08:15:00"
+    },
+    {
+      "_id": "698418c40625a5643e3d4a37",
+      "userEmail": "aryan.mentra.dev.public@gmail.com",
+      "directionizationId": "1",
+      "content": "Midday review.",
+      "createdAt": "2026-02-06T12:45:00.000Z",
+      "date": "2026-02-06:12:45:00"
+    },
+    {
+      "_id": "698418c40625a5643e3d4a38",
+      "userEmail": "aryan.mentra.dev.public@gmail.com",
+      "directionizationId": "2",
+      "content": "Afternoon session.",
+      "createdAt": "2026-02-06T15:30:00.000Z",
+      "date": "2026-02-06:15:30:00"
+    },
+    {
+      "_id": "698418c40625a5643e3d4a39",
+      "userEmail": "aryan.mentra.dev.public@gmail.com",
+      "directionizationId": "1",
+      "content": "Evening reflection.",
+      "createdAt": "2026-02-06T19:00:00.000Z",
+      "date": "2026-02-06:19:00:00"
+    }
+  ],
+  "testScenarios": {
+    "scenario1": {
+      "name": "Batch up to yesterday (2026-02-04)",
+      "cutoffDateTime": "02/04/2026, 11:59:59 PM",
+      "cutoffDate": "2026-02-04",
+      "expectedCount": 5,
+      "expectedTranscriptions": [
+        "Test.",
+        "Yesterday morning.",
+        "Good afternoon.",
+        "Evening check in.",
+        "Late night notes."
+      ]
+    },
+    "scenario2": {
+      "name": "Batch up to today (2026-02-04)",
+      "cutoffDateTime": "02/04/2026, 11:59:59 PM",
+      "cutoffDate": "2026-02-04",
+      "expectedCount": 8,
+      "expectedTranscriptions": [
+        "Test.",
+        "Yesterday morning.",
+        "Good afternoon.",
+        "Evening check in.",
+        "Late night notes.",
+        "Today morning.",
+        "Midday thoughts.",
+        "Afternoon update."
+      ]
+    },
+    "scenario3": {
+      "name": "Multiple batches with merge deduplication",
+      "steps": [
+        {
+          "step": 1,
+          "action": "First batch up to 2026-02-04",
+          "cutoffDateTime": "02/04/2026, 11:59:59 PM",
+          "shouldUpload": 5,
+          "resultCount": 5
+        },
+        {
+          "step": 2,
+          "action": "Second batch (same cutoff, retry scenario)",
+          "cutoffDateTime": "02/04/2026, 11:59:59 PM",
+          "shouldUpload": 5,
+          "resultCount": 5,
+          "note": "Deduplication should prevent adding 5 duplicates"
+        },
+        {
+          "step": 3,
+          "action": "Third batch (new transcriptions added, same cutoff)",
+          "cutoffDateTime": "02/04/2026, 11:59:59 PM",
+          "shouldUpload": 5,
+          "resultCount": 5,
+          "note": "If no new transcriptions added, count stays same"
+        }
+      ]
+    }
+  },
+  "injectionScript": {
+    "description": "To inject these into MongoDB, use the following command",
+    "example": "db.transcripts.insertMany([...transcriptions...])",
+    "note": "Make sure to use actual MongoDB ObjectId for _id, not strings"
+  }
+}

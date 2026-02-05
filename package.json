@@ -11,6 +11,8 @@
     "build:frontend": "cd src/frontend && npm run build",
     "build": "npm run build:frontend",
     "start:prod": "npm run build && npm run start",
+    "inject-sample-data": "bun src/server/test/db/inject-sample-data.ts",
+    "cleanup-r2": "bun src/server/test/cloudflare/cleanup-r2.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Aryan Farhang",

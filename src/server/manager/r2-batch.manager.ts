@@ -13,7 +13,7 @@ export interface TranscriptionBatchResult {
  * Extract date in YYYY-MM-DD format from cutoff time string
  * Handles formats: "02/03/2026, 11:59:59 PM" or "YYYY-MM-DD"
  */
-function extractDateFromFormatted(cutoffDateTime: string): string {
+export function extractDateFromFormatted(cutoffDateTime: string): string {
   // If already in YYYY-MM-DD format, return as is
   if (/^\d{4}-\d{2}-\d{2}$/.test(cutoffDateTime)) {
     return cutoffDateTime;

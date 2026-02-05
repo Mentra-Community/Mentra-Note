@@ -13,7 +13,7 @@ import {
   initializeUserState,
   updateBatchCutoff,
 } from "../../server/api/db/userState.api";
-import { batchTranscriptionsToR2 } from "../../server/manager/r2-batch.manager";
+import { batchTranscriptionsToR2, deleteProcessedTranscriptions, extractDateFromFormatted } from "../../server/manager/r2-batch.manager";
 export class User {
   private static readonly sessions: Map<string, User> = new Map();
 
@@ -86,10 +86,28 @@ export class User {
             if (userState) {
               console.log(`[User] 📦 Batch cutoff crossed for ${this.userId} after transcription`);
               const cutoffDateTime = userState.endOfDateBatchTranscriptions;
-              await batchTranscriptionsToR2({
+              const batchResult = await batchTranscriptionsToR2({
                 userEmail: this.userId,
                 cutoffDateTime,
               });
+
+              if (batchResult.success) {
+                const cutoffDate = extractDateFromFormatted(cutoffDateTime);
+                await deleteProcessedTranscriptions({
+                  userEmail: this.userId,
+                  cutoffDate,
+                });
+
+                // Update cutoff to today's end-of-day (so next batch is tomorrow)
+                const timezone = this.timezone.getTimezone();
+                if (timezone) {
+                  const todayEndOfDay = initializeCutoff(timezone);
+                  const formattedCutoff = this.timezone.formatDateInTimezone(todayEndOfDay);
+                  await updateBatchCutoff(this.userId, formattedCutoff);
+                  this.batchCutoff = todayEndOfDay;
+                  console.log(`[User] Updated batch cutoff to today's end-of-day: ${formattedCutoff}`);
+                }
+              }
             }
           }
         }
@@ -181,7 +199,9 @@ export class User {
         `Previous cutoff: ${this.batchCutoff?.toISOString()}`
       );
 
-      const nextCutoff = getNextDayCutoff(this.batchCutoff!, timezone);
+      // Use current cutoff if available, otherwise use today's date
+      const currentCutoff = this.batchCutoff || new Date();
+      const nextCutoff = getNextDayCutoff(currentCutoff, timezone);
       const formattedNextCutoff = this.timezone.formatDateInTimezone(nextCutoff);
       await updateBatchCutoff(this.userId, formattedNextCutoff);
       this.batchCutoff = nextCutoff;
