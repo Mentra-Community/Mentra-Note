@@ -86,19 +86,6 @@ export function AITab({ date }: AITabProps) {
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-black relative">
-      {/* Header with clear button */}
-      {messages.length > 0 && (
-        <div className="absolute top-4 right-4 z-20">
-          <button
-            onClick={handleClear}
-            className="p-2 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
-            title="Clear chat"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
-      )}
-
       {/* Chat Area */}
       <div
         ref={scrollRef}
@@ -267,34 +254,47 @@ export function AITab({ date }: AITabProps) {
 
       {/* Input Area */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent dark:from-black dark:via-black dark:to-transparent pt-8 pb-4 px-4">
-        <div className="relative flex items-center bg-zinc-100 dark:bg-zinc-900 rounded-full border border-zinc-200 dark:border-zinc-800">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              isConnected ? "Ask about this day..." : "Connecting..."
-            }
-            disabled={!isConnected || isTyping}
-            className="w-full bg-transparent rounded-full pl-4 pr-12 py-3 text-sm focus:outline-none placeholder-zinc-400 dark:placeholder-zinc-500 text-zinc-900 dark:text-white disabled:opacity-50"
-          />
-          <button
-            onClick={() => handleSend()}
-            disabled={!input.trim() || !isConnected || isTyping}
-            className={clsx(
-              "absolute right-1.5 p-2 rounded-full transition-all duration-200",
-              input.trim() && isConnected && !isTyping
-                ? "bg-zinc-900 dark:bg-white text-white dark:text-black"
-                : "bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600",
-            )}
-          >
-            {isTyping ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <ArrowUp size={16} strokeWidth={2.5} />
-            )}
-          </button>
+        <div className="relative flex items-center gap-2">
+          {/* Clear button */}
+          {messages.length > 0 && (
+            <button
+              onClick={handleClear}
+              className="p-2.5 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors shrink-0"
+              title="Clear chat"
+            >
+              <Trash2 size={18} />
+            </button>
+          )}
+
+          <div className="relative flex-1 flex items-center bg-zinc-100 dark:bg-zinc-900 rounded-full border border-zinc-200 dark:border-zinc-800">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                isConnected ? "Ask about this day..." : "Connecting..."
+              }
+              disabled={!isConnected || isTyping}
+              className="w-full bg-transparent rounded-full pl-4 pr-12 py-3 text-sm focus:outline-none placeholder-zinc-400 dark:placeholder-zinc-500 text-zinc-900 dark:text-white disabled:opacity-50"
+            />
+            <button
+              onClick={() => handleSend()}
+              disabled={!input.trim() || !isConnected || isTyping}
+              className={clsx(
+                "absolute right-1.5 p-2 rounded-full transition-all duration-200",
+                input.trim() && isConnected && !isTyping
+                  ? "bg-zinc-900 dark:bg-white text-white dark:text-black"
+                  : "bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600",
+              )}
+            >
+              {isTyping ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <ArrowUp size={16} strokeWidth={2.5} />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
