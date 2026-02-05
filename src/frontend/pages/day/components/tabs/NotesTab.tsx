@@ -92,7 +92,7 @@ export function NotesTab({ notes, dateString }: NotesTabProps) {
       <div className="p-4 pt-6">
         {/* Masonry Grid */}
         <ResponsiveMasonry columnsCountBreakPoints={{ 350: 2, 750: 3 }}>
-          <Masonry gutter="12px">
+          <Masonry gutter="10px">
             {notes.map((note) => (
               <NoteCard
                 key={note.id}

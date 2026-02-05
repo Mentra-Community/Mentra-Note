@@ -115,10 +115,10 @@ export function NoteCard({ note, onClick }: NoteCardProps) {
   return (
     <div
       onClick={onClick}
-      className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm rounded-2xl p-5 cursor-pointer transition-all duration-200 flex flex-col gap-3 min-h-[100px]"
+      className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm rounded-2xl p-4 cursor-pointer transition-all duration-200 flex flex-col gap-2 min-h-[80px]"
     >
       {/* Title */}
-      <h3 className="font-semibold text-[15px] leading-snug text-zinc-900 dark:text-white line-clamp-2">
+      <h3 className="font-semibold text-sm leading-snug text-zinc-900 dark:text-white line-clamp-2">
         {note.title || "Untitled Note"}
       </h3>
 
@@ -135,7 +135,7 @@ export function NoteCard({ note, onClick }: NoteCardProps) {
       </div>
 
       {/* Metadata Footer */}
-      <div className="mt-2 pt-3 flex flex-wrap gap-2 items-center border-t border-zinc-100 dark:border-zinc-800">
+      <div className="mt-auto pt-2 flex flex-wrap gap-1.5 items-center border-t border-zinc-100 dark:border-zinc-800">
         {/* Badge */}
         {isAIGenerated ? (
           <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
