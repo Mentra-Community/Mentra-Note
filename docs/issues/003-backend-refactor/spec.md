@@ -67,12 +67,12 @@ backend/
 
 ## Acceptance
 
-- [ ] Models in `backend/models/*.model.ts`
-- [ ] Deprecated models removed
-- [ ] `services/db.ts` is connection-only
-- [ ] Managers split into `session/managers/`
-- [ ] `synced/` renamed to `session/`
-- [ ] `app/` removed, `NotesApp.ts` at backend root
-- [ ] Chat history is per-day (switching days clears/loads different history)
-- [ ] All imports updated
-- [ ] App still runs
+- [x] Models in `backend/models/*.model.ts`
+- [x] Deprecated models removed
+- [x] `services/db.ts` is connection-only
+- [x] Managers split into `session/managers/`
+- [x] `synced/` renamed to `session/`
+- [x] `app/` removed, `NotesApp.ts` at backend root
+- [x] Chat history is per-day (switching days clears/loads different history)
+- [x] All imports updated
+- [x] App still runs
