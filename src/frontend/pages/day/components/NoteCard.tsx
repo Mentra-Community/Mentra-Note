@@ -1,11 +1,13 @@
 /**
- * NoteCard - Displays a note preview in the notes grid
+ * NoteCard - Displays a note preview in the masonry notes grid
  *
  * Shows:
  * - Note title
  * - Clean plain-text preview (HTML stripped)
- * - AI Generated or Manual badge
- * - Creation time
+ * - AI Generated (green) or Manual (gray) badge
+ * - Time range for AI notes, creation time for manual
+ *
+ * Reference: figma-design/src/app/components/tabs/NotesTab.tsx L36-70
  */
 
 import { clsx } from "clsx";
@@ -80,75 +82,85 @@ function getPreviewText(note: Note): string {
 }
 
 export function NoteCard({ note, onClick }: NoteCardProps) {
-  // Debug: log note data
-  console.log("[NoteCard]", note.title, {
-    content: note.content?.substring(0, 50),
-    summary: note.summary?.substring(0, 50),
-  });
-
   const isAIGenerated = !!note.summary && !isPlaceholderContent(note.summary);
   const previewText = getPreviewText(note);
   const hasContent = previewText.length > 0;
 
-  console.log(
-    "[NoteCard] previewText:",
-    previewText,
-    "hasContent:",
-    hasContent,
-  );
-
   const formatTime = (date: Date | string) => {
     const d = typeof date === "string" ? new Date(date) : date;
     return d.toLocaleTimeString("en-US", {
-      hour: "2-digit",
+      hour: "numeric",
       minute: "2-digit",
       hour12: true,
     });
   };
 
+  // Get time range display for AI notes
+  const getTimeRangeDisplay = (): string | null => {
+    if (!isAIGenerated) return null;
+    if (note.transcriptRange) {
+      const start = formatTime(note.transcriptRange.startTime);
+      const end = formatTime(note.transcriptRange.endTime);
+      return `${start} - ${end}`;
+    }
+    // Fallback to just creation time for AI notes without range
+    if (note.createdAt) {
+      return formatTime(note.createdAt);
+    }
+    return null;
+  };
+
+  const timeRangeDisplay = getTimeRangeDisplay();
+
   return (
-    <button
+    <div
       onClick={onClick}
-      className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 text-left hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-sm transition-all min-h-[160px] flex flex-col"
+      className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm rounded-2xl p-5 cursor-pointer transition-all duration-200 flex flex-col gap-3 min-h-[100px]"
     >
       {/* Title */}
-      <h3 className="font-semibold text-zinc-900 dark:text-white mb-1 line-clamp-2">
+      <h3 className="font-semibold text-[15px] leading-snug text-zinc-900 dark:text-white line-clamp-2">
         {note.title || "Untitled Note"}
       </h3>
 
       {/* Preview */}
-      <p
+      <div
         className={clsx(
-          "text-sm flex-1 line-clamp-3",
+          "text-xs leading-relaxed line-clamp-[8]",
           hasContent
             ? "text-zinc-500 dark:text-zinc-400"
             : "text-zinc-400 dark:text-zinc-500 italic",
         )}
       >
-        {hasContent ? previewText : "No content"}
-      </p>
+        {hasContent ? previewText : "Tap to edit this note..."}
+      </div>
 
-      {/* Footer */}
-      <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-2">
+      {/* Metadata Footer */}
+      <div className="mt-2 pt-3 flex flex-wrap gap-2 items-center border-t border-zinc-100 dark:border-zinc-800">
         {/* Badge */}
-        <span
-          className={clsx(
-            "inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded uppercase tracking-wide",
-            isAIGenerated
-              ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
-              : "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400",
-          )}
-        >
-          {isAIGenerated ? "AI Generated" : "Manual"}
-        </span>
+        {isAIGenerated ? (
+          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+            AI Generated
+          </span>
+        ) : (
+          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+            Manual
+          </span>
+        )}
 
-        {/* Time */}
-        {note.createdAt && (
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">
+        {/* Time range or creation time */}
+        {timeRangeDisplay && isAIGenerated && (
+          <span className="text-[9px] font-medium text-zinc-400 dark:text-zinc-500">
+            {timeRangeDisplay}
+          </span>
+        )}
+
+        {/* Creation time for manual notes */}
+        {!isAIGenerated && note.createdAt && (
+          <span className="text-[9px] font-medium text-zinc-400 dark:text-zinc-500">
             {formatTime(note.createdAt)}
           </span>
         )}
       </div>
-    </button>
+    </div>
   );
 }

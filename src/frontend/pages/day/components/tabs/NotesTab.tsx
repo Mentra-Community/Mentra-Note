@@ -2,14 +2,15 @@
  * NotesTab - Displays notes for a specific day
  *
  * Shows:
- * - Grid of note cards (manual and AI-generated)
+ * - Masonry grid of note cards (manual and AI-generated)
  * - FAB that opens QuickActionsDrawer
  */
 
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useMentraAuth } from "@mentra/react";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, FileText } from "lucide-react";
+import Masonry, { ResponsiveMasonry } from "react-responsive-masonry";
 import { useSynced } from "../../../../hooks/useSynced";
 import type { SessionI, Note } from "../../../../../shared/types";
 import { NoteCard } from "../NoteCard";
@@ -45,55 +46,69 @@ export function NotesTab({ notes, dateString }: NotesTabProps) {
     setLocation(`/note/${note.id}`);
   };
 
-  return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-4">
-        {/* Notes Grid */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* New Note Card */}
-          <button
-            onClick={handleCreateManualNote}
-            className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 border-dashed rounded-2xl p-4 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors min-h-40 flex flex-col"
-          >
-            <h3 className="font-semibold text-zinc-900 dark:text-white mb-1">
-              New Note
-            </h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 flex-1">
-              Tap to edit this note...
-            </p>
-            <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
-              <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded uppercase tracking-wide">
-                Manual
-              </span>
-            </div>
-          </button>
-
-          {/* Existing Notes */}
-          {notes.map((note) => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              onClick={() => handleNoteClick(note)}
-            />
-          ))}
+  // Empty state
+  if (notes.length === 0) {
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="flex flex-col items-center justify-center h-64 text-center px-6 mt-12">
+          <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4 text-zinc-300 dark:text-zinc-600">
+            <FileText size={24} />
+          </div>
+          <h3 className="text-zinc-900 dark:text-white font-medium mb-1">
+            No notes yet
+          </h3>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-6 max-w-[240px]">
+            Create a note manually or generate one from the transcript using the
+            button below.
+          </p>
         </div>
 
-        {/* Empty state if no notes */}
-        {notes.length === 0 && (
-          <div className="text-center py-12 text-zinc-400">
-            <p className="text-sm">No notes for this day yet</p>
-            <p className="text-xs mt-1">
-              Create a note or generate one from your transcript
-            </p>
-          </div>
-        )}
+        {/* FAB */}
+        <button
+          onClick={() => setShowQuickActions(true)}
+          disabled={generating}
+          className="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-zinc-900 dark:bg-white shadow-lg flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50 z-40"
+        >
+          {generating ? (
+            <Loader2
+              size={24}
+              className="text-white dark:text-zinc-900 animate-spin"
+            />
+          ) : (
+            <Plus size={24} className="text-white dark:text-zinc-900" />
+          )}
+        </button>
+
+        <QuickActionsDrawer
+          isOpen={showQuickActions}
+          onClose={() => setShowQuickActions(false)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full overflow-y-auto pb-32">
+      <div className="p-4 pt-6">
+        {/* Masonry Grid */}
+        <ResponsiveMasonry columnsCountBreakPoints={{ 350: 2, 750: 3 }}>
+          <Masonry gutter="12px">
+            {notes.map((note) => (
+              <NoteCard
+                key={note.id}
+                note={note}
+                onClick={() => handleNoteClick(note)}
+              />
+            ))}
+          </Masonry>
+        </ResponsiveMasonry>
       </div>
 
       {/* Floating Action Button */}
       <button
         onClick={() => setShowQuickActions(true)}
         disabled={generating}
-        className="fixed bottom-20 right-4 md:bottom-6 md:right-6 w-14 h-14 rounded-full bg-zinc-900 dark:bg-white shadow-lg flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50 z-40"
+        className="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-zinc-900 dark:bg-white shadow-lg flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50 z-40"
       >
         {generating ? (
           <Loader2

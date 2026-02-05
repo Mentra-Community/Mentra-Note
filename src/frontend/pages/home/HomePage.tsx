@@ -1,23 +1,44 @@
 /**
  * HomePage - Main landing page showing the list of days/folders
  *
- * Displays all days with notes and transcriptions in a list format.
- * On mobile, this is full-screen. On desktop, this serves as the sidebar content.
+ * Features:
+ * - Filter dropdown (All Files / Archived / Trash)
+ * - View modes (Folders / All Notes / Favorites)
+ * - Calendar view toggle
+ * - Global AI chat trigger (sparkles icon)
  */
 
-import { useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useMentraAuth } from "@mentra/react";
-import { Loader2, FileText, Calendar, Sparkles } from "lucide-react";
+import {
+  Loader2,
+  FileText,
+  Calendar,
+  Sparkles,
+  ChevronDown,
+} from "lucide-react";
+import { motion } from "motion/react";
 import { useSynced } from "../../hooks/useSynced";
-import type { SessionI, Note, TranscriptSegment } from "../../../shared/types";
+import type { SessionI, Note } from "../../../shared/types";
 import { FolderList } from "./components/FolderList";
 import type { DailyFolder } from "./components/FolderList";
+import {
+  FilterDrawer,
+  type FilterType,
+  type ViewType,
+} from "../../components/shared/FilterDrawer";
 
 export function HomePage() {
   const { userId } = useMentraAuth();
   const { session, isConnected, reconnect } = useSynced<SessionI>(userId || "");
   const [, setLocation] = useLocation();
+
+  // Filter & view state
+  const [activeFilter, setActiveFilter] = useState<FilterType>("all");
+  const [activeView, setActiveView] = useState<ViewType>("folders");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
 
   // Derive data from session
   const notes = session?.notes?.notes ?? [];
@@ -80,8 +101,43 @@ export function HomePage() {
       });
   }, [notes, segments, isRecording, availableDates]);
 
+  // Filter counts (TODO: implement actual filtering when we have archive/trash state)
+  const filterCounts = useMemo(
+    () => ({
+      all: folders.length,
+      archived: 0,
+      trash: 0,
+      allNotes: notes.length,
+      favorites: 0, // TODO: track favorites
+    }),
+    [folders, notes],
+  );
+
+  // Get filter label for display
+  const getFilterLabel = (): string => {
+    if (activeView === "all_notes") return "All Notes";
+    if (activeView === "favorites") return "Favorites";
+    switch (activeFilter) {
+      case "archived":
+        return "Archived";
+      case "trash":
+        return "Trash";
+      default:
+        return "All Files";
+    }
+  };
+
   const handleSelectFolder = (folder: DailyFolder) => {
     setLocation(`/day/${folder.dateString}`);
+  };
+
+  const handleGlobalChat = () => {
+    // TODO: implement global AI chat view
+    console.log("Open global AI chat");
+  };
+
+  const handleCalendarToggle = () => {
+    setViewMode((prev) => (prev === "list" ? "calendar" : "list"));
   };
 
   // Loading state - no session yet
@@ -101,17 +157,51 @@ export function HomePage() {
     return (
       <div className="flex h-full flex-col bg-zinc-50 dark:bg-black">
         {/* Header */}
-        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+        <div className="px-6 pt-4 pb-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-zinc-900 dark:text-white">
-              Mentra Notes
-            </h1>
-            <div className="flex items-center gap-2">
-              <button className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500">
-                <Calendar size={20} />
+            <button
+              onClick={() => setIsFilterOpen(true)}
+              className="flex items-center gap-1.5 group -ml-2 px-2 py-1 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+            >
+              <h1 className="text-xl font-normal text-zinc-900 dark:text-white tracking-tight">
+                {getFilterLabel()}
+              </h1>
+              <ChevronDown
+                size={20}
+                className="text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-200 transition-colors mt-0.5"
+              />
+            </button>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleCalendarToggle}
+                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+              >
+                <Calendar size={20} strokeWidth={1.5} />
               </button>
-              <button className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500">
-                <Sparkles size={20} />
+
+              <button
+                onClick={handleGlobalChat}
+                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+              >
+                <motion.div
+                  animate={{
+                    filter: [
+                      "drop-shadow(0px 0px 0px rgba(34, 197, 94, 0))",
+                      "drop-shadow(0px 0px 6px rgba(34, 197, 94, 0.6))",
+                      "drop-shadow(0px 0px 0px rgba(34, 197, 94, 0))",
+                    ],
+                    color: ["#71717a", "#22c55e", "#71717a"],
+                  }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: 4,
+                    ease: "easeInOut",
+                  }}
+                  className="text-current"
+                >
+                  <Sparkles size={20} strokeWidth={1.5} />
+                </motion.div>
               </button>
             </div>
           </div>
@@ -139,13 +229,95 @@ export function HomePage() {
             )}
           </div>
         </div>
+
+        <FilterDrawer
+          isOpen={isFilterOpen}
+          onClose={() => setIsFilterOpen(false)}
+          activeFilter={activeFilter}
+          activeView={activeView}
+          onFilterChange={setActiveFilter}
+          onViewChange={setActiveView}
+          counts={filterCounts}
+        />
       </div>
     );
   }
 
   return (
-    <div className="flex h-full bg-zinc-50 dark:bg-black overflow-hidden">
-      <FolderList folders={folders} onSelectFolder={handleSelectFolder} />
+    <div className="flex h-full flex-col bg-zinc-50 dark:bg-black overflow-hidden">
+      {/* Header */}
+      <div className="px-6 pt-4 pb-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setIsFilterOpen(true)}
+            className="flex items-center gap-1.5 group -ml-2 px-2 py-1 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+          >
+            <h1 className="text-xl font-normal text-zinc-900 dark:text-white tracking-tight">
+              {getFilterLabel()}
+            </h1>
+            <ChevronDown
+              size={20}
+              className="text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-200 transition-colors mt-0.5"
+            />
+          </button>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleCalendarToggle}
+              className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+            >
+              <Calendar size={20} strokeWidth={1.5} />
+            </button>
+
+            <button
+              onClick={handleGlobalChat}
+              className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+            >
+              <motion.div
+                animate={{
+                  filter: [
+                    "drop-shadow(0px 0px 0px rgba(34, 197, 94, 0))",
+                    "drop-shadow(0px 0px 6px rgba(34, 197, 94, 0.6))",
+                    "drop-shadow(0px 0px 0px rgba(34, 197, 94, 0))",
+                  ],
+                  color: ["#71717a", "#22c55e", "#71717a"],
+                }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 4,
+                  ease: "easeInOut",
+                }}
+                className="text-current"
+              >
+                <Sparkles size={20} strokeWidth={1.5} />
+              </motion.div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-hidden">
+        {viewMode === "list" ? (
+          <FolderList folders={folders} onSelectFolder={handleSelectFolder} />
+        ) : (
+          // TODO: Calendar view
+          <div className="flex items-center justify-center h-full text-zinc-400">
+            <p>Calendar view coming soon</p>
+          </div>
+        )}
+      </div>
+
+      {/* Filter Drawer */}
+      <FilterDrawer
+        isOpen={isFilterOpen}
+        onClose={() => setIsFilterOpen(false)}
+        activeFilter={activeFilter}
+        activeView={activeView}
+        onFilterChange={setActiveFilter}
+        onViewChange={setActiveView}
+        counts={filterCounts}
+      />
     </div>
   );
 }
