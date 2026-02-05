@@ -106,40 +106,49 @@ export function Shell({ children }: ShellProps) {
 
       {/* Mobile Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 md:hidden bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 safe-area-bottom z-30">
-        <div className="flex items-center justify-around h-16 px-4">
+        <div className="flex items-center justify-between h-[72px] px-12 pb-2">
           {/* Home */}
           <button
             onClick={() => setLocation("/")}
             className={clsx(
-              "flex flex-col items-center justify-center w-16 h-12 rounded-xl transition-colors",
+              "w-12 h-12 rounded-full flex items-center justify-center transition-colors",
               isActive(navItems[0])
-                ? "text-zinc-900 dark:text-white"
-                : "text-zinc-400",
+                ? "text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800"
+                : "text-zinc-400 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400",
             )}
           >
-            <Home size={22} />
+            <Home
+              size={24}
+              strokeWidth={isActive(navItems[0]) ? 2.5 : 2}
+              fill={isActive(navItems[0]) ? "currentColor" : "none"}
+            />
           </button>
 
           {/* Center Action Button - Lightning */}
           <button
             onClick={() => setShowQuickActions(true)}
-            className="w-14 h-14 rounded-full bg-zinc-900 dark:bg-white flex items-center justify-center shadow-lg -mt-4 active:scale-95 transition-transform"
+            className="w-12 h-12 rounded-full bg-zinc-900 dark:bg-white flex items-center justify-center shadow-sm hover:scale-105 active:scale-95 transition-all"
             title="Quick Actions"
           >
-            <Zap size={24} className="text-white dark:text-zinc-900" />
+            <Zap
+              size={24}
+              strokeWidth={2}
+              fill="currentColor"
+              className="text-white dark:text-zinc-900"
+            />
           </button>
 
           {/* Settings */}
           <button
             onClick={() => setLocation("/settings")}
             className={clsx(
-              "flex flex-col items-center justify-center w-16 h-12 rounded-xl transition-colors",
+              "w-12 h-12 rounded-full flex items-center justify-center transition-colors",
               isActive(navItems[1])
-                ? "text-zinc-900 dark:text-white"
-                : "text-zinc-400",
+                ? "text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800"
+                : "text-zinc-400 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400",
             )}
           >
-            <Settings size={22} />
+            <Settings size={24} strokeWidth={isActive(navItems[1]) ? 2.5 : 2} />
           </button>
         </div>
       </div>

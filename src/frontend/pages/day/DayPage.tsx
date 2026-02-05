@@ -34,6 +34,7 @@ import { NotesTab } from "./components/tabs/NotesTab";
 import { TranscriptTab } from "./components/tabs/TranscriptTab";
 import { AudioTab } from "./components/tabs/AudioTab";
 import { AITab } from "./components/tabs/AITab";
+import { TranscribingIndicator } from "../../components/shared/TranscribingIndicator";
 
 type TabType = "notes" | "transcript" | "audio" | "ai";
 
@@ -232,11 +233,8 @@ export function DayPage() {
 
         {/* Recording indicator */}
         {isToday && isRecording && (
-          <div className="px-4 py-2 bg-zinc-50 dark:bg-zinc-900/50 border-t border-zinc-100 dark:border-zinc-800">
-            <div className="flex items-center gap-2 text-red-500">
-              <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-xs font-medium">Capturing now</span>
-            </div>
+          <div className="px-4 py-2 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800">
+            <TranscribingIndicator size="sm" />
           </div>
         )}
       </div>

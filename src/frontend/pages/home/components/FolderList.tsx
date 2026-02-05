@@ -12,6 +12,7 @@ import { useState } from "react";
 import { format, isToday, isYesterday } from "date-fns";
 import { clsx } from "clsx";
 import { Calendar, Sparkles, ChevronRight, Mic } from "lucide-react";
+import { TranscribingIndicator } from "../../../components/shared/TranscribingIndicator";
 
 export interface DailyFolder {
   id: string;
@@ -117,12 +118,7 @@ export function FolderList({ folders, onSelectFolder }: FolderListProps) {
                   <div className="flex items-center gap-3">
                     {/* Transcribing indicator */}
                     {folder.isTranscribing && (
-                      <div className="flex items-center gap-1.5 text-red-500">
-                        <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                        <span className="text-xs font-medium">
-                          Transcribing...
-                        </span>
-                      </div>
+                      <TranscribingIndicator size="sm" />
                     )}
 
                     {/* Note count badge */}
