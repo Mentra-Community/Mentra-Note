@@ -28,6 +28,8 @@ import {
   type FilterType,
   type ViewType,
 } from "../../components/shared/FilterDrawer";
+import { CalendarView } from "./components/CalendarView";
+import { GlobalAIChat } from "./components/GlobalAIChat";
 
 export function HomePage() {
   const { userId } = useMentraAuth();
@@ -39,6 +41,7 @@ export function HomePage() {
   const [activeView, setActiveView] = useState<ViewType>("folders");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [showGlobalChat, setShowGlobalChat] = useState(false);
 
   // Derive data from session
   const notes = session?.notes?.notes ?? [];
@@ -132,8 +135,7 @@ export function HomePage() {
   };
 
   const handleGlobalChat = () => {
-    // TODO: implement global AI chat view
-    console.log("Open global AI chat");
+    setShowGlobalChat(true);
   };
 
   const handleCalendarToggle = () => {
@@ -301,10 +303,10 @@ export function HomePage() {
         {viewMode === "list" ? (
           <FolderList folders={folders} onSelectFolder={handleSelectFolder} />
         ) : (
-          // TODO: Calendar view
-          <div className="flex items-center justify-center h-full text-zinc-400">
-            <p>Calendar view coming soon</p>
-          </div>
+          <CalendarView
+            folders={folders}
+            onSelectDate={(dateString) => setLocation(`/day/${dateString}`)}
+          />
         )}
       </div>
 
@@ -317,6 +319,12 @@ export function HomePage() {
         onFilterChange={setActiveFilter}
         onViewChange={setActiveView}
         counts={filterCounts}
+      />
+
+      {/* Global AI Chat */}
+      <GlobalAIChat
+        isOpen={showGlobalChat}
+        onClose={() => setShowGlobalChat(false)}
       />
     </div>
   );
