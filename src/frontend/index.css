@@ -15,6 +15,11 @@
   animation: shimmer 2s linear infinite;
 }
 
+/* Masonry grid - ensure items fill column width */
+[data-masonry] > div {
+  width: 100% !important;
+}
+
 /* TipTap Editor Styles */
 .tiptap {
   outline: none;

@@ -115,7 +115,7 @@ export function NoteCard({ note, onClick }: NoteCardProps) {
   return (
     <div
       onClick={onClick}
-      className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm rounded-2xl p-4 cursor-pointer transition-all duration-200 flex flex-col gap-2 min-h-[80px]"
+      className="w-full bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm rounded-2xl p-4 cursor-pointer transition-all duration-200 flex flex-col gap-2"
     >
       {/* Title */}
       <h3 className="font-semibold text-sm leading-snug text-zinc-900 dark:text-white line-clamp-2">

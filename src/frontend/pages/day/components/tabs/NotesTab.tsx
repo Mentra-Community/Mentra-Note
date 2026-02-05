@@ -94,11 +94,9 @@ export function NotesTab({ notes, dateString }: NotesTabProps) {
         <ResponsiveMasonry columnsCountBreakPoints={{ 350: 2, 750: 3 }}>
           <Masonry gutter="10px">
             {notes.map((note) => (
-              <NoteCard
-                key={note.id}
-                note={note}
-                onClick={() => handleNoteClick(note)}
-              />
+              <div key={note.id} className="w-full">
+                <NoteCard note={note} onClick={() => handleNoteClick(note)} />
+              </div>
             ))}
           </Masonry>
         </ResponsiveMasonry>
