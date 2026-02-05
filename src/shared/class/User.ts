@@ -13,6 +13,7 @@ import {
   initializeUserState,
   updateBatchCutoff,
 } from "../../server/api/db/userState.api";
+import { batchTranscriptionsToR2 } from "../../server/manager/r2-batch.manager";
 export class User {
   private static readonly sessions: Map<string, User> = new Map();
 
@@ -41,9 +42,9 @@ export class User {
     console.log(`[User] 🕐 User ${this.userId} timezone: ${userTimezone || "NOT SET"} | Time: ${formattedTime}`);
 
     // Initialize batch state asynchronously
-    this.initializeBatchState().catch(error => {
-      console.error(`[User] Failed to initialize batch state for ${this.userId}:`, error);
-    });
+    // this.initializeBatchState().catch(error => {
+    //   console.error(`[User] Failed to initialize batch state for ${this.userId}:`, error);
+    // });
 
     this.timezoneCleanup = this.timezone.setupTimezoneListener(session, () => {
       const newTimezone = this.timezone.getTimezone();
@@ -77,8 +78,20 @@ export class User {
         sendTranscription(this.userId, data);
 
         if (data.isFinal) {
-          await this.timezone.isAfterEndOfDay();
+          const isBatchTime = await this.timezone.isAfterEndOfDay();
+
           console.log(`[User] ${this.userId} timezone: ${this.timezone.getLocalTime()}`);
+          if (isBatchTime) {
+            const userState = await getUserState(this.userId);
+            if (userState) {
+              console.log(`[User] 📦 Batch cutoff crossed for ${this.userId} after transcription`);
+              const cutoffDateTime = userState.endOfDateBatchTranscriptions;
+              await batchTranscriptionsToR2({
+                userEmail: this.userId,
+                cutoffDateTime,
+              });
+            }
+          }
         }
         
       }

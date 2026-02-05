@@ -14,7 +14,7 @@ export async function uploadBatchToR2(params: {
   userEmail: string;
   date: string; // YYYY-MM-DD
   transcriptions: any[];
-  timezone: string;
+  timezone?: string;
 }): Promise<UploadResult> {
   const { userEmail, date, transcriptions, timezone } = params;
 
