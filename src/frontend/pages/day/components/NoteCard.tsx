@@ -98,7 +98,7 @@ export function NoteCard({ note, onClick }: NoteCardProps) {
   // Get time range display for AI notes
   const getTimeRangeDisplay = (): string | null => {
     if (!isAIGenerated) return null;
-    if (note.transcriptRange) {
+    if (note.transcriptRange?.startTime && note.transcriptRange?.endTime) {
       const start = formatTime(note.transcriptRange.startTime);
       const end = formatTime(note.transcriptRange.endTime);
       return `${start} - ${end}`;

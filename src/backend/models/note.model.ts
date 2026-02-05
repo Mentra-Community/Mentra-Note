@@ -16,8 +16,6 @@ export interface NoteI extends Document {
   title: string;
   summary: string;
   content: string;
-  keyPoints: string[];
-  decisions: string[];
   isStarred: boolean;
   transcriptRange?: {
     startTime: Date;
@@ -37,8 +35,6 @@ const NoteSchema = new Schema<NoteI>(
     title: { type: String, required: true },
     summary: { type: String, default: "" },
     content: { type: String, default: "" },
-    keyPoints: { type: [String], default: [] },
-    decisions: { type: [String], default: [] },
     isStarred: { type: Boolean, default: false },
     transcriptRange: {
       startTime: { type: Date },
@@ -71,8 +67,6 @@ export async function createNote(
     title: string;
     content?: string;
     summary?: string;
-    keyPoints?: string[];
-    decisions?: string[];
     transcriptRange?: { startTime: Date; endTime: Date };
   },
 ): Promise<NoteI> {
@@ -81,8 +75,6 @@ export async function createNote(
     title: data.title,
     content: data.content || "",
     summary: data.summary || "",
-    keyPoints: data.keyPoints || [],
-    decisions: data.decisions || [],
     transcriptRange: data.transcriptRange,
   });
 }
@@ -114,8 +106,6 @@ export async function updateNote(
     title: string;
     content: string;
     summary: string;
-    keyPoints: string[];
-    decisions: string[];
     isStarred: boolean;
   }>,
 ): Promise<NoteI | null> {
