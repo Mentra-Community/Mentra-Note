@@ -101,7 +101,7 @@ export function AITab({ date }: AITabProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-[#1e1f22] relative">
+    <div className="flex flex-col h-full bg-white dark:bg-[#313338] relative">
       {/* Chat Area */}
       <div
         ref={scrollRef}
@@ -110,7 +110,7 @@ export function AITab({ date }: AITabProps) {
         {/* Welcome message if no messages */}
         {messages.length === 0 && (
           <div className="flex gap-3 items-start">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border bg-white dark:bg-[#1e1f22] border-zinc-200 dark:border-[#3f4147]">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border bg-white dark:bg-[#313338] border-zinc-200 dark:border-[#3f4147]">
               <Sparkles
                 size={14}
                 className="text-zinc-600 dark:text-zinc-400"
@@ -141,7 +141,7 @@ export function AITab({ date }: AITabProps) {
                 className={clsx(
                   "w-8 h-8 rounded-full flex items-center justify-center shrink-0 border",
                   isAssistant
-                    ? "bg-white dark:bg-[#1e1f22] border-zinc-200 dark:border-[#3f4147]"
+                    ? "bg-white dark:bg-[#313338] border-zinc-200 dark:border-[#3f4147]"
                     : "bg-zinc-900 dark:bg-zinc-100 border-transparent",
                 )}
               >
@@ -241,7 +241,7 @@ export function AITab({ date }: AITabProps) {
         {/* Typing indicator */}
         {isTyping && (
           <div className="flex gap-3 items-start">
-            <div className="w-8 h-8 rounded-full bg-white dark:bg-[#1e1f22] border border-zinc-200 dark:border-[#3f4147] flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-full bg-white dark:bg-[#313338] border border-zinc-200 dark:border-[#3f4147] flex items-center justify-center shrink-0">
               <Sparkles size={14} className="text-zinc-400" />
             </div>
             <div className="flex items-center gap-2 h-8 px-2">
@@ -269,7 +269,7 @@ export function AITab({ date }: AITabProps) {
       </div>
 
       {/* Input Area */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent dark:from-[#1e1f22] dark:via-[#1e1f22] dark:to-transparent pt-8 pb-4 px-4">
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent dark:from-[#313338] dark:via-[#313338] dark:to-transparent pt-8 pb-4 px-4">
         <div className="relative flex items-center gap-2">
           {/* Clear button */}
           {messages.length > 0 && (
