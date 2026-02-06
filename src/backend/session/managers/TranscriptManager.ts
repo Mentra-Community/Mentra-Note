@@ -612,8 +612,8 @@ RULES:
       if (!userId) return;
 
       const timeManager = this.getTimeManager();
-      const settingsManager = (this._session as any)?.settings;
-      const timezone = settingsManager?.timezone || "UTC";
+      // Get timezone from TimeManager (which resolves to system default if not set)
+      const timezone = timeManager.getTimezone();
 
       // Use the stored cutoff timestamp - batch all segments up to this time
       const cutoffTimestamp = this.transcriptionBatchEndOfDay;
@@ -636,8 +636,8 @@ RULES:
         );
 
         if (batchResult.success) {
-          // Delete processed segments from MongoDB
-          const deletedCount = await r2Manager.cleanupProcessedSegments(cutoffTimestamp);
+          // Delete processed segments from MongoDB (pass timezone for date-based cleanup)
+          const deletedCount = await r2Manager.cleanupProcessedSegments(cutoffTimestamp, timezone);
           console.log(
             `[setBatchDate] Cleaned up ${deletedCount} segments from MongoDB`,
           );

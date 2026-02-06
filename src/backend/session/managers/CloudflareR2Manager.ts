@@ -70,6 +70,8 @@ export class CloudflareR2Manager extends SyncedManager {
         success: false,
         date: cutoffTimestamp,
         segmentCount: 0,
+        batchedDates: [],
+        segmentsByDate: {},
         error: new Error("Batch already in progress"),
       };
     }
@@ -97,19 +99,17 @@ export class CloudflareR2Manager extends SyncedManager {
         this.lastBatchStatus = "success";
         this.lastBatchUrl = result.r2Url || "";
         console.log(
-          `[R2Manager] Batch successful: ${result.segmentCount} segments uploaded`,
+          `[R2Manager] Batch successful: ${result.segmentCount} segments uploaded across ${result.batchedDates.length} dates`,
         );
 
-        // Notify FileManager about archived transcript
-        if (result.date) {
-          const fileManager = this.getFileManager();
-          if (fileManager) {
-            const r2Key = `transcripts/${userId}/${result.date}.json`;
-            await fileManager.onTranscriptArchived(
-              result.date,
-              r2Key,
-              result.segmentCount,
-            );
+        // Notify FileManager about each archived transcript date
+        const fileManager = this.getFileManager();
+        if (fileManager && result.batchedDates.length > 0) {
+          for (const date of result.batchedDates) {
+            const r2Key = `transcripts/${userId}/${date}.json`;
+            const segmentCount = result.segmentsByDate[date] || 0;
+            console.log(`[R2Manager] Notifying FileManager about ${date} (${segmentCount} segments)`);
+            await fileManager.onTranscriptArchived(date, r2Key, segmentCount);
           }
         }
       } else {
@@ -131,6 +131,8 @@ export class CloudflareR2Manager extends SyncedManager {
         success: false,
         date: cutoffTimestamp,
         segmentCount: 0,
+        batchedDates: [],
+        segmentsByDate: {},
         error: error instanceof Error ? error : new Error(String(error)),
       };
     }
@@ -196,14 +198,17 @@ export class CloudflareR2Manager extends SyncedManager {
    * This is a separate step to allow verification before deletion
    */
   @rpc
-  async cleanupProcessedSegments(cutoffTimestamp: string): Promise<number> {
+  async cleanupProcessedSegments(cutoffTimestamp: string, timezone?: string): Promise<number> {
     const userId = this._session?.userId;
     if (!userId) {
       console.error(`[R2Manager] No user session for cleanup`);
       return 0;
     }
 
-    return deleteProcessedSegments({ userId, cutoffTimestamp });
+    // Pass timezone through - r2Batch.service will use system default if undefined
+    const tz = timezone || this.getSettingsManager()?.timezone || undefined;
+
+    return deleteProcessedSegments({ userId, cutoffTimestamp, timezone: tz });
   }
 
   // ===========================================================================

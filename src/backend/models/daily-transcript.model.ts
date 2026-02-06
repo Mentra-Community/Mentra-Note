@@ -146,3 +146,15 @@ export async function getTranscriptSummaries(
     segmentCount: t.totalSegments,
   }));
 }
+
+/**
+ * Delete a daily transcript for a user and date
+ * Returns true if deleted, false if not found
+ */
+export async function deleteDailyTranscript(
+  userId: string,
+  date: string,
+): Promise<boolean> {
+  const result = await DailyTranscript.deleteOne({ userId, date });
+  return result.deletedCount > 0;
+}

@@ -14,6 +14,7 @@ export {
   appendTranscriptSegments,
   getAvailableDates,
   getTranscriptSummaries,
+  deleteDailyTranscript,
 } from "./daily-transcript.model";
 
 // Hour Summary

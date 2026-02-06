@@ -157,6 +157,7 @@ export interface FileManagerI {
   activeFilter: FileFilter;
 
   // RPCs
+  refreshFiles(): Promise<FileData[]>;
   getFilesRpc(filter?: FileFilter): Promise<FileData[]>;
   setFilter(filter: FileFilter): Promise<FileData[]>;
   archiveFile(date: string): Promise<FileData | null>;
@@ -164,6 +165,7 @@ export interface FileManagerI {
   trashFile(date: string): Promise<FileData | null>;
   restoreFile(date: string): Promise<FileData | null>;
   permanentlyDeleteFile(date: string): Promise<boolean>;
+  purgeDate(date: string): Promise<{ deletedTranscript: boolean; deletedFile: boolean }>;
 }
 
 // =============================================================================

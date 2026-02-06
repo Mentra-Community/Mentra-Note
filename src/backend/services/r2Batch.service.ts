@@ -14,8 +14,10 @@ import {
 
 export interface TranscriptBatchResult {
   success: boolean;
-  date: string;
+  date: string; // Cutoff timestamp used for batching (UTC ISO string)
   segmentCount: number;
+  batchedDates: string[]; // All dates (YYYY-MM-DD) that were batched to R2
+  segmentsByDate: Record<string, number>; // Segment count per date
   r2Url?: string;
   error?: Error;
 }
@@ -25,13 +27,13 @@ export interface TranscriptBatchResult {
 // =============================================================================
 
 /**
- * Batch all transcripts for a given user up to a cutoff timestamp and upload to R2
- * Filters segments by their timestamp being <= cutoffTimestamp
+ * Batch all transcript segments for a given user where segment timestamp is BEFORE the cutoff timestamp.
+ * Filters by ISO timestamp directly for precision.
  *
  * @param userId - User's ID
- * @param cutoffTimestamp - Cutoff timestamp as ISO string (e.g. 2026-02-05T16:54:59.000Z)
- * @param timezone - User's timezone for metadata
- * @returns Batch result with count and R2 URL
+ * @param cutoffTimestamp - Cutoff as UTC ISO string (e.g. 2026-02-06T07:59:59.000Z)
+ * @param timezone - User's timezone (e.g. "America/Los_Angeles") for R2 metadata
+ * @returns Batch result with counts and all batched dates
  */
 export async function batchTranscriptsToR2(params: {
   userId: string;
@@ -42,8 +44,11 @@ export async function batchTranscriptsToR2(params: {
   const cutoffDate = new Date(cutoffTimestamp);
 
   console.log(
-    `\n[R2Batch] Starting batch for ${userId} up to ${cutoffTimestamp}`,
+    `\n[R2Batch] Starting batch for ${userId}`,
   );
+  console.log(`[R2Batch] Cutoff timestamp (UTC): ${cutoffTimestamp}`);
+  console.log(`[R2Batch] Timezone: ${timezone}`);
+  console.log(`[R2Batch] Will batch all segments with timestamp < ${cutoffTimestamp}`);
 
   try {
     // Query all DailyTranscripts for this user that have segments
@@ -59,16 +64,19 @@ export async function batchTranscriptsToR2(params: {
     );
 
     if (dailyTranscripts.length === 0) {
-      console.log(`[R2Batch] No transcripts found`);
+      console.log(`[R2Batch] No transcripts found for user`);
       return {
         success: true,
         date: cutoffTimestamp,
         segmentCount: 0,
+        batchedDates: [],
+        segmentsByDate: {},
       };
     }
 
-    // Group segments by date, filtering by cutoff timestamp
-    const segmentsByDate: Record<string, R2TranscriptSegment[]> = {};
+    // Prepare segments by date - filter by ISO timestamp
+    const segmentsByDateForR2: Record<string, R2TranscriptSegment[]> = {};
+    const segmentCountByDate: Record<string, number> = {};
     let totalSegmentsFound = 0;
 
     for (const dailyTranscript of dailyTranscripts) {
@@ -76,37 +84,51 @@ export async function batchTranscriptsToR2(params: {
 
       if (!segments || segments.length === 0) continue;
 
-      // Filter segments where timestamp <= cutoffTimestamp
-      const eligibleSegments = segments.filter((segment) => {
+      // Filter segments where timestamp < cutoffTimestamp (ISO comparison)
+      const segmentsToBatch = segments.filter((segment) => {
         const segmentTime = new Date(segment.timestamp);
-        return segmentTime <= cutoffDate;
+        return segmentTime < cutoffDate;
       });
 
-      if (eligibleSegments.length > 0) {
-        segmentsByDate[date] = eligibleSegments.map((segment) =>
-          formatSegmentForR2(segment as TranscriptSegmentI),
-        );
-        totalSegmentsFound += eligibleSegments.length;
-        console.log(
-          `[R2Batch] Date ${date}: ${eligibleSegments.length}/${segments.length} segments eligible`,
-        );
+      if (segmentsToBatch.length === 0) {
+        console.log(`[R2Batch] Date ${date}: 0 segments below cutoff (${segments.length} total)`);
+        continue;
       }
+
+      segmentsByDateForR2[date] = segmentsToBatch.map((segment) =>
+        formatSegmentForR2(segment as TranscriptSegmentI),
+      );
+      segmentCountByDate[date] = segmentsToBatch.length;
+      totalSegmentsFound += segmentsToBatch.length;
+
+      console.log(
+        `[R2Batch] Date ${date}: ${segmentsToBatch.length}/${segments.length} segments below cutoff`,
+      );
+    }
+
+    // Log which dates will be batched
+    const datesToBatch = Object.keys(segmentsByDateForR2);
+    if (datesToBatch.length > 0) {
+      console.log(`[R2Batch] Dates to batch: ${datesToBatch.join(", ")}`);
     }
 
     if (totalSegmentsFound === 0) {
-      console.log(`[R2Batch] No segments found up to ${cutoffTimestamp}`);
+      console.log(`[R2Batch] No segments found below cutoff timestamp`);
       return {
         success: true,
         date: cutoffTimestamp,
         segmentCount: 0,
+        batchedDates: [],
+        segmentsByDate: {},
       };
     }
 
     // Upload each day's segments to R2
     let totalUploaded = 0;
     let lastUrl: string | undefined;
+    const successfullyBatchedDates: string[] = [];
 
-    for (const [date, r2Segments] of Object.entries(segmentsByDate)) {
+    for (const [date, r2Segments] of Object.entries(segmentsByDateForR2)) {
       console.log(
         `[R2Batch] Uploading ${r2Segments.length} segments for ${date}`,
       );
@@ -127,23 +149,28 @@ export async function batchTranscriptsToR2(params: {
           success: false,
           date: cutoffTimestamp,
           segmentCount: totalUploaded,
+          batchedDates: successfullyBatchedDates,
+          segmentsByDate: segmentCountByDate,
           error: result.error,
         };
       }
 
       totalUploaded += r2Segments.length;
       lastUrl = result.url;
+      successfullyBatchedDates.push(date);
       console.log(
-        `[R2Batch] Successfully uploaded ${r2Segments.length} segments for ${date}`,
+        `[R2Batch] ✓ Successfully uploaded ${r2Segments.length} segments for ${date}`,
       );
     }
 
-    console.log(`[R2Batch] Batch complete! Total uploaded: ${totalUploaded}`);
+    console.log(`[R2Batch] ✓ Batch complete! Total uploaded: ${totalUploaded} segments across ${successfullyBatchedDates.length} dates`);
 
     return {
       success: true,
       date: cutoffTimestamp,
       segmentCount: totalUploaded,
+      batchedDates: successfullyBatchedDates,
+      segmentsByDate: segmentCountByDate,
       r2Url: lastUrl,
     };
   } catch (error) {
@@ -152,78 +179,82 @@ export async function batchTranscriptsToR2(params: {
       success: false,
       date: cutoffTimestamp,
       segmentCount: 0,
+      batchedDates: [],
+      segmentsByDate: {},
       error: error instanceof Error ? error : new Error(String(error)),
     };
   }
 }
 
 /**
- * Delete processed segments from MongoDB after successful R2 upload
- * Removes segments with timestamp <= cutoffTimestamp from DailyTranscript documents
- * If all segments are removed, deletes the document entirely
+ * Delete processed segments from MongoDB after successful R2 upload.
+ * Filters by ISO timestamp directly - deletes segments where timestamp < cutoffTimestamp.
+ * Documents that become empty (all segments deleted) are removed entirely.
  *
  * @param userId - User's ID
- * @param cutoffTimestamp - Timestamp cutoff (ISO string) to delete up to (inclusive)
+ * @param cutoffTimestamp - Cutoff as UTC ISO string (e.g. 2026-02-07T07:59:59.000+00:00)
  * @returns Number of segments deleted
  */
 export async function deleteProcessedSegments(params: {
   userId: string;
   cutoffTimestamp: string;
+  timezone?: string;
 }): Promise<number> {
   const { userId, cutoffTimestamp } = params;
   const cutoffDate = new Date(cutoffTimestamp);
 
   console.log(
-    `[R2Batch] Deleting segments for ${userId} up to ${cutoffTimestamp}`,
+    `[R2Batch] Deleting segments for ${userId} where timestamp < ${cutoffTimestamp}`,
   );
 
   try {
-    // Get all daily transcripts with segments
+    // Find all daily transcripts for this user
     const dailyTranscripts = await DailyTranscript.find({
       userId,
-      totalSegments: { $gt: 0 },
     }).exec();
 
     let totalDeleted = 0;
+    const affectedDates: string[] = [];
 
     for (const doc of dailyTranscripts) {
+      if (!doc.segments || doc.segments.length === 0) continue;
+
       const originalCount = doc.segments.length;
 
-      // Filter out segments that were batched (keep segments AFTER cutoff)
+      // Filter segments: keep only those with timestamp >= cutoffTimestamp
       const remainingSegments = doc.segments.filter((segment) => {
         const segmentTime = new Date(segment.timestamp);
-        return segmentTime > cutoffDate;
+        return segmentTime >= cutoffDate;
       });
 
       const deletedCount = originalCount - remainingSegments.length;
 
-      if (deletedCount > 0) {
-        if (remainingSegments.length === 0) {
-          // All segments removed, delete the document
-          await DailyTranscript.deleteOne({ _id: doc._id }).exec();
-          console.log(
-            `[R2Batch] Deleted entire document for ${doc.date} (${deletedCount} segments)`,
-          );
-        } else {
-          // Update document with remaining segments
-          await DailyTranscript.updateOne(
-            { _id: doc._id },
-            {
-              $set: {
-                segments: remainingSegments,
-                totalSegments: remainingSegments.length,
-              },
-            },
-          ).exec();
-          console.log(
-            `[R2Batch] Removed ${deletedCount} segments from ${doc.date}, ${remainingSegments.length} remaining`,
-          );
-        }
-        totalDeleted += deletedCount;
+      if (deletedCount === 0) {
+        console.log(`[R2Batch] Date ${doc.date}: 0 segments to delete (${originalCount} total)`);
+        continue;
       }
+
+      if (remainingSegments.length === 0) {
+        // All segments deleted - remove entire document
+        await DailyTranscript.deleteOne({ _id: doc._id }).exec();
+        console.log(
+          `[R2Batch] ✓ Deleted entire DailyTranscript for ${doc.date} (${deletedCount} segments)`,
+        );
+      } else {
+        // Some segments remain - update document
+        doc.segments = remainingSegments;
+        doc.totalSegments = remainingSegments.length;
+        await doc.save();
+        console.log(
+          `[R2Batch] ✓ Removed ${deletedCount} segments from ${doc.date} (${remainingSegments.length} remaining)`,
+        );
+      }
+
+      totalDeleted += deletedCount;
+      affectedDates.push(doc.date);
     }
 
-    console.log(`[R2Batch] Total segments deleted: ${totalDeleted}`);
+    console.log(`[R2Batch] ✓ Cleanup complete: ${totalDeleted} segments deleted across ${affectedDates.length} dates`);
     return totalDeleted;
   } catch (error) {
     console.error(`[R2Batch] Error deleting segments:`, error);

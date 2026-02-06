@@ -15,6 +15,7 @@ import {
   updateFileTranscript,
   getAvailableDates,
   deleteFile as deleteFileFromDb,
+  deleteDailyTranscript,
   type FileI,
 } from "../../models";
 
@@ -110,7 +111,25 @@ export class FileManager extends SyncedManager {
         }
       }
 
-      // Step 6: Reload all files and set state
+      // Step 6: Clean up orphaned File records (no transcript data and no notes)
+      const orphanedDates = Array.from(existingDates).filter((d) => {
+        // Keep if it has transcript data in R2 or MongoDB
+        if (allDates.has(d)) return false;
+        // Keep if it has notes
+        const file = dbFiles.find((f) => f.date === d);
+        if (file && file.noteCount > 0) return false;
+        // Otherwise it's orphaned
+        return true;
+      });
+
+      if (orphanedDates.length > 0) {
+        console.log(`[FileManager] Cleaning up ${orphanedDates.length} orphaned File records:`, orphanedDates);
+        for (const date of orphanedDates) {
+          await deleteFileFromDb(userId, date, true);
+        }
+      }
+
+      // Step 7: Reload all files and set state
       const allFiles = await getFiles(userId, {
         isTrashed: false,
         isArchived: false,
@@ -261,6 +280,15 @@ export class FileManager extends SyncedManager {
   // RPC Methods
   // ===========================================================================
 
+  /**
+   * Force refresh files from database (useful after direct DB changes)
+   */
+  @rpc
+  async refreshFiles(): Promise<FileData[]> {
+    await this.hydrate();
+    return [...this.files];
+  }
+
   @rpc
   async getFilesRpc(filter?: FileFilter): Promise<FileData[]> {
     const userId = this._session?.userId;
@@ -367,5 +395,35 @@ export class FileManager extends SyncedManager {
     }
 
     return success;
+  }
+
+  /**
+   * Fully purge a date - deletes both DailyTranscript AND File records
+   * Use this when you want to completely remove a date from the system
+   * Note: This does NOT delete from R2 (cloud storage)
+   */
+  @rpc
+  async purgeDate(date: string): Promise<{ deletedTranscript: boolean; deletedFile: boolean }> {
+    const userId = this._session?.userId;
+    if (!userId) {
+      return { deletedTranscript: false, deletedFile: false };
+    }
+
+    console.log(`[FileManager] Purging date ${date} for user ${userId}`);
+
+    // Delete DailyTranscript record
+    const deletedTranscript = await deleteDailyTranscript(userId, date);
+    console.log(`[FileManager] DailyTranscript deleted: ${deletedTranscript}`);
+
+    // Delete File record
+    const deletedFile = await deleteFileFromDb(userId, date, true);
+    console.log(`[FileManager] File deleted: ${deletedFile}`);
+
+    // Update local state
+    if (deletedFile) {
+      this.files.set(this.files.filter((f) => f.date !== date));
+    }
+
+    return { deletedTranscript, deletedFile };
   }
 }

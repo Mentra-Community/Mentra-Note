@@ -18,6 +18,18 @@ export class TimeManager {
   }
 
   /**
+   * Get the configured timezone or resolve the system default
+   * Returns IANA timezone string (e.g., "America/Los_Angeles")
+   */
+  getTimezone(): string {
+    if (this.timezone) {
+      return this.timezone;
+    }
+    // Resolve the system's default timezone using Intl API
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  }
+
+  /**
    * Get today's date as YYYY-MM-DD string in user's timezone
    */
   getTodayDate(): string {

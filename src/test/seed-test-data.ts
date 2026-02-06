@@ -26,11 +26,11 @@ const R2_SECRET_KEY = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!;
 // =============================================================================
 
 function getToday(): string {
-  return "2026-02-04"; // Hardcoded for testing
+  return "2026-02-03"; // Hardcoded for testing
 }
 
 function getYesterday(): string {
-  return "2026-02-04"; // Hardcoded for testing
+  return "2026-02-03"; // Hardcoded for testing
 }
 
 // =============================================================================
