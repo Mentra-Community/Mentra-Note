@@ -148,7 +148,7 @@ export function GlobalAIChat({ isOpen, onClose }: GlobalAIChatProps) {
                 key={msg.id}
                 className={clsx(
                   "flex gap-3",
-                  isAssistant ? "items-start" : "flex-row-reverse"
+                  isAssistant ? "items-start" : "flex-row-reverse",
                 )}
               >
                 {/* Avatar */}
@@ -157,7 +157,7 @@ export function GlobalAIChat({ isOpen, onClose }: GlobalAIChatProps) {
                     "w-8 h-8 rounded-full flex items-center justify-center shrink-0 border",
                     isAssistant
                       ? "bg-white dark:bg-[#1e1f22] border-zinc-200 dark:border-[#3f4147] text-zinc-900 dark:text-zinc-100"
-                      : "bg-zinc-900 dark:bg-zinc-100 border-transparent text-white dark:text-zinc-900"
+                      : "bg-zinc-900 dark:bg-zinc-100 border-transparent text-white dark:text-zinc-900",
                   )}
                 >
                   {isAssistant ? <Sparkles size={14} /> : <User size={14} />}
@@ -167,7 +167,7 @@ export function GlobalAIChat({ isOpen, onClose }: GlobalAIChatProps) {
                 <div
                   className={clsx(
                     "flex flex-col max-w-[85%]",
-                    isAssistant ? "items-start" : "items-end"
+                    isAssistant ? "items-start" : "items-end",
                   )}
                 >
                   <div
@@ -175,7 +175,7 @@ export function GlobalAIChat({ isOpen, onClose }: GlobalAIChatProps) {
                       "px-4 py-3 text-[15px] leading-relaxed",
                       isAssistant
                         ? "text-zinc-800 dark:text-zinc-300"
-                        : "bg-zinc-100 dark:bg-[#313338] text-zinc-900 dark:text-zinc-100 rounded-2xl rounded-tr-sm"
+                        : "bg-zinc-100 dark:bg-[#313338] text-zinc-900 dark:text-zinc-100 rounded-2xl rounded-tr-sm",
                     )}
                   >
                     {msg.content}
@@ -222,7 +222,7 @@ export function GlobalAIChat({ isOpen, onClose }: GlobalAIChatProps) {
         </div>
 
         {/* Input Area */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent dark:from-black dark:via-black dark:to-transparent pt-10 pb-8 px-4">
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent dark:from-[#1e1f22] dark:via-[#1e1f22] dark:to-transparent pt-10 pb-8 px-4">
           <div className="relative flex items-center rounded-full bg-white dark:bg-[#313338] border border-zinc-200 dark:border-[#3f4147] transition-colors">
             <input
               ref={inputRef}
@@ -240,7 +240,7 @@ export function GlobalAIChat({ isOpen, onClose }: GlobalAIChatProps) {
                 "absolute right-2 p-2 rounded-full transition-all duration-200",
                 input.trim()
                   ? "bg-zinc-900 dark:bg-white text-white dark:text-black scale-100"
-                  : "bg-zinc-100 dark:bg-[#3f4147] text-zinc-300 dark:text-zinc-600 scale-90"
+                  : "bg-zinc-100 dark:bg-[#3f4147] text-zinc-300 dark:text-zinc-600 scale-90",
               )}
             >
               <ArrowUp size={18} strokeWidth={2.5} />

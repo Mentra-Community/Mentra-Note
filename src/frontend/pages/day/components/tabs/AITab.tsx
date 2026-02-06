@@ -269,7 +269,7 @@ export function AITab({ date }: AITabProps) {
       </div>
 
       {/* Input Area */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent dark:from-black dark:via-black dark:to-transparent pt-8 pb-4 px-4">
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent dark:from-[#1e1f22] dark:via-[#1e1f22] dark:to-transparent pt-8 pb-4 px-4">
         <div className="relative flex items-center gap-2">
           {/* Clear button */}
           {messages.length > 0 && (
