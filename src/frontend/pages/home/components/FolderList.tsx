@@ -61,7 +61,7 @@ export function FolderList({ folders, onSelectFolder }: FolderListProps) {
   const monthKeys = Object.keys(groupedFolders);
 
   return (
-    <div className="h-full overflow-y-auto bg-zinc-50 dark:bg-[#1e1f22]">
+    <div className="h-full overflow-y-auto bg-zinc-50 dark:bg-[#2b2d31]">
       {monthKeys.map((monthKey, monthIndex) => (
         <div key={monthKey}>
           {/* Month divider - skip for current month if it's the first */}
