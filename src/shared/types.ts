@@ -131,6 +131,41 @@ export interface SettingsManagerI {
   }): Promise<void>;
 }
 
+/**
+ * File data - represents a folder/date in the UI
+ */
+export interface FileData {
+  id: string;
+  date: string; // YYYY-MM-DD
+  noteCount: number;
+  transcriptSegmentCount: number;
+  hasTranscript: boolean;
+  hasNotes: boolean;
+  isArchived: boolean;
+  isTrashed: boolean;
+  r2Key?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type FileFilter = "all" | "archived" | "trash";
+
+export interface FileManagerI {
+  // State
+  files: FileData[];
+  isLoading: boolean;
+  activeFilter: FileFilter;
+
+  // RPCs
+  getFilesRpc(filter?: FileFilter): Promise<FileData[]>;
+  setFilter(filter: FileFilter): Promise<FileData[]>;
+  archiveFile(date: string): Promise<FileData | null>;
+  unarchiveFile(date: string): Promise<FileData | null>;
+  trashFile(date: string): Promise<FileData | null>;
+  restoreFile(date: string): Promise<FileData | null>;
+  permanentlyDeleteFile(date: string): Promise<boolean>;
+}
+
 // =============================================================================
 // Session Interface
 // =============================================================================
@@ -148,6 +183,7 @@ export interface SessionI {
   notes: NotesManagerI;
   chat: ChatManagerI;
   settings: SettingsManagerI;
+  file: FileManagerI;
 }
 
 // =============================================================================

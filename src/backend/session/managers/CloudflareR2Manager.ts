@@ -16,6 +16,7 @@ import {
   listR2TranscriptDates,
 } from "../../services/r2Fetch.service";
 import type { R2BatchData } from "../../services/r2Upload.service";
+import type { FileManager } from "./FileManager";
 
 // =============================================================================
 // Types
@@ -98,6 +99,19 @@ export class CloudflareR2Manager extends SyncedManager {
         console.log(
           `[R2Manager] Batch successful: ${result.segmentCount} segments uploaded`,
         );
+
+        // Notify FileManager about archived transcript
+        if (result.date) {
+          const fileManager = this.getFileManager();
+          if (fileManager) {
+            const r2Key = `transcripts/${userId}/${result.date}.json`;
+            await fileManager.onTranscriptArchived(
+              result.date,
+              r2Key,
+              result.segmentCount,
+            );
+          }
+        }
       } else {
         this.lastBatchStatus = "failed";
         this.lastBatchError = result.error?.message || "Unknown error";
@@ -207,8 +221,16 @@ export class CloudflareR2Manager extends SyncedManager {
       return null;
     }
 
+    console.log(`[R2Manager] fetchTranscript(${date}) for user ${userId}`);
     const result = await fetchTranscriptFromR2({ userId, date });
-    return result.success && result.data ? result.data : null;
+
+    if (result.success && result.data) {
+      console.log(`[R2Manager] ✓ Found R2 transcript for ${date}: ${result.data.segments?.length || 0} segments`);
+      return result.data;
+    } else {
+      console.log(`[R2Manager] ✗ No R2 transcript found for ${date}`, result.error || '');
+      return null;
+    }
   }
 
   /**
@@ -218,14 +240,18 @@ export class CloudflareR2Manager extends SyncedManager {
   async loadR2AvailableDates(): Promise<string[]> {
     const userId = this._session?.userId;
     if (!userId) {
+      console.log(`[R2Manager] loadR2AvailableDates: No userId`);
       return [];
     }
 
+    console.log(`[R2Manager] Loading available R2 dates for ${userId}...`);
     const result = await listR2TranscriptDates(userId);
     if (result.success) {
+      console.log(`[R2Manager] ✓ Found ${result.dates.length} R2 dates:`, result.dates);
       this.r2AvailableDates = result.dates;
       return result.dates;
     }
+    console.log(`[R2Manager] ✗ Failed to list R2 dates:`, result.error || 'unknown error');
     return [];
   }
 
@@ -243,5 +269,9 @@ export class CloudflareR2Manager extends SyncedManager {
     // Access time manager through transcript manager
     const session = this._session as any;
     return session?.transcript?.getTimeManager?.() || null;
+  }
+
+  private getFileManager(): FileManager | null {
+    return (this._session as any)?.file || null;
   }
 }

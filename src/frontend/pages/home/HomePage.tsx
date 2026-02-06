@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useSynced } from "../../hooks/useSynced";
-import type { SessionI, Note } from "../../../shared/types";
+import type { SessionI, FileFilter } from "../../../shared/types";
 import { FolderList } from "./components/FolderList";
 import type { DailyFolder } from "./components/FolderList";
 import {
@@ -43,78 +43,59 @@ export function HomePage() {
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [showGlobalChat, setShowGlobalChat] = useState(false);
 
-  // Derive data from session
-  const notes = session?.notes?.notes ?? [];
-  const segments = session?.transcript?.segments ?? [];
+  // Derive data from session - now using FileManager as source of truth
+  const files = session?.file?.files ?? [];
   const isRecording = session?.transcript?.isRecording ?? false;
-  const availableDates = session?.transcript?.availableDates ?? [];
+  const notes = session?.notes?.notes ?? [];
 
-  // Transform synced data to folder format
+  // Transform FileData to DailyFolder format
   const folders = useMemo((): DailyFolder[] => {
-    // Group notes by date
-    const notesByDate = new Map<string, Note[]>();
-
-    notes.forEach((note) => {
-      const noteDate = note.createdAt ? new Date(note.createdAt) : new Date();
-      const date = `${noteDate.getFullYear()}-${String(noteDate.getMonth() + 1).padStart(2, "0")}-${String(noteDate.getDate()).padStart(2, "0")}`;
-      if (!notesByDate.has(date)) {
-        notesByDate.set(date, []);
-      }
-      notesByDate.get(date)!.push(note);
-    });
-
-    // Add today if we have transcript segments
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-    if (segments.length > 0) {
-      if (!notesByDate.has(today)) {
-        notesByDate.set(today, []);
-      }
-    }
+    return files.map((file) => {
+      const [year, month, day] = file.date.split("-").map(Number);
+      const dateObj = new Date(year, month - 1, day);
+      const isToday = file.date === today;
 
-    // Combine dates from notes and available transcript dates from backend
-    const allDates = new Set([...notesByDate.keys(), ...availableDates]);
+      return {
+        id: file.date,
+        date: dateObj,
+        dateString: file.date,
+        isToday,
+        isTranscribing: isToday && isRecording,
+        noteCount: file.noteCount,
+        transcriptCount: file.transcriptSegmentCount,
+        hasTranscript: file.hasTranscript,
+      };
+    });
+  }, [files, isRecording]);
 
-    // Transform to DailyFolder format
-    return Array.from(allDates)
-      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
-      .map((date) => {
-        const dateNotes = notesByDate.get(date) || [];
-        const [year, month, day] = date.split("-").map(Number);
-        const dateObj = new Date(year, month - 1, day);
-        const isTodayDate = date === today;
-
-        // Count transcript segments for today only (historical counts come from availableDates)
-        const transcriptCount = isTodayDate ? segments.length : 0;
-        const hasHistoricalTranscript = availableDates.includes(date);
-
-        return {
-          id: date,
-          date: dateObj,
-          dateString: date,
-          isToday: isTodayDate,
-          isTranscribing: isTodayDate && isRecording,
-          noteCount: dateNotes.length,
-          transcriptCount,
-          hasTranscript: isTodayDate
-            ? segments.length > 0
-            : hasHistoricalTranscript,
-        };
-      });
-  }, [notes, segments, isRecording, availableDates]);
-
-  // Filter counts (TODO: implement actual filtering when we have archive/trash state)
+  // Filter counts - derived from files
   const filterCounts = useMemo(
     () => ({
-      all: folders.length,
-      archived: 0,
-      trash: 0,
+      all: files.filter((f) => !f.isArchived && !f.isTrashed).length,
+      archived: files.filter((f) => f.isArchived).length,
+      trash: files.filter((f) => f.isTrashed).length,
       allNotes: notes.length,
       favorites: 0, // TODO: track favorites
     }),
-    [folders, notes],
+    [files, notes],
   );
+
+  // Handle filter change - call FileManager RPC
+  const handleFilterChange = async (filter: FilterType) => {
+    setActiveFilter(filter);
+
+    // Map FilterType to FileFilter
+    const fileFilter: FileFilter =
+      filter === "archived" ? "archived" : filter === "trash" ? "trash" : "all";
+
+    // Call RPC to update files
+    if (session?.file) {
+      await session.file.setFilter(fileFilter);
+    }
+  };
 
   // Get filter label for display
   const getFilterLabel = (): string => {
@@ -237,7 +218,7 @@ export function HomePage() {
           onClose={() => setIsFilterOpen(false)}
           activeFilter={activeFilter}
           activeView={activeView}
-          onFilterChange={setActiveFilter}
+          onFilterChange={handleFilterChange}
           onViewChange={setActiveView}
           counts={filterCounts}
         />
@@ -316,7 +297,7 @@ export function HomePage() {
         onClose={() => setIsFilterOpen(false)}
         activeFilter={activeFilter}
         activeView={activeView}
-        onFilterChange={setActiveFilter}
+        onFilterChange={handleFilterChange}
         onViewChange={setActiveView}
         counts={filterCounts}
       />

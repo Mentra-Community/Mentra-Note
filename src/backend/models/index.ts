@@ -59,3 +59,17 @@ export {
   deleteChatHistory,
   getChatHistoryDates,
 } from "./chat-history.model";
+
+// File (source of truth for folders)
+export {
+  File,
+  type FileI,
+  getOrCreateFile,
+  getFile,
+  getFiles,
+  updateFile,
+  incrementNoteCount,
+  updateFileTranscript,
+  bulkCreateFiles,
+  deleteFile,
+} from "./file.model";

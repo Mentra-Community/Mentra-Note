@@ -22,6 +22,7 @@ import {
 } from "../../services/llm";
 import { getUserState, updateTranscriptionBatchEndOfDay } from "../../services/userState.service";
 import { TimeManager } from "./TimeManager";
+import type { FileManager } from "./FileManager";
 
 // =============================================================================
 // Types
@@ -90,6 +91,10 @@ export class TranscriptManager extends SyncedManager {
     return this.timeManager;
   }
 
+  private getFileManager(): FileManager | null {
+    return (this._session as any)?.file || null;
+  }
+
   // ===========================================================================
   // Lifecycle
   // ===========================================================================
@@ -122,6 +127,11 @@ export class TranscriptManager extends SyncedManager {
       console.log(`[TranscriptManager] All available dates:`, allDates);
       this.availableDates.set(allDates);
 
+      console.log(`[TranscriptManager] ========================================`);
+      console.log(`[TranscriptManager] FETCHING transcripts from MongoDB (TODAY)`);
+      console.log(`[TranscriptManager] Date: ${today}`);
+      console.log(`[TranscriptManager] ========================================`);
+
       const transcript = await getOrCreateDailyTranscript(userId, today);
 
       if (transcript.segments && transcript.segments.length > 0) {
@@ -138,9 +148,9 @@ export class TranscriptManager extends SyncedManager {
         this.segments.set(loadedSegments);
         this.segmentIndex = loadedSegments.length;
 
-        console.log(
-          `[TranscriptManager] Hydrated ${loadedSegments.length} segments for ${userId}`,
-        );
+        console.log(`[TranscriptManager] ✓ MongoDB fetch successful: ${loadedSegments.length} segments for ${today}`);
+      } else {
+        console.log(`[TranscriptManager] ✓ MongoDB fetch successful: 0 segments for ${today}`);
       }
 
       // Load saved hour summaries
@@ -295,6 +305,7 @@ export class TranscriptManager extends SyncedManager {
   addSegment(text: string, isFinal: boolean, speakerId?: string): void {
     if (!text.trim()) return;
 
+    const wasRecording = this.isRecording;
     this.isRecording = true;
 
     if (!isFinal) {
@@ -314,6 +325,15 @@ export class TranscriptManager extends SyncedManager {
     };
 
     this.segments.mutate((s) => s.push(segment));
+
+    // Notify FileManager on first segment (transcript started)
+    if (!wasRecording) {
+      const fileManager = this.getFileManager();
+      if (fileManager) {
+        const today = this.getTimeManager().getTodayDate();
+        fileManager.onTranscriptStarted(today);
+      }
+    }
 
     this.pendingSegments.push({
       text: segment.text,
@@ -346,13 +366,20 @@ export class TranscriptManager extends SyncedManager {
   ): Promise<{ segments: TranscriptSegment[]; hourSummaries: HourSummary[] }> {
     const userId = this._session?.userId;
     if (!userId) {
+      console.log(`[TranscriptManager] loadDateTranscript(${date}): No userId`);
       return { segments: [], hourSummaries: [] };
     }
 
     const today = this.getTimeManager().getTodayDate();
+    console.log(`[TranscriptManager] loadDateTranscript(${date}) - today is ${today}`);
 
-    // TODAY: Return current in-memory segments
+    // TODAY: Return current in-memory segments (originally loaded from MongoDB during hydrate)
     if (date === today) {
+      console.log(`[TranscriptManager] ========================================`);
+      console.log(`[TranscriptManager] FETCHING transcripts from MongoDB (TODAY)`);
+      console.log(`[TranscriptManager] Date: ${date}`);
+      console.log(`[TranscriptManager] Segments: ${this.segments.length}`);
+      console.log(`[TranscriptManager] ========================================`);
       this.loadedDate = today;
       return {
         segments: [...this.segments],
@@ -361,6 +388,10 @@ export class TranscriptManager extends SyncedManager {
     }
 
     // PAST DATE: Fetch from R2 (old transcripts are migrated there)
+    console.log(`[TranscriptManager] ========================================`);
+    console.log(`[TranscriptManager] FETCHING transcripts from R2 (HISTORICAL)`);
+    console.log(`[TranscriptManager] Date: ${date}`);
+    console.log(`[TranscriptManager] ========================================`);
     this.isLoadingHistory = true;
 
     try {
@@ -387,18 +418,21 @@ export class TranscriptManager extends SyncedManager {
           this.hourSummaries.set(loadedSummaries);
           this.isLoadingHistory = false;
 
-          console.log(
-            `[TranscriptManager] Loaded ${loadedSegments.length} segments from R2 for ${date}`,
-          );
+          console.log(`[TranscriptManager] ✓ R2 fetch successful: ${loadedSegments.length} segments for ${date}`);
 
           return {
             segments: loadedSegments,
             hourSummaries: loadedSummaries,
           };
+        } else {
+          console.log(`[TranscriptManager] ✗ R2 returned no data for ${date}`);
         }
+      } else {
+        console.log(`[TranscriptManager] ✗ No R2 manager available`);
       }
 
       // Not found in R2
+      console.log(`[TranscriptManager] ✗ No transcript found for ${date}`);
       this.segments.set([]);
       this.loadedDate = date;
       this.hourSummaries.set([]);
@@ -418,7 +452,18 @@ export class TranscriptManager extends SyncedManager {
   @rpc
   async loadTodayTranscript(): Promise<void> {
     const today = this.getTimeManager().getTodayDate();
-    if (this.loadedDate === today) return;
+    if (this.loadedDate === today) {
+      console.log(`[TranscriptManager] ========================================`);
+      console.log(`[TranscriptManager] FETCHING transcripts from MongoDB (TODAY)`);
+      console.log(`[TranscriptManager] Date: ${today} (already loaded)`);
+      console.log(`[TranscriptManager] Segments: ${this.segments.length}`);
+      console.log(`[TranscriptManager] ========================================`);
+      return;
+    }
+    console.log(`[TranscriptManager] ========================================`);
+    console.log(`[TranscriptManager] FETCHING transcripts from MongoDB (TODAY)`);
+    console.log(`[TranscriptManager] Date: ${today} (re-hydrating)`);
+    console.log(`[TranscriptManager] ========================================`);
     await this.hydrate();
   }
 

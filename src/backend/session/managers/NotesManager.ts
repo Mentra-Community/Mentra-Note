@@ -14,6 +14,7 @@ import {
   type UnifiedMessage,
 } from "../../services/llm";
 import type { TranscriptSegment } from "./TranscriptManager";
+import type { FileManager } from "./FileManager";
 
 // =============================================================================
 // Types
@@ -45,6 +46,15 @@ export class NotesManager extends SyncedManager {
   // ===========================================================================
   // Private Helpers
   // ===========================================================================
+
+  private getFileManager(): FileManager | null {
+    return (this._session as any)?.file || null;
+  }
+
+  private getNoteDate(note: NoteData): string {
+    const d = new Date(note.createdAt);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
 
   private getProvider(): AgentProvider | null {
     if (this.provider) return this.provider;
@@ -111,6 +121,13 @@ export class NotesManager extends SyncedManager {
         transcriptRange: note.transcriptRange,
       });
 
+      // Notify FileManager about the new note
+      const fileManager = this.getFileManager();
+      if (fileManager) {
+        const noteDate = this.getNoteDate(note);
+        await fileManager.onNoteCreated(noteDate);
+      }
+
       return dbNote._id?.toString() || note.id;
     } catch (error) {
       console.error("[NotesManager] Failed to persist note:", error);
@@ -136,12 +153,18 @@ export class NotesManager extends SyncedManager {
     }
   }
 
-  private async persistNoteDelete(noteId: string): Promise<void> {
+  private async persistNoteDelete(noteId: string, noteDate: string): Promise<void> {
     const userId = this._session?.userId;
     if (!userId) return;
 
     try {
       await deleteNote(userId, noteId);
+
+      // Notify FileManager about the deleted note
+      const fileManager = this.getFileManager();
+      if (fileManager) {
+        await fileManager.onNoteDeleted(noteDate);
+      }
     } catch (error) {
       console.error("[NotesManager] Failed to delete note from DB:", error);
     }
@@ -334,8 +357,15 @@ SUMMARY: [summary here]`,
 
   @rpc
   async deleteNote(noteId: string): Promise<void> {
+    // Find the note first to get its date
+    const note = this.notes.find((n) => n.id === noteId);
+    const noteDate = note ? this.getNoteDate(note) : null;
+
     this.notes.set(this.notes.filter((n) => n.id !== noteId));
-    await this.persistNoteDelete(noteId);
+
+    if (noteDate) {
+      await this.persistNoteDelete(noteId, noteDate);
+    }
   }
 
   @rpc

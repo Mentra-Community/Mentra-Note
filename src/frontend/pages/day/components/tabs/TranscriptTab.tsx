@@ -376,10 +376,19 @@ export function TranscriptTab({
                         {hourSegments.length !== 1 ? "s" : ""}
                       </span>
                       {!banner.hasSummary && onGenerateSummary && (
-                        <button
+                        <span
+                          role="button"
+                          tabIndex={0}
                           onClick={(e) => handleGenerateSummary(e, hour24)}
-                          disabled={isGenerating}
-                          className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 font-medium flex items-center gap-1 transition-colors"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              handleGenerateSummary(e as unknown as React.MouseEvent, hour24);
+                            }
+                          }}
+                          className={clsx(
+                            "text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 font-medium flex items-center gap-1 transition-colors cursor-pointer",
+                            isGenerating && "pointer-events-none opacity-60"
+                          )}
                         >
                           {isGenerating ? (
                             <>
@@ -389,7 +398,7 @@ export function TranscriptTab({
                           ) : (
                             <span>Generate summary</span>
                           )}
-                        </button>
+                        </span>
                       )}
                     </div>
                   </div>
