@@ -156,7 +156,7 @@ export function DayPage() {
   // Loading state
   if (!session || isLoadingHistory) {
     return (
-      <div className="flex h-full bg-white dark:bg-[#1e1f22] items-center justify-center">
+      <div className="flex h-full bg-white dark:bg-[#2b2d31] items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-zinc-400">
           <Loader2 size={32} className="animate-spin" />
           <p className="text-sm">
@@ -176,7 +176,7 @@ export function DayPage() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-[#1e1f22]">
+    <div className="h-full flex flex-col bg-white dark:bg-[#2b2d31]">
       {/* Header */}
       <div className="shrink-0 border-b border-zinc-200 dark:border-[#3f4147]">
         {/* Top row with back button and actions */}

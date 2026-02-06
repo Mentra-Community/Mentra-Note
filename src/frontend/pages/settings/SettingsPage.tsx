@@ -85,7 +85,7 @@ function SettingsRow({
           >
             <div
               className={clsx(
-                "w-5 h-5 rounded-full bg-white dark:bg-[#1e1f22] shadow-sm transition-transform",
+                "w-5 h-5 rounded-full bg-white dark:bg-[#2b2d31] shadow-sm transition-transform",
                 active && "translate-x-5",
               )}
             />
@@ -193,7 +193,7 @@ export function SettingsPage() {
   // Loading state
   if (!session) {
     return (
-      <div className="flex h-full bg-white dark:bg-[#1e1f22] items-center justify-center">
+      <div className="flex h-full bg-white dark:bg-[#2b2d31] items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-zinc-400">
           <Loader2 size={32} className="animate-spin" />
           <p className="text-sm">Loading...</p>
@@ -203,7 +203,7 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-[#1e1f22]">
+    <div className="h-full flex flex-col bg-white dark:bg-[#2b2d31]">
       {/* Header */}
       <div className="shrink-0 border-b border-zinc-200 dark:border-[#3f4147] px-4 py-3">
         <div className="flex items-center">

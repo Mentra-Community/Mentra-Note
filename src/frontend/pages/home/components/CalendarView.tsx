@@ -74,9 +74,9 @@ export function CalendarView({ folders, onSelectDate }: CalendarViewProps) {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-white dark:bg-[#1e1f22]">
+    <div className="h-full overflow-y-auto bg-white dark:bg-[#2b2d31]">
       {/* Month Header */}
-      <div className="sticky top-0 bg-white dark:bg-[#1e1f22] z-10 px-6 py-4 border-b border-zinc-100 dark:border-[#3f4147]">
+      <div className="sticky top-0 bg-white dark:bg-[#2b2d31] z-10 px-6 py-4 border-b border-zinc-100 dark:border-[#3f4147]">
         <div className="flex items-center justify-center gap-4">
           <button
             onClick={handlePrevMonth}

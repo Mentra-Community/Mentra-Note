@@ -57,7 +57,7 @@ export function Shell({ children }: ShellProps) {
   };
 
   return (
-    <div className="flex h-screen w-full bg-zinc-50 dark:bg-[#1e1f22] text-zinc-900 dark:text-zinc-100">
+    <div className="flex h-screen w-full bg-zinc-50 dark:bg-[#2b2d31] text-zinc-900 dark:text-zinc-100">
       {/* Desktop Sidebar */}
       <div className="w-16 shrink-0 border-r border-zinc-200 dark:border-[#3f4147] hidden md:flex flex-col items-center py-4 gap-2 bg-white dark:bg-[#2b2d31]">
         {/* App Icon */}
@@ -98,7 +98,7 @@ export function Shell({ children }: ShellProps) {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-[#1e1f22] relative">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-[#2b2d31] relative">
         <main className="flex-1 overflow-hidden relative pb-16 md:pb-0">
           {children}
         </main>

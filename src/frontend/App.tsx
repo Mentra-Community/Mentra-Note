@@ -85,7 +85,7 @@ export function App() {
     return (
       <div
         className={clsx(
-          "min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-[#1e1f22]",
+          "min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-[#2b2d31]",
           theme,
         )}
       >
@@ -114,7 +114,7 @@ export function App() {
     return (
       <div
         className={clsx(
-          "min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-[#1e1f22]",
+          "min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-[#2b2d31]",
           theme,
         )}
       >
@@ -148,7 +148,7 @@ export function App() {
     <ThemeContext.Provider value={themeValue}>
       <div
         className={clsx(
-          "font-sans bg-zinc-50 dark:bg-[#1e1f22] text-zinc-900 dark:text-zinc-100 selection:bg-zinc-200 dark:selection:bg-zinc-800",
+          "font-sans bg-zinc-50 dark:bg-[#2b2d31] text-zinc-900 dark:text-zinc-100 selection:bg-zinc-200 dark:selection:bg-zinc-800",
           theme,
         )}
       >

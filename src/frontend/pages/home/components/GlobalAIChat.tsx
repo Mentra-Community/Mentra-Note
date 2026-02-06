@@ -117,7 +117,7 @@ export function GlobalAIChat({ isOpen, onClose }: GlobalAIChatProps) {
       />
 
       {/* Panel */}
-      <div className="relative w-full max-w-lg bg-white dark:bg-[#1e1f22] h-full flex flex-col animate-in slide-in-from-right duration-300">
+      <div className="relative w-full max-w-lg bg-white dark:bg-[#2b2d31] h-full flex flex-col animate-in slide-in-from-right duration-300">
         {/* Header */}
         <div className="shrink-0 px-4 py-4 border-b border-zinc-100 dark:border-[#3f4147] flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -156,7 +156,7 @@ export function GlobalAIChat({ isOpen, onClose }: GlobalAIChatProps) {
                   className={clsx(
                     "w-8 h-8 rounded-full flex items-center justify-center shrink-0 border",
                     isAssistant
-                      ? "bg-white dark:bg-[#1e1f22] border-zinc-200 dark:border-[#3f4147] text-zinc-900 dark:text-zinc-100"
+                      ? "bg-white dark:bg-[#2b2d31] border-zinc-200 dark:border-[#3f4147] text-zinc-900 dark:text-zinc-100"
                       : "bg-zinc-900 dark:bg-zinc-100 border-transparent text-white dark:text-zinc-900",
                   )}
                 >
@@ -188,7 +188,7 @@ export function GlobalAIChat({ isOpen, onClose }: GlobalAIChatProps) {
           {/* Loading indicator */}
           {isLoading && (
             <div className="flex gap-3 items-start animate-pulse">
-              <div className="w-8 h-8 rounded-full bg-white dark:bg-[#1e1f22] border border-zinc-200 dark:border-[#3f4147] flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-full bg-white dark:bg-[#2b2d31] border border-zinc-200 dark:border-[#3f4147] flex items-center justify-center shrink-0">
                 <Sparkles size={14} className="text-zinc-400" />
               </div>
               <div className="flex items-center gap-1 h-8 px-2">
@@ -222,7 +222,7 @@ export function GlobalAIChat({ isOpen, onClose }: GlobalAIChatProps) {
         </div>
 
         {/* Input Area */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent dark:from-[#1e1f22] dark:via-[#1e1f22] dark:to-transparent pt-10 pb-8 px-4">
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent dark:from-[#2b2d31] dark:via-[#2b2d31] dark:to-transparent pt-10 pb-8 px-4">
           <div className="relative flex items-center rounded-full bg-white dark:bg-[#313338] border border-zinc-200 dark:border-[#3f4147] transition-colors">
             <input
               ref={inputRef}
