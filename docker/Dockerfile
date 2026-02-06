@@ -30,7 +30,7 @@ COPY . .
 # RUN bun run build:webview
 
 # Set production environment
-ENV NODE_ENV=production
+# ENV NODE_ENV=production
 
 # Expose the port
 EXPOSE 80

@@ -8,7 +8,7 @@ build:
   dockerfile: ./docker/Dockerfile
 
 services:
-  - name: sega
+  - name: notes
     type: web
     run: bun run start
     port: 80
