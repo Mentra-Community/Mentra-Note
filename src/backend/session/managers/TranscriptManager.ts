@@ -20,6 +20,8 @@ import {
   type AgentProvider,
   type UnifiedMessage,
 } from "../../services/llm";
+import { getUserState, updateTranscriptionBatchEndOfDay } from "../../services/userState.service";
+import { TimeManager } from "./TimeManager";
 
 // =============================================================================
 // Types
@@ -65,15 +67,13 @@ export class TranscriptManager extends SyncedManager {
   private rollingSummaryTimer: ReturnType<typeof setInterval> | null = null;
   private lastSummaryHour: number = -1;
   private lastSummarySegmentCount: number = 0;
+  private userStateInitialized = false;
+  private timeManager: TimeManager | null = null;
+  private transcriptionBatchEndOfDay: string | null = null;
 
   // ===========================================================================
   // Private Helpers
   // ===========================================================================
-
-  private getTodayDate(): string {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  }
 
   private getProvider(): AgentProvider {
     if (!this.provider) {
@@ -82,10 +82,12 @@ export class TranscriptManager extends SyncedManager {
     return this.provider;
   }
 
-  private formatHourLabel(hour: number): string {
-    const ampm = hour >= 12 ? "PM" : "AM";
-    const hour12 = hour % 12 || 12;
-    return `${hour12} ${ampm}`;
+  private getTimeManager(): TimeManager {
+    if (!this.timeManager) {
+      const timezone = (this._session as any)?.settings?.timezone ?? undefined;
+      this.timeManager = new TimeManager(timezone);
+    }
+    return this.timeManager;
   }
 
   // ===========================================================================
@@ -97,7 +99,7 @@ export class TranscriptManager extends SyncedManager {
     if (!userId) return;
 
     try {
-      const today = this.getTodayDate();
+      const today = this.getTimeManager().getTodayDate();
       this.loadedDate = today;
 
       // Load available dates
@@ -141,6 +143,15 @@ export class TranscriptManager extends SyncedManager {
         this.hourSummaries.set(loadedSummaries);
       }
 
+      // Load transcriptionBatchEndOfDay from MongoDB
+      const userState = await getUserState(userId);
+      if (userState?.transcriptionBatchEndOfDay) {
+        this.transcriptionBatchEndOfDay = userState.transcriptionBatchEndOfDay.toISOString();
+        console.log(
+          `[TranscriptManager] Loaded batch end of day from DB: ${this.transcriptionBatchEndOfDay}`,
+        );
+      }
+
       this.startRollingSummaryTimer();
     } catch (error) {
       console.error("[TranscriptManager] Failed to hydrate:", error);
@@ -154,7 +165,7 @@ export class TranscriptManager extends SyncedManager {
     if (!userId) return;
 
     try {
-      const today = this.getTodayDate();
+      const today = this.getTimeManager().getTodayDate();
       const toSave = [...this.pendingSegments];
       this.pendingSegments = [];
 
@@ -203,13 +214,14 @@ export class TranscriptManager extends SyncedManager {
 
   private async updateRollingSummary(): Promise<void> {
     const now = new Date();
-    const currentHour = now.getHours();
-    const today = this.getTodayDate();
+    const timeManager = this.getTimeManager();
+    const currentHour = timeManager.getCurrentHour();
+    const today = timeManager.getTodayDate();
 
     const hourSegments = this.segments.filter((seg) => {
-      const segDate = new Date(seg.timestamp);
-      const segDateStr = `${segDate.getFullYear()}-${String(segDate.getMonth() + 1).padStart(2, "0")}-${String(segDate.getDate()).padStart(2, "0")}`;
-      return segDateStr === today && segDate.getHours() === currentHour;
+      const segHour = timeManager.getHourFromTimestamp(seg.timestamp);
+      const segDateStr = timeManager.getDateString(new Date(seg.timestamp));
+      return segDateStr === today && segHour === currentHour;
     });
 
     const hourChanged = currentHour !== this.lastSummaryHour;
@@ -218,7 +230,7 @@ export class TranscriptManager extends SyncedManager {
 
     if (hourSegments.length === 0) {
       if (hourChanged) {
-        this.currentHourSummary = `${this.formatHourLabel(currentHour)} - Waiting for activity...`;
+        this.currentHourSummary = `${timeManager.formatHourLabel(currentHour)} - Waiting for activity...`;
         this.lastSummaryHour = currentHour;
         this.lastSummarySegmentCount = 0;
       }
@@ -235,8 +247,11 @@ export class TranscriptManager extends SyncedManager {
       this.lastSummaryHour = currentHour;
       this.lastSummarySegmentCount = hourSegments.length;
     } catch (error) {
-      console.error("[TranscriptManager] Failed to update rolling summary:", error);
-      this.currentHourSummary = `${this.formatHourLabel(currentHour)} - ${hourSegments.length} segments recorded`;
+      console.error(
+        "[TranscriptManager] Failed to update rolling summary:",
+        error,
+      );
+      this.currentHourSummary = `${timeManager.formatHourLabel(currentHour)} - ${hourSegments.length} segments recorded`;
     }
   }
 
@@ -244,8 +259,9 @@ export class TranscriptManager extends SyncedManager {
     if (this.currentHourSummary) {
       return this.currentHourSummary;
     }
-    const hour = new Date().getHours();
-    return `${this.formatHourLabel(hour)} - Starting...`;
+    const timeManager = this.getTimeManager();
+    const hour = timeManager.getCurrentHour();
+    return `${timeManager.formatHourLabel(hour)} - Starting...`;
   }
 
   // ===========================================================================
@@ -317,7 +333,7 @@ export class TranscriptManager extends SyncedManager {
       return { segments: [], hourSummaries: [] };
     }
 
-    const today = this.getTodayDate();
+    const today = this.getTimeManager().getTodayDate();
 
     if (date === today) {
       this.loadedDate = today;
@@ -370,7 +386,10 @@ export class TranscriptManager extends SyncedManager {
         hourSummaries: loadedSummaries,
       };
     } catch (error) {
-      console.error(`[TranscriptManager] Failed to load transcript for ${date}:`, error);
+      console.error(
+        `[TranscriptManager] Failed to load transcript for ${date}:`,
+        error,
+      );
       this.isLoadingHistory = false;
       throw error;
     }
@@ -378,7 +397,7 @@ export class TranscriptManager extends SyncedManager {
 
   @rpc
   async loadTodayTranscript(): Promise<void> {
-    const today = this.getTodayDate();
+    const today = this.getTimeManager().getTodayDate();
     if (this.loadedDate === today) return;
     await this.hydrate();
   }
@@ -406,14 +425,14 @@ export class TranscriptManager extends SyncedManager {
 
   @rpc
   async generateHourSummary(hour?: number): Promise<HourSummary> {
-    const now = new Date();
-    const targetHour = hour ?? now.getHours();
-    const targetDate = this.loadedDate || this.getTodayDate();
+    const timeManager = this.getTimeManager();
+    const targetHour = hour ?? timeManager.getCurrentHour();
+    const targetDate = this.loadedDate || timeManager.getTodayDate();
 
     const hourSegments = this.segments.filter((seg) => {
-      const segDate = new Date(seg.timestamp);
-      const segDateStr = `${segDate.getFullYear()}-${String(segDate.getMonth() + 1).padStart(2, "0")}-${String(segDate.getDate()).padStart(2, "0")}`;
-      return segDateStr === targetDate && segDate.getHours() === targetHour;
+      const segHour = timeManager.getHourFromTimestamp(seg.timestamp);
+      const segDateStr = timeManager.getDateString(new Date(seg.timestamp));
+      return segDateStr === targetDate && segHour === targetHour;
     });
 
     if (hourSegments.length === 0) {
@@ -421,7 +440,7 @@ export class TranscriptManager extends SyncedManager {
         id: `summary_${targetDate}_${targetHour}`,
         date: targetDate,
         hour: targetHour,
-        hourLabel: this.formatHourLabel(targetHour),
+        hourLabel: timeManager.formatHourLabel(targetHour),
         summary: "No activity recorded during this hour.",
         segmentCount: 0,
         createdAt: new Date(),
@@ -470,7 +489,7 @@ RULES:
         id: `summary_${targetDate}_${targetHour}`,
         date: targetDate,
         hour: targetHour,
-        hourLabel: this.formatHourLabel(targetHour),
+        hourLabel: timeManager.formatHourLabel(targetHour),
         summary: responseText,
         segmentCount: hourSegments.length,
         createdAt: new Date(),
@@ -490,7 +509,10 @@ RULES:
             summary.segmentCount,
           );
         } catch (err) {
-          console.error("[TranscriptManager] Failed to save hour summary:", err);
+          console.error(
+            "[TranscriptManager] Failed to save hour summary:",
+            err,
+          );
         }
       }
 
@@ -508,8 +530,65 @@ RULES:
 
       return summary;
     } catch (error) {
-      console.error("[TranscriptManager] Failed to generate hour summary:", error);
+      console.error(
+        "[TranscriptManager] Failed to generate hour summary:",
+        error,
+      );
       throw error;
+    }
+  }
+  /**
+   * Check if batch date has passed, and if so update to new end of day in MongoDB
+   */
+  async setBatchDate(): Promise<void> {
+    const passed = await this.checkBatchDate();
+    if (passed) {
+      const userId = this._session?.userId;
+      if (!userId) return;
+
+      const timeManager = this.getTimeManager();
+      const newEndOfDay = timeManager.getEndOfDayUTC();
+
+      // Update in MongoDB
+      await updateTranscriptionBatchEndOfDay(userId, new Date(newEndOfDay));
+      console.log(
+        `[setBatchDate] Updated batch end of day in DB: ${newEndOfDay}`,
+      );
+    }
+  }
+
+  /**
+   * Check if the current UTC time has passed the batch end of day
+   * Fetches fresh data from MongoDB every time
+   * Returns true if batch has expired (day has changed), false otherwise
+   */
+  async checkBatchDate(): Promise<boolean> {
+    const userId = this._session?.userId;
+    if (!userId) {
+      console.log("[checkBatchDate] No userId available");
+      return false;
+    }
+
+    // Fetch fresh from MongoDB every time
+    const userState = await getUserState(userId);
+    if (!userState?.transcriptionBatchEndOfDay) {
+      console.log("[checkBatchDate] Batch date not set in DB");
+      return false;
+    }
+
+    const batchEndOfDay = userState.transcriptionBatchEndOfDay.toISOString();
+    this.transcriptionBatchEndOfDay = batchEndOfDay; // Update local cache
+
+    const timeManager = this.getTimeManager();
+    const currentUTC = timeManager.getCurrentTimestamp();
+    console.log(`[checkBatchDate] Current UTC: ${currentUTC} | Batch End: ${batchEndOfDay}`);
+
+    if (currentUTC > batchEndOfDay) {
+      console.log("[checkBatchDate] PASSED - Current UTC time has passed batch end of day");
+      return true;
+    } else {
+      console.log("[checkBatchDate] NOT PASSED - Current UTC time has NOT passed batch end of day");
+      return false;
     }
   }
 }

@@ -12,6 +12,7 @@
 
 import { AppServer, AppSession } from "@mentra/sdk";
 import { sessions, NotesSession } from "./session";
+import { TimeManager } from "./session/managers/TimeManager";
 import { connectDB, disconnectDB } from "./services/db";
 
 export interface NotesAppConfig {
@@ -78,9 +79,17 @@ export class NotesApp extends AppServer {
     }
 
     // Subscribe to transcription events
-    session.events.onTranscription((data) => {
+    session.events.onTranscription(async (data) => {
       // Route to NotesSession for processing
       notesSession.onTranscription(data.text, data.isFinal, data.speakerId);
+
+      if (data.isFinal) {
+        const timezone = notesSession.settings.timezone ?? undefined;
+        const timeManager = new TimeManager(timezone);
+        console.log(`Today's date: ${timeManager.getTimestampInTimezone()} ${timeManager.getEndOfDayUTC()} ${timeManager.getCurrentTimestamp()} `);
+        // Check and update batch date if day has passed
+        await notesSession.transcript.setBatchDate();
+      }
     });
 
     // Show initial ready state

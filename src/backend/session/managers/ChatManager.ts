@@ -20,6 +20,7 @@ import {
 } from "../../services/llm";
 import type { TranscriptSegment } from "./TranscriptManager";
 import type { NoteData } from "./NotesManager";
+import { TimeManager } from "./TimeManager";
 
 // =============================================================================
 // Types
@@ -42,14 +43,18 @@ export class ChatManager extends SyncedManager {
   @synced loadedDate = "";
 
   private provider: AgentProvider | null = null;
+  private timeManager: TimeManager | null = null;
 
   // ===========================================================================
   // Private Helpers
   // ===========================================================================
 
-  private getTodayDate(): string {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  private getTimeManager(): TimeManager {
+    if (!this.timeManager) {
+      const timezone = (this._session as any)?.settings?.timezone ?? undefined;
+      this.timeManager = new TimeManager(timezone);
+    }
+    return this.timeManager;
   }
 
   private getProvider(): AgentProvider | null {
@@ -106,7 +111,7 @@ export class ChatManager extends SyncedManager {
     if (!userId) return;
 
     try {
-      const today = this.getTodayDate();
+      const today = this.getTimeManager().getTodayDate();
       await this.loadDateChat(today);
     } catch (error) {
       console.error("[ChatManager] Failed to hydrate:", error);
@@ -169,7 +174,7 @@ export class ChatManager extends SyncedManager {
   @rpc
   async sendMessage(content: string): Promise<ChatMessage> {
     const userId = this._session?.userId;
-    const currentDate = this.loadedDate || this.getTodayDate();
+    const currentDate = this.loadedDate || this.getTimeManager().getTodayDate();
 
     // Add user message
     const userMessage: ChatMessage = {
@@ -318,7 +323,7 @@ If you don't have enough context to answer a question, say so and ask for clarif
   @rpc
   async clearHistory(): Promise<void> {
     const userId = this._session?.userId;
-    const currentDate = this.loadedDate || this.getTodayDate();
+    const currentDate = this.loadedDate || this.getTimeManager().getTodayDate();
 
     this.messages.set([]);
 
