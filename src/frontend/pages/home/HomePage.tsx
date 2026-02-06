@@ -209,7 +209,7 @@ export function HomePage() {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 gap-4 p-8">
+        <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 gap-4 p-8 bg-zinc-50 dark:bg-[#1e1f22]">
           <div className="p-4 bg-zinc-100 dark:bg-[#313338] rounded-2xl">
             <FileText size={32} />
           </div>
