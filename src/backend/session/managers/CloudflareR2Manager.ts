@@ -11,6 +11,11 @@ import {
   deleteProcessedSegments,
   type TranscriptBatchResult,
 } from "../../services/r2Batch.service";
+import {
+  fetchTranscriptFromR2,
+  listR2TranscriptDates,
+} from "../../services/r2Fetch.service";
+import type { R2BatchData } from "../../services/r2Upload.service";
 
 // =============================================================================
 // Types
@@ -38,6 +43,7 @@ export class CloudflareR2Manager extends SyncedManager {
   @synced lastBatchSegmentCount = 0;
   @synced lastBatchUrl = "";
   @synced lastBatchError = "";
+  @synced r2AvailableDates: string[] = [];
 
   // ===========================================================================
   // Batch Trigger
@@ -184,6 +190,43 @@ export class CloudflareR2Manager extends SyncedManager {
     }
 
     return deleteProcessedSegments({ userId, cutoffTimestamp });
+  }
+
+  // ===========================================================================
+  // R2 Fetch Methods
+  // ===========================================================================
+
+  /**
+   * Fetch transcript data from R2 for a specific date
+   * Returns the R2BatchData if found, null otherwise
+   */
+  async fetchTranscript(date: string): Promise<R2BatchData | null> {
+    const userId = this._session?.userId;
+    if (!userId) {
+      console.error(`[R2Manager] No user session for fetch`);
+      return null;
+    }
+
+    const result = await fetchTranscriptFromR2({ userId, date });
+    return result.success && result.data ? result.data : null;
+  }
+
+  /**
+   * Get list of dates that have transcripts in R2
+   * Called during hydrate to populate folder list
+   */
+  async loadR2AvailableDates(): Promise<string[]> {
+    const userId = this._session?.userId;
+    if (!userId) {
+      return [];
+    }
+
+    const result = await listR2TranscriptDates(userId);
+    if (result.success) {
+      this.r2AvailableDates = result.dates;
+      return result.dates;
+    }
+    return [];
   }
 
   // ===========================================================================

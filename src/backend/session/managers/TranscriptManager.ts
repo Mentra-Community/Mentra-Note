@@ -8,13 +8,13 @@
 import { SyncedManager, synced, rpc } from "../../../lib/sync";
 import {
   getOrCreateDailyTranscript,
-  getDailyTranscript,
   getAvailableDates,
   appendTranscriptSegments,
   saveHourSummary,
   getHourSummaries,
   type TranscriptSegmentI,
 } from "../../models";
+import type { R2TranscriptSegment } from "../../services/r2Upload.service";
 import {
   createProviderFromEnv,
   type AgentProvider,
@@ -102,9 +102,25 @@ export class TranscriptManager extends SyncedManager {
       const today = this.getTimeManager().getTodayDate();
       this.loadedDate = today;
 
-      // Load available dates
-      const dates = await getAvailableDates(userId);
-      this.availableDates.set(dates);
+      // Load available dates from MongoDB
+      const mongoDbDates = await getAvailableDates(userId);
+      console.log(`[TranscriptManager] MongoDB dates for ${userId}:`, mongoDbDates);
+
+      // Load available dates from R2 via R2Manager
+      const r2Manager = (this._session as any)?.r2;
+      let r2Dates: string[] = [];
+      if (r2Manager) {
+        r2Dates = await r2Manager.loadR2AvailableDates();
+        console.log(`[TranscriptManager] R2 dates:`, r2Dates);
+      } else {
+        console.log(`[TranscriptManager] No R2 manager available`);
+      }
+
+      // Merge and dedupe dates, sort descending
+      const allDates = Array.from(new Set([...mongoDbDates, ...r2Dates]));
+      allDates.sort((a, b) => b.localeCompare(a));
+      console.log(`[TranscriptManager] All available dates:`, allDates);
+      this.availableDates.set(allDates);
 
       const transcript = await getOrCreateDailyTranscript(userId, today);
 
@@ -335,6 +351,7 @@ export class TranscriptManager extends SyncedManager {
 
     const today = this.getTimeManager().getTodayDate();
 
+    // TODAY: Return current in-memory segments
     if (date === today) {
       this.loadedDate = today;
       return {
@@ -343,48 +360,51 @@ export class TranscriptManager extends SyncedManager {
       };
     }
 
+    // PAST DATE: Fetch from R2 (old transcripts are migrated there)
     this.isLoadingHistory = true;
 
     try {
-      const transcript = await getDailyTranscript(userId, date);
+      const r2Manager = (this._session as any)?.r2;
+      if (r2Manager) {
+        const r2Data = await r2Manager.fetchTranscript(date);
 
-      if (!transcript || transcript.segments.length === 0) {
-        this.loadedDate = date;
-        this.isLoadingHistory = false;
-        return { segments: [], hourSummaries: [] };
+        if (r2Data && r2Data.segments && r2Data.segments.length > 0) {
+          const loadedSegments: TranscriptSegment[] = r2Data.segments.map(
+            (seg: R2TranscriptSegment, idx: number) => ({
+              id: `seg_${seg.index || idx + 1}`,
+              text: seg.text,
+              timestamp: new Date(seg.timestamp), // R2 stores as ISO string
+              isFinal: seg.isFinal,
+              speakerId: seg.speakerId,
+            }),
+          );
+
+          // R2 doesn't store hour summaries separately
+          const loadedSummaries: HourSummary[] = [];
+
+          this.segments.set(loadedSegments);
+          this.loadedDate = date;
+          this.hourSummaries.set(loadedSummaries);
+          this.isLoadingHistory = false;
+
+          console.log(
+            `[TranscriptManager] Loaded ${loadedSegments.length} segments from R2 for ${date}`,
+          );
+
+          return {
+            segments: loadedSegments,
+            hourSummaries: loadedSummaries,
+          };
+        }
       }
 
-      const loadedSegments: TranscriptSegment[] = transcript.segments.map(
-        (seg, idx) => ({
-          id: `seg_${idx + 1}`,
-          text: seg.text,
-          timestamp: seg.timestamp,
-          isFinal: seg.isFinal,
-          speakerId: seg.speakerId,
-        }),
-      );
-
-      const savedSummaries = await getHourSummaries(userId, date);
-      const loadedSummaries: HourSummary[] = savedSummaries.map((s) => ({
-        id: `summary_${s.date}_${s.hour}`,
-        date: s.date,
-        hour: s.hour,
-        hourLabel: s.hourLabel,
-        summary: s.summary,
-        segmentCount: s.segmentCount,
-        createdAt: s.createdAt,
-        updatedAt: s.updatedAt,
-      }));
-
-      this.segments.set(loadedSegments);
+      // Not found in R2
+      this.segments.set([]);
       this.loadedDate = date;
-      this.hourSummaries.set(loadedSummaries);
+      this.hourSummaries.set([]);
       this.isLoadingHistory = false;
 
-      return {
-        segments: loadedSegments,
-        hourSummaries: loadedSummaries,
-      };
+      return { segments: [], hourSummaries: [] };
     } catch (error) {
       console.error(
         `[TranscriptManager] Failed to load transcript for ${date}:`,
