@@ -538,7 +538,7 @@ RULES:
     }
   }
   /**
-   * Check if batch date has passed, and if so update to new end of day in MongoDB
+   * Check if batch date has passed, and if so trigger R2 upload and update to new end of day
    */
   async setBatchDate(): Promise<void> {
     const passed = await this.checkBatchDate();
@@ -547,13 +547,56 @@ RULES:
       if (!userId) return;
 
       const timeManager = this.getTimeManager();
-      const newEndOfDay = timeManager.getEndOfDayUTC();
+      const settingsManager = (this._session as any)?.settings;
+      const timezone = settingsManager?.timezone || "UTC";
 
-      // Update in MongoDB
-      await updateTranscriptionBatchEndOfDay(userId, new Date(newEndOfDay));
+      // Use the stored cutoff timestamp - batch all segments up to this time
+      const cutoffTimestamp = this.transcriptionBatchEndOfDay;
+      if (!cutoffTimestamp) {
+        console.error(`[setBatchDate] No cutoff timestamp available`);
+        return;
+      }
+
       console.log(
-        `[setBatchDate] Updated batch end of day in DB: ${newEndOfDay}`,
+        `[setBatchDate] Batch cutoff crossed, uploading transcripts up to ${cutoffTimestamp}`,
       );
+
+      // Trigger R2 upload via CloudflareR2Manager
+      const r2Manager = (this._session as any)?.r2;
+      if (r2Manager) {
+        const batchResult = await r2Manager.triggerBatch(
+          userId,
+          cutoffTimestamp,
+          timezone,
+        );
+
+        if (batchResult.success) {
+          // Delete processed segments from MongoDB
+          const deletedCount = await r2Manager.cleanupProcessedSegments(cutoffTimestamp);
+          console.log(
+            `[setBatchDate] Cleaned up ${deletedCount} segments from MongoDB`,
+          );
+
+          // Update batch cutoff on success
+          const newEndOfDay = timeManager.getEndOfDayUTC();
+          await updateTranscriptionBatchEndOfDay(userId, new Date(newEndOfDay));
+          console.log(
+            `[setBatchDate] R2 batch successful, updated cutoff: ${newEndOfDay}`,
+          );
+        } else {
+          console.error(
+            `[setBatchDate] R2 batch failed, keeping old cutoff for retry:`,
+            batchResult.error,
+          );
+        }
+      } else {
+        // No R2 manager available, just update the cutoff
+        console.warn(
+          `[setBatchDate] No R2Manager available, skipping R2 upload`,
+        );
+        const newEndOfDay = timeManager.getEndOfDayUTC();
+        await updateTranscriptionBatchEndOfDay(userId, new Date(newEndOfDay));
+      }
     }
   }
 
