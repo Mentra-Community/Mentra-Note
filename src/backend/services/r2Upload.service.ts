@@ -2,6 +2,7 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import type { TranscriptSegmentI } from "../models/daily-transcript.model";
 
@@ -294,4 +295,56 @@ export function formatSegmentForR2(
     speakerId: segment.speakerId,
     index: segment.index,
   };
+}
+
+/**
+ * Delete a transcript file from R2 storage
+ */
+export async function deleteFromR2(params: {
+  userId: string;
+  date: string; // YYYY-MM-DD
+}): Promise<{ success: boolean; error?: Error }> {
+  const { userId, date } = params;
+
+  const key = `transcripts/${userId}/${date}/transcript.json`;
+  const endpoint = process.env.CLOUDFLARE_R2_ENDPOINT;
+  const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME || "mentra-notes";
+  const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+
+  console.log(`[R2] Deleting transcript for ${userId} (${date})`);
+
+  if (!endpoint || !accessKeyId || !secretAccessKey) {
+    console.error(`[R2] ERROR: R2 credentials not configured for delete`);
+    return {
+      success: false,
+      error: new Error("R2 credentials not configured"),
+    };
+  }
+
+  const s3Client = new S3Client({
+    region: "auto",
+    endpoint: endpoint,
+    credentials: {
+      accessKeyId,
+      secretAccessKey,
+    },
+  });
+
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+    });
+
+    await s3Client.send(command);
+    console.log(`[R2] Successfully deleted: ${key}`);
+    return { success: true };
+  } catch (error) {
+    console.error(`[R2] Delete failed:`, error);
+    return {
+      success: false,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
 }

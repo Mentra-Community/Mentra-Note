@@ -16,8 +16,11 @@ import {
   getAvailableDates,
   deleteFile as deleteFileFromDb,
   deleteDailyTranscript,
+  deleteNotesByDate,
+  deleteChatHistory,
   type FileI,
 } from "../../models";
+import { deleteFromR2 } from "../../services/r2Upload.service";
 
 // =============================================================================
 // Types
@@ -395,10 +398,15 @@ export class FileManager extends SyncedManager {
     });
     if (!file) return null;
 
-    // Remove from local state (if viewing non-archived)
-    if (this.activeFilter !== "archived") {
-      this.files.set(this.files.filter((f) => f.date !== date));
-    }
+    // Update local state - update the file in place so DayPage can see the change
+    this.files.mutate((files) => {
+      const idx = files.findIndex((f) => f.date === date);
+      if (idx >= 0) {
+        files[idx].isArchived = true;
+        files[idx].isFavourite = false;
+        files[idx].isTrashed = false;
+      }
+    });
 
     // Update counts
     await this.refreshCounts();
@@ -437,10 +445,15 @@ export class FileManager extends SyncedManager {
     });
     if (!file) return null;
 
-    // Remove from local state (if not viewing trash)
-    if (this.activeFilter !== "trash") {
-      this.files.set(this.files.filter((f) => f.date !== date));
-    }
+    // Update local state - update the file in place so DayPage can see the change
+    this.files.mutate((files) => {
+      const idx = files.findIndex((f) => f.date === date);
+      if (idx >= 0) {
+        files[idx].isTrashed = true;
+        files[idx].isFavourite = false;
+        files[idx].isArchived = false;
+      }
+    });
 
     // Update counts
     await this.refreshCounts();
@@ -559,5 +572,78 @@ export class FileManager extends SyncedManager {
     }
 
     return { deletedTranscript, deletedFile };
+  }
+
+  /**
+   * Empty trash - permanently delete all trashed files
+   * Deletes: File records, DailyTranscript, Notes, Chat history, and R2 transcripts
+   */
+  @rpc
+  async emptyTrash(): Promise<{
+    deletedCount: number;
+    errors: string[];
+  }> {
+    const userId = this._session?.userId;
+    if (!userId) {
+      return { deletedCount: 0, errors: ["No user session"] };
+    }
+
+    console.log(`[FileManager] Emptying trash for user ${userId}`);
+
+    // Get all trashed files
+    const trashedFiles = await getFiles(userId, { isTrashed: true });
+    console.log(`[FileManager] Found ${trashedFiles.length} trashed files to delete`);
+
+    const errors: string[] = [];
+    let deletedCount = 0;
+
+    for (const file of trashedFiles) {
+      const date = file.date;
+      console.log(`[FileManager] Deleting all data for ${date}...`);
+
+      try {
+        // 1. Delete from R2 (if exists)
+        if (file.r2Key) {
+          const r2Result = await deleteFromR2({ userId, date });
+          if (!r2Result.success) {
+            console.warn(`[FileManager] Failed to delete R2 for ${date}:`, r2Result.error);
+            // Continue anyway - R2 deletion is not critical
+          }
+        }
+
+        // 2. Delete notes for this date
+        const deletedNotes = await deleteNotesByDate(userId, date);
+        console.log(`[FileManager] Deleted ${deletedNotes} notes for ${date}`);
+
+        // 3. Delete chat history for this date
+        await deleteChatHistory(userId, date);
+        console.log(`[FileManager] Deleted chat history for ${date}`);
+
+        // 4. Delete DailyTranscript
+        await deleteDailyTranscript(userId, date);
+        console.log(`[FileManager] Deleted DailyTranscript for ${date}`);
+
+        // 5. Delete File record
+        await deleteFileFromDb(userId, date, true);
+        console.log(`[FileManager] Deleted File record for ${date}`);
+
+        deletedCount++;
+      } catch (error) {
+        const errorMsg = `Failed to delete ${date}: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(`[FileManager] ${errorMsg}`);
+        errors.push(errorMsg);
+      }
+    }
+
+    // Clear local files state (we're viewing trash, so it should be empty now)
+    if (this.activeFilter === "trash") {
+      this.files.set([]);
+    }
+
+    // Update counts
+    await this.refreshCounts();
+
+    console.log(`[FileManager] Empty trash complete: ${deletedCount} deleted, ${errors.length} errors`);
+    return { deletedCount, errors };
   }
 }

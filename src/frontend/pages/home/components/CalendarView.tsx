@@ -70,7 +70,11 @@ export function CalendarView({ folders, onSelectDate }: CalendarViewProps) {
 
   const handleDayClick = (day: Date) => {
     const dateString = format(day, "yyyy-MM-dd");
-    onSelectDate(dateString);
+    const folder = folderByDate.get(dateString);
+    // Only allow clicking on dates that have content
+    if (folder) {
+      onSelectDate(dateString);
+    }
   };
 
   return (
@@ -128,16 +132,23 @@ export function CalendarView({ folders, onSelectDate }: CalendarViewProps) {
             const noteCount = folder?.noteCount ?? 0;
             const hasTranscript = folder?.hasTranscript ?? false;
 
+            // Disable dates without content (except today which is always clickable)
+            const isClickable = hasContent || isDayToday;
+
             return (
               <button
                 key={dateString}
                 onClick={() => handleDayClick(day)}
-                disabled={!isCurrentMonth}
+                disabled={!isCurrentMonth || !isClickable}
                 className={clsx(
                   "relative h-12 flex flex-col items-center justify-center rounded-xl transition-colors",
-                  isCurrentMonth
-                    ? "hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                    : "opacity-30 cursor-default",
+                  // Not current month - very faded
+                  !isCurrentMonth && "opacity-30 cursor-default",
+                  // Current month but no content - greyed out and not clickable
+                  isCurrentMonth && !hasContent && !isDayToday && "cursor-default",
+                  // Current month with content - clickable with hover
+                  isCurrentMonth && hasContent && !isDayToday && "hover:bg-zinc-100 dark:hover:bg-zinc-800",
+                  // Today - always highlighted
                   isDayToday &&
                     "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-100",
                 )}
@@ -146,12 +157,14 @@ export function CalendarView({ folders, onSelectDate }: CalendarViewProps) {
                 <span
                   className={clsx(
                     "text-sm font-medium",
-                    !isDayToday &&
-                      isCurrentMonth &&
-                      "text-zinc-900 dark:text-white",
-                    !isDayToday &&
-                      !isCurrentMonth &&
-                      "text-zinc-300 dark:text-zinc-700",
+                    // Today
+                    isDayToday && "text-white dark:text-zinc-900",
+                    // Current month with content
+                    !isDayToday && isCurrentMonth && hasContent && "text-zinc-900 dark:text-white",
+                    // Current month without content - greyed out
+                    !isDayToday && isCurrentMonth && !hasContent && "text-zinc-300 dark:text-zinc-600",
+                    // Not current month
+                    !isCurrentMonth && "text-zinc-300 dark:text-zinc-700",
                   )}
                 >
                   {format(day, "d")}

@@ -140,3 +140,24 @@ export async function getNotesByDateRange(
     createdAt: { $gte: startDate, $lte: endDate },
   }).sort({ createdAt: -1 });
 }
+
+/**
+ * Delete all notes for a specific date (YYYY-MM-DD)
+ * Returns the number of deleted notes
+ */
+export async function deleteNotesByDate(
+  userId: string,
+  date: string,
+): Promise<number> {
+  // Parse date string to get start and end of day
+  const [year, month, day] = date.split("-").map(Number);
+  const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+
+  const result = await Note.deleteMany({
+    userId,
+    createdAt: { $gte: startOfDay, $lte: endOfDay },
+  });
+
+  return result.deletedCount;
+}

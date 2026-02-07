@@ -105,8 +105,8 @@ export function Shell({ children }: ShellProps) {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 md:hidden bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 safe-area-bottom z-30">
-        <div className="flex items-center justify-between h-[72px] px-12 pb-2">
+      <div className="fixed bottom-0 left-0 right-0 md:hidden bg-white dark:bg-zinc-950  border-zinc-200 dark:border-zinc-800  z-30">
+        <div className="flex items-center justify-between h-[72px] px-12">
           {/* Home */}
           <button
             onClick={() => setLocation("/")}

@@ -36,6 +36,7 @@ export {
   updateNote,
   deleteNote,
   getNotesByDateRange,
+  deleteNotesByDate,
 } from "./note.model";
 
 // User Settings

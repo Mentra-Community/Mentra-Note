@@ -432,7 +432,7 @@ export function TranscriptTab({
 
               {/* Expanded Segments */}
               {isExpanded && (
-                <div className="px-4 pb-4 space-y-3 bg-zinc-50/50 dark:bg-zinc-900/20">
+                <div className="px-4 pb-4 space-y-3  dark:bg-zinc-900/20">
                   {hourSegments.map((segment, idx) => (
                     <div key={segment.id || idx} className="flex gap-3">
                       {/* Timestamp */}

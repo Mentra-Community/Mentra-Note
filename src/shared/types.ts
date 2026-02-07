@@ -177,6 +177,7 @@ export interface FileManagerI {
   unfavouriteFile(date: string): Promise<FileData | null>;
   permanentlyDeleteFile(date: string): Promise<boolean>;
   purgeDate(date: string): Promise<{ deletedTranscript: boolean; deletedFile: boolean }>;
+  emptyTrash(): Promise<{ deletedCount: number; errors: string[] }>;
 }
 
 // =============================================================================

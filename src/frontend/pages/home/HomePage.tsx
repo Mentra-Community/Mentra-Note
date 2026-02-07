@@ -8,7 +8,7 @@
  * - Global AI chat trigger (sparkles icon)
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useMentraAuth } from "@mentra/react";
 import {
@@ -17,6 +17,7 @@ import {
   Calendar,
   Sparkles,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useSynced } from "../../hooks/useSynced";
@@ -30,6 +31,7 @@ import {
 } from "../../components/shared/FilterDrawer";
 import { CalendarView } from "./components/CalendarView";
 import { GlobalAIChat } from "./components/GlobalAIChat";
+import { Drawer } from "vaul";
 
 export function HomePage() {
   const { userId } = useMentraAuth();
@@ -42,11 +44,23 @@ export function HomePage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [showGlobalChat, setShowGlobalChat] = useState(false);
+  const [isEmptyingTrash, setIsEmptyingTrash] = useState(false);
+  const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
 
   // Derive data from session - now using FileManager as source of truth
   const files = session?.file?.files ?? [];
   const isRecording = session?.transcript?.isRecording ?? false;
   const notes = session?.notes?.notes ?? [];
+
+  // Ensure files are loaded when session first connects
+  const hasInitializedRef = useRef(false);
+  useEffect(() => {
+    if (session?.file && !hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      // Refresh files to ensure we have the latest data
+      session.file.setFilter("all");
+    }
+  }, [session?.file]);
 
   // Transform FileData to DailyFolder format
   const folders = useMemo((): DailyFolder[] => {
@@ -143,6 +157,28 @@ export function HomePage() {
 
   const handleCalendarToggle = () => {
     setViewMode((prev) => (prev === "list" ? "calendar" : "list"));
+  };
+
+  const handleEmptyTrashClick = () => {
+    setShowEmptyTrashConfirm(true);
+  };
+
+  const handleEmptyTrashConfirm = async () => {
+    if (!session?.file) return;
+
+    setShowEmptyTrashConfirm(false);
+    setIsEmptyingTrash(true);
+    try {
+      const result = await session.file.emptyTrash();
+      console.log(`[HomePage] Empty trash result:`, result);
+      if (result.errors.length > 0) {
+        console.error(`[HomePage] Errors during empty trash:`, result.errors);
+      }
+    } catch (error) {
+      console.error(`[HomePage] Failed to empty trash:`, error);
+    } finally {
+      setIsEmptyingTrash(false);
+    }
   };
 
   // Loading state - no session yet
@@ -267,6 +303,21 @@ export function HomePage() {
           </button>
 
           <div className="flex items-center gap-1">
+            {/* Empty Trash button - only shown when viewing trash */}
+            {activeFilter === "trash" && filterCounts.trash > 0 && (
+              <button
+                onClick={handleEmptyTrashClick}
+                disabled={isEmptyingTrash}
+                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors disabled:opacity-50"
+              >
+                {isEmptyingTrash ? (
+                  <Loader2 size={20} strokeWidth={1.5} className="animate-spin" />
+                ) : (
+                  <Trash2 size={20} strokeWidth={1.5} />
+                )}
+              </button>
+            )}
+
             <button
               onClick={handleCalendarToggle}
               className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
@@ -329,6 +380,51 @@ export function HomePage() {
         isOpen={showGlobalChat}
         onClose={() => setShowGlobalChat(false)}
       />
+
+      {/* Empty Trash Confirmation */}
+      <Drawer.Root
+        open={showEmptyTrashConfirm}
+        onOpenChange={(open) => !open && setShowEmptyTrashConfirm(false)}
+      >
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
+          <Drawer.Content className="bg-white dark:bg-zinc-900 flex flex-col rounded-t-2xl mt-24 fixed bottom-0 left-0 right-0 z-50 max-w-lg mx-auto outline-none border-t border-zinc-100 dark:border-zinc-800">
+            {/* Handle */}
+            <div className="mx-auto w-12 h-1.5 shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-700 mt-4 mb-2" />
+
+            {/* Content */}
+            <div className="px-6 pb-8 pt-4">
+              <Drawer.Title className="text-lg font-semibold text-zinc-900 dark:text-white text-center">
+                Empty Trash?
+              </Drawer.Title>
+              <Drawer.Description className="text-sm text-zinc-500 dark:text-zinc-400 text-center mt-3">
+                You are about to permanently delete all {filterCounts.trash} items in trash.
+                This will remove all transcripts, notes, and chat history.
+                You will not be able to recover them.
+              </Drawer.Description>
+
+              {/* Actions */}
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowEmptyTrashConfirm(false)}
+                  className="flex-1 py-3 rounded-xl font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEmptyTrashConfirm}
+                  className="flex-1 py-3 rounded-xl font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+                >
+                  Delete All
+                </button>
+              </div>
+            </div>
+
+            {/* Safe area padding for mobile */}
+            <div className="h-safe-area-bottom" />
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
     </div>
   );
 }
