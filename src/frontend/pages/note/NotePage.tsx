@@ -120,20 +120,25 @@ export function NotePage() {
   // Build editor content from note
   const buildEditorContent = useCallback(
     (note: Note): string => {
-      const parts: string[] = [];
-
-      if (note.summary && !isPlaceholderContent(note.summary)) {
-        parts.push(`<p>${note.summary}</p>`);
-      }
-
+      // Content is already HTML from AI generation, use it directly
       if (note.content && !isPlaceholderContent(note.content)) {
-        const parsedContent = parseContent(note.content);
-        if (parsedContent && !isPlaceholderContent(parsedContent)) {
-          parts.push(parsedContent);
+        // If content already has HTML tags, use it directly
+        if (note.content.includes("<p>") || note.content.includes("<h")) {
+          return note.content;
         }
+        // Otherwise parse markdown-style content
+        return parseContent(note.content);
       }
 
-      return parts.join("") || "";
+      // Fallback to summary if no content
+      if (note.summary && !isPlaceholderContent(note.summary)) {
+        if (note.summary.includes("<p>") || note.summary.includes("<h")) {
+          return note.summary;
+        }
+        return `<p>${note.summary}</p>`;
+      }
+
+      return "";
     },
     [parseContent],
   );

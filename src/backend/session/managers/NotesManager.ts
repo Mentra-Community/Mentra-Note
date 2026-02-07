@@ -224,26 +224,44 @@ export class NotesManager extends SyncedManager {
           const messages: UnifiedMessage[] = [
             {
               role: "user",
-              content: `Please analyze this transcript and provide:
-1. A concise title (if not provided)
-2. A clear summary (2-3 paragraphs max)
+              content: `Create a structured note from this transcript.
+
+Requirements:
+- Between 100-500 words
+- Use <h2> headings to organize sections
+- Use bullet lists for key points
+- Bold important terms with <strong>
+- Output valid HTML only (no markdown)
 
 Transcript:
 ${transcriptText}
 
-${title ? `Use this title: "${title}"` : "Generate an appropriate title based on the content."}
+${title ? `Title to use: "${title}"` : "Also generate an appropriate title."}
 
-Respond in this exact format:
+Response format:
 TITLE: [title here]
-SUMMARY: [summary here]`,
+CONTENT:
+[HTML content here]`,
             },
           ];
 
           const response = await provider.chat(messages, {
             tier: "fast",
-            maxTokens: 1024,
-            systemPrompt:
-              "You are a helpful assistant that creates clear, concise notes from transcripts. Focus on key points and actionable information.",
+            maxTokens: 2048,
+            systemPrompt: `You are a note-taking assistant that creates well-structured notes from transcripts.
+Output your notes in clean HTML format using ONLY these tags:
+- <h2> for section headings
+- <p> for paragraphs
+- <strong> for bold/important text
+- <em> for italic/emphasized text
+- <ul> and <li> for bulleted lists
+
+Rules:
+- Write between 100-500 words
+- Focus on key points, decisions, and actionable items
+- Use headings to organize different topics
+- Use bullet lists for multiple related items
+- Bold important names, dates, or key terms`,
           });
 
           const responseText =
@@ -255,36 +273,30 @@ SUMMARY: [summary here]`,
                   .join("");
 
           const titleMatch = responseText.match(
-            /TITLE:\s*(.+?)(?:\n|SUMMARY:)/s,
+            /TITLE:\s*(.+?)(?:\n|CONTENT:)/s,
           );
-          const summaryMatch = responseText.match(/SUMMARY:\s*(.+)/s);
+          const contentMatch = responseText.match(/CONTENT:\s*([\s\S]+)$/);
 
           if (titleMatch && !title) {
             generatedTitle = titleMatch[1].trim();
           }
-          if (summaryMatch) {
-            summary = summaryMatch[1].trim();
+          if (contentMatch) {
+            summary = contentMatch[1].trim();
           }
         } catch (error) {
           console.error("[NotesManager] AI generation failed:", error);
-          summary =
-            transcriptText.length > 500
-              ? transcriptText.substring(0, 500) + "..."
-              : transcriptText;
+          summary = `<p>${transcriptText.length > 500 ? transcriptText.substring(0, 500) + "..." : transcriptText}</p>`;
         }
       } else {
-        summary =
-          transcriptText.length > 500
-            ? transcriptText.substring(0, 500) + "..."
-            : transcriptText;
+        summary = `<p>${transcriptText.length > 500 ? transcriptText.substring(0, 500) + "..." : transcriptText}</p>`;
       }
 
       const now = new Date();
       const note: NoteData = {
         id: `note_${Date.now()}`,
         title: generatedTitle || `Note - ${now.toLocaleTimeString()}`,
-        content: transcriptText,
-        summary: summary || transcriptText.substring(0, 200),
+        content: summary || `<p>${transcriptText.substring(0, 500)}...</p>`,
+        summary: "",
         createdAt: now,
         updatedAt: now,
         transcriptRange:

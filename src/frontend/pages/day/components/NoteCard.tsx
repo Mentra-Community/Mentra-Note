@@ -82,7 +82,8 @@ function getPreviewText(note: Note): string {
 }
 
 export function NoteCard({ note, onClick }: NoteCardProps) {
-  const isAIGenerated = !!note.summary && !isPlaceholderContent(note.summary);
+  // AI-generated notes have a transcriptRange (time range they were generated from)
+  const isAIGenerated = !!note.transcriptRange;
   const previewText = getPreviewText(note);
   const hasContent = previewText.length > 0;
 
