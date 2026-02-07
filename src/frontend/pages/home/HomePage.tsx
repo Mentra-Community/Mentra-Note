@@ -71,21 +71,24 @@ export function HomePage() {
     });
   }, [files, isRecording]);
 
-  // Filter counts - derived from files
+  // Filter counts - from session (computed on backend)
+  const fileCounts = session?.file?.counts ?? { all: 0, archived: 0, trash: 0, favourites: 0 };
   const filterCounts = useMemo(
     () => ({
-      all: files.filter((f) => !f.isArchived && !f.isTrashed).length,
-      archived: files.filter((f) => f.isArchived).length,
-      trash: files.filter((f) => f.isTrashed).length,
+      all: fileCounts.all,
+      archived: fileCounts.archived,
+      trash: fileCounts.trash,
       allNotes: notes.length,
-      favorites: 0, // TODO: track favorites
+      favorites: fileCounts.favourites,
     }),
-    [files, notes],
+    [fileCounts, notes],
   );
 
   // Handle filter change - call FileManager RPC
   const handleFilterChange = async (filter: FilterType) => {
     setActiveFilter(filter);
+    // Reset view to folders when changing filter
+    setActiveView("folders");
 
     // Map FilterType to FileFilter
     const fileFilter: FileFilter =
@@ -95,6 +98,25 @@ export function HomePage() {
     if (session?.file) {
       await session.file.setFilter(fileFilter);
     }
+  };
+
+  // Handle view change - call FileManager RPC for favorites
+  const handleViewChange = async (view: ViewType) => {
+    setActiveView(view);
+
+    if (view === "favorites") {
+      // Set filter to favourites
+      setActiveFilter("all"); // Reset filter state
+      if (session?.file) {
+        await session.file.setFilter("favourites");
+      }
+    } else if (view === "folders") {
+      // Reset to all files
+      if (session?.file) {
+        await session.file.setFilter(activeFilter === "all" ? "all" : activeFilter as FileFilter);
+      }
+    }
+    // "all_notes" view doesn't change file filter - it shows notes instead
   };
 
   // Get filter label for display
@@ -219,7 +241,7 @@ export function HomePage() {
           activeFilter={activeFilter}
           activeView={activeView}
           onFilterChange={handleFilterChange}
-          onViewChange={setActiveView}
+          onViewChange={handleViewChange}
           counts={filterCounts}
         />
       </div>
@@ -298,7 +320,7 @@ export function HomePage() {
         activeFilter={activeFilter}
         activeView={activeView}
         onFilterChange={handleFilterChange}
-        onViewChange={setActiveView}
+        onViewChange={handleViewChange}
         counts={filterCounts}
       />
 

@@ -28,6 +28,7 @@ export interface FileI extends Document {
   hasNotes: boolean;
   isArchived: boolean;
   isTrashed: boolean;
+  isFavourite: boolean;
 
   // Timestamps
   createdAt: Date;
@@ -53,6 +54,7 @@ const FileSchema = new Schema<FileI>(
     hasNotes: { type: Boolean, default: false },
     isArchived: { type: Boolean, default: false },
     isTrashed: { type: Boolean, default: false },
+    isFavourite: { type: Boolean, default: false },
   },
   { timestamps: true },
 );
@@ -62,6 +64,7 @@ FileSchema.index({ userId: 1, date: 1 }, { unique: true });
 
 // Index for filtering
 FileSchema.index({ userId: 1, isArchived: 1, isTrashed: 1, date: -1 });
+FileSchema.index({ userId: 1, isFavourite: 1, date: -1 });
 
 // =============================================================================
 // Model
@@ -94,6 +97,7 @@ export async function getOrCreateFile(
       hasNotes: false,
       isArchived: false,
       isTrashed: false,
+      isFavourite: false,
       ...defaults,
     });
   }
@@ -116,7 +120,7 @@ export async function getFile(
  */
 export async function getFiles(
   userId: string,
-  filter?: { isArchived?: boolean; isTrashed?: boolean },
+  filter?: { isArchived?: boolean; isTrashed?: boolean; isFavourite?: boolean },
 ): Promise<FileI[]> {
   const query: Record<string, unknown> = { userId };
 
@@ -125,6 +129,9 @@ export async function getFiles(
   }
   if (filter?.isTrashed !== undefined) {
     query.isTrashed = filter.isTrashed;
+  }
+  if (filter?.isFavourite !== undefined) {
+    query.isFavourite = filter.isFavourite;
   }
 
   return File.find(query).sort({ date: -1 });
@@ -165,6 +172,7 @@ export async function incrementNoteCount(
         hasTranscript: false,
         isArchived: false,
         isTrashed: false,
+        isFavourite: false,
       },
     },
     { upsert: true },
@@ -219,6 +227,7 @@ export async function updateFileTranscript(
         hasNotes: false,
         isArchived: false,
         isTrashed: false,
+        isFavourite: false,
       },
     },
     { upsert: true },
@@ -245,6 +254,7 @@ export async function bulkCreateFiles(
           hasNotes: false,
           isArchived: false,
           isTrashed: false,
+          isFavourite: false,
         },
       },
       upsert: true,

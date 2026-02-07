@@ -13,6 +13,9 @@ import {
   getOrCreateDailyTranscript,
   Note as NoteModel,
   UserSettings,
+  File as FileModel,
+  getFiles,
+  updateFile,
 } from "../models";
 
 // Environment
@@ -429,6 +432,147 @@ api.put("/settings", authMiddleware, async (c) => {
       settings: {
         showLiveTranscript: session.settings.showLiveTranscript,
         displayName: session.settings.displayName,
+      },
+    });
+  } catch (err: any) {
+    return c.json({ error: err.error || "Internal error" }, err.status || 500);
+  }
+});
+
+// =============================================================================
+// File Endpoints (Flags: archived, trashed, favourite)
+// =============================================================================
+
+/**
+ * GET /files - Get all files for a user (with optional filters)
+ */
+api.get("/files", authMiddleware, async (c) => {
+  try {
+    const userId = requireAuth(c);
+
+    // Parse query params for filters
+    const isArchived = c.req.query("isArchived");
+    const isTrashed = c.req.query("isTrashed");
+    const isFavourite = c.req.query("isFavourite");
+
+    const filter: {
+      isArchived?: boolean;
+      isTrashed?: boolean;
+      isFavourite?: boolean;
+    } = {};
+
+    if (isArchived !== undefined) {
+      filter.isArchived = isArchived === "true";
+    }
+    if (isTrashed !== undefined) {
+      filter.isTrashed = isTrashed === "true";
+    }
+    if (isFavourite !== undefined) {
+      filter.isFavourite = isFavourite === "true";
+    }
+
+    const files = await getFiles(userId, filter);
+
+    return c.json({
+      files: files.map((f) => ({
+        id: f._id.toString(),
+        date: f.date,
+        noteCount: f.noteCount,
+        transcriptSegmentCount: f.transcriptSegmentCount,
+        hasTranscript: f.hasTranscript,
+        hasNotes: f.hasNotes,
+        isArchived: f.isArchived,
+        isTrashed: f.isTrashed,
+        isFavourite: f.isFavourite,
+        createdAt: f.createdAt,
+        updatedAt: f.updatedAt,
+      })),
+      count: files.length,
+    });
+  } catch (err: any) {
+    return c.json({ error: err.error || "Internal error" }, err.status || 500);
+  }
+});
+
+/**
+ * GET /files/:date - Get a specific file by date
+ */
+api.get("/files/:date", authMiddleware, async (c) => {
+  try {
+    const userId = requireAuth(c);
+    const date = c.req.param("date");
+
+    const file = await FileModel.findOne({ userId, date });
+
+    if (!file) {
+      return c.json({ error: "File not found" }, 404);
+    }
+
+    return c.json({
+      id: file._id.toString(),
+      date: file.date,
+      noteCount: file.noteCount,
+      transcriptSegmentCount: file.transcriptSegmentCount,
+      hasTranscript: file.hasTranscript,
+      hasNotes: file.hasNotes,
+      isArchived: file.isArchived,
+      isTrashed: file.isTrashed,
+      isFavourite: file.isFavourite,
+      createdAt: file.createdAt,
+      updatedAt: file.updatedAt,
+    });
+  } catch (err: any) {
+    return c.json({ error: err.error || "Internal error" }, err.status || 500);
+  }
+});
+
+/**
+ * PATCH /files/:date - Update file flags (archived, trashed, favourite)
+ */
+api.patch("/files/:date", authMiddleware, async (c) => {
+  try {
+    const userId = requireAuth(c);
+    const date = c.req.param("date");
+
+    const body = await c.req.json();
+    const { isArchived, isTrashed, isFavourite } = body;
+
+    // Build updates object with only provided fields
+    const updates: {
+      isArchived?: boolean;
+      isTrashed?: boolean;
+      isFavourite?: boolean;
+    } = {};
+
+    if (isArchived !== undefined) {
+      updates.isArchived = isArchived;
+    }
+    if (isTrashed !== undefined) {
+      updates.isTrashed = isTrashed;
+    }
+    if (isFavourite !== undefined) {
+      updates.isFavourite = isFavourite;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return c.json({ error: "No valid fields to update" }, 400);
+    }
+
+    const file = await updateFile(userId, date, updates);
+
+    if (!file) {
+      return c.json({ error: "File not found" }, 404);
+    }
+
+    return c.json({
+      success: true,
+      file: {
+        id: file._id.toString(),
+        date: file.date,
+        isArchived: file.isArchived,
+        isTrashed: file.isTrashed,
+        isFavourite: file.isFavourite,
+        updatedAt: file.updatedAt,
       },
     });
   } catch (err: any) {

@@ -16,12 +16,15 @@ import { clsx } from "clsx";
 import {
   ChevronLeft,
   Star,
-  MoreHorizontal,
   FileText,
   MessageSquare,
   Headphones,
   Sparkles,
   Loader2,
+  Archive,
+  ArchiveRestore,
+  Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { useSynced } from "../../hooks/useSynced";
 import type {
@@ -35,6 +38,7 @@ import { TranscriptTab } from "./components/tabs/TranscriptTab";
 import { AudioTab } from "./components/tabs/AudioTab";
 import { AITab } from "./components/tabs/AITab";
 import { TranscribingIndicator } from "../../components/shared/TranscribingIndicator";
+import { DropdownMenu, type DropdownMenuOption } from "../../components/shared/DropdownMenu";
 
 type TabType = "notes" | "transcript" | "audio" | "ai";
 
@@ -58,7 +62,6 @@ export function DayPage() {
   const { session, isConnected } = useSynced<SessionI>(userId || "");
 
   const [activeTab, setActiveTab] = useState<TabType>("notes");
-  const [isStarred, setIsStarred] = useState(false);
   const lastLoadedDateRef = useRef<string | null>(null);
 
   // Parse the date from URL params
@@ -84,6 +87,15 @@ export function DayPage() {
   const isRecording = session?.transcript?.isRecording ?? false;
   const loadedDate = session?.transcript?.loadedDate ?? "";
   const isLoadingHistory = session?.transcript?.isLoadingHistory ?? false;
+  const files = session?.file?.files ?? [];
+
+  // Find the file for this date to get favourite status
+  const currentFile = useMemo(() => {
+    return files.find((f) => f.date === dateString);
+  }, [files, dateString]);
+  const isStarred = currentFile?.isFavourite ?? false;
+  const isArchived = currentFile?.isArchived ?? false;
+  const isTrashed = currentFile?.isTrashed ?? false;
 
   // Get current hour for determining which hour is "in progress"
   const currentHour = new Date().getHours();
@@ -194,7 +206,14 @@ export function DayPage() {
 
           <div className="flex items-center gap-1">
             <button
-              onClick={() => setIsStarred(!isStarred)}
+              onClick={() => {
+                if (!session?.file) return;
+                if (isStarred) {
+                  session.file.unfavouriteFile(dateString);
+                } else {
+                  session.file.favouriteFile(dateString);
+                }
+              }}
               className={clsx(
                 "p-2 rounded-lg transition-colors",
                 isStarred
@@ -204,9 +223,38 @@ export function DayPage() {
             >
               <Star size={20} fill={isStarred ? "currentColor" : "none"} />
             </button>
-            <button className="p-2 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-              <MoreHorizontal size={20} />
-            </button>
+            <DropdownMenu
+              options={[
+                {
+                  id: "archive",
+                  label: isArchived ? "Unarchive" : "Archive",
+                  icon: isArchived ? ArchiveRestore : Archive,
+                  onClick: () => {
+                    if (!session?.file) return;
+                    if (isArchived) {
+                      session.file.unarchiveFile(dateString);
+                    } else {
+                      session.file.archiveFile(dateString);
+                    }
+                  },
+                },
+                { type: "divider" },
+                {
+                  id: "trash",
+                  label: isTrashed ? "Restore" : "Move to Trash",
+                  icon: isTrashed ? RotateCcw : Trash2,
+                  danger: !isTrashed,
+                  onClick: () => {
+                    if (!session?.file) return;
+                    if (isTrashed) {
+                      session.file.restoreFile(dateString);
+                    } else {
+                      session.file.trashFile(dateString);
+                    }
+                  },
+                },
+              ] as DropdownMenuOption[]}
+            />
           </div>
         </div>
 

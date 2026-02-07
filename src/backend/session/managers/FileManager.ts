@@ -32,12 +32,20 @@ export interface FileData {
   hasNotes: boolean;
   isArchived: boolean;
   isTrashed: boolean;
+  isFavourite: boolean;
   r2Key?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export type FileFilter = "all" | "archived" | "trash";
+export type FileFilter = "all" | "archived" | "trash" | "favourites";
+
+export interface FileCounts {
+  all: number;
+  archived: number;
+  trash: number;
+  favourites: number;
+}
 
 // =============================================================================
 // Manager
@@ -47,6 +55,7 @@ export class FileManager extends SyncedManager {
   @synced files = synced<FileData[]>([]);
   @synced isLoading = false;
   @synced activeFilter: FileFilter = "all";
+  @synced counts: FileCounts = { all: 0, archived: 0, trash: 0, favourites: 0 };
 
   // ===========================================================================
   // Lifecycle
@@ -84,8 +93,12 @@ export class FileManager extends SyncedManager {
       mongoDbDates = await getAvailableDates(userId);
       console.log(`[FileManager] MongoDB DailyTranscript dates (${mongoDbDates.length}):`, mongoDbDates);
 
-      // Step 4: Find dates that need File records created
-      const allDates = new Set([...r2Dates, ...mongoDbDates]);
+      // Step 4: Always include today's date (so File record exists for current day)
+      const today = this.getTodayDate();
+      console.log(`[FileManager] Today's date: ${today}`);
+
+      // Step 5: Find dates that need File records created
+      const allDates = new Set([...r2Dates, ...mongoDbDates, today]);
       const missingDates = Array.from(allDates).filter(
         (d) => !existingDates.has(d),
       );
@@ -137,6 +150,9 @@ export class FileManager extends SyncedManager {
 
       this.files.set(allFiles.map((f) => this.toFileData(f)));
 
+      // Update counts
+      await this.refreshCounts();
+
       console.log(`[FileManager] ✓ Hydration complete: ${allFiles.length} files for ${userId}`);
       console.log(`[FileManager] Final files:`, allFiles.map(f => ({ date: f.date, hasTranscript: f.hasTranscript, r2Key: f.r2Key, noteCount: f.noteCount })));
     } catch (error) {
@@ -150,6 +166,20 @@ export class FileManager extends SyncedManager {
   // Private Helpers
   // ===========================================================================
 
+  private getTodayDate(): string {
+    // Get today's date from TranscriptManager's TimeManager if available
+    const transcriptManager = (this._session as any)?.transcript;
+    if (transcriptManager?.getTimeManager) {
+      return transcriptManager.getTimeManager().getTodayDate();
+    }
+    // Fallback: compute today's date in local timezone
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
   private toFileData(file: FileI): FileData {
     return {
       id: file._id?.toString() || file.date,
@@ -160,9 +190,32 @@ export class FileManager extends SyncedManager {
       hasNotes: file.hasNotes,
       isArchived: file.isArchived,
       isTrashed: file.isTrashed,
+      isFavourite: file.isFavourite,
       r2Key: file.r2Key,
       createdAt: file.createdAt,
       updatedAt: file.updatedAt,
+    };
+  }
+
+  /**
+   * Refresh counts for all filter categories
+   */
+  private async refreshCounts(): Promise<void> {
+    const userId = this._session?.userId;
+    if (!userId) return;
+
+    const [allFiles, archivedFiles, trashedFiles, favouriteFiles] = await Promise.all([
+      getFiles(userId, { isArchived: false, isTrashed: false }),
+      getFiles(userId, { isArchived: true, isTrashed: false }),
+      getFiles(userId, { isTrashed: true }),
+      getFiles(userId, { isFavourite: true, isTrashed: false }),
+    ]);
+
+    this.counts = {
+      all: allFiles.length,
+      archived: archivedFiles.length,
+      trash: trashedFiles.length,
+      favourites: favouriteFiles.length,
     };
   }
 
@@ -294,7 +347,11 @@ export class FileManager extends SyncedManager {
     const userId = this._session?.userId;
     if (!userId) return [];
 
-    const filterOptions: { isArchived?: boolean; isTrashed?: boolean } = {};
+    const filterOptions: {
+      isArchived?: boolean;
+      isTrashed?: boolean;
+      isFavourite?: boolean;
+    } = {};
 
     switch (filter || this.activeFilter) {
       case "archived":
@@ -303,6 +360,10 @@ export class FileManager extends SyncedManager {
         break;
       case "trash":
         filterOptions.isTrashed = true;
+        break;
+      case "favourites":
+        filterOptions.isFavourite = true;
+        filterOptions.isTrashed = false;
         break;
       default: // "all"
         filterOptions.isArchived = false;
@@ -326,13 +387,21 @@ export class FileManager extends SyncedManager {
     const userId = this._session?.userId;
     if (!userId) return null;
 
-    const file = await updateFile(userId, date, { isArchived: true });
+    // Mutually exclusive: clear favourite and trash when archiving
+    const file = await updateFile(userId, date, {
+      isArchived: true,
+      isFavourite: false,
+      isTrashed: false,
+    });
     if (!file) return null;
 
     // Remove from local state (if viewing non-archived)
     if (this.activeFilter !== "archived") {
       this.files.set(this.files.filter((f) => f.date !== date));
     }
+
+    // Update counts
+    await this.refreshCounts();
 
     return this.toFileData(file);
   }
@@ -349,6 +418,9 @@ export class FileManager extends SyncedManager {
     const files = await this.getFilesRpc(this.activeFilter);
     this.files.set(files);
 
+    // Update counts
+    await this.refreshCounts();
+
     return this.toFileData(file);
   }
 
@@ -357,13 +429,21 @@ export class FileManager extends SyncedManager {
     const userId = this._session?.userId;
     if (!userId) return null;
 
-    const file = await updateFile(userId, date, { isTrashed: true });
+    // Mutually exclusive: clear favourite and archive when trashing
+    const file = await updateFile(userId, date, {
+      isTrashed: true,
+      isFavourite: false,
+      isArchived: false,
+    });
     if (!file) return null;
 
     // Remove from local state (if not viewing trash)
     if (this.activeFilter !== "trash") {
       this.files.set(this.files.filter((f) => f.date !== date));
     }
+
+    // Update counts
+    await this.refreshCounts();
 
     return this.toFileData(file);
   }
@@ -379,6 +459,60 @@ export class FileManager extends SyncedManager {
     // Refresh the list
     const files = await this.getFilesRpc(this.activeFilter);
     this.files.set(files);
+
+    // Update counts
+    await this.refreshCounts();
+
+    return this.toFileData(file);
+  }
+
+  @rpc
+  async favouriteFile(date: string): Promise<FileData | null> {
+    const userId = this._session?.userId;
+    if (!userId) return null;
+
+    // Mutually exclusive: clear archive and trash when favouriting
+    const file = await updateFile(userId, date, {
+      isFavourite: true,
+      isArchived: false,
+      isTrashed: false,
+    });
+    if (!file) return null;
+
+    // Update local state
+    this.files.mutate((files) => {
+      const idx = files.findIndex((f) => f.date === date);
+      if (idx >= 0) {
+        files[idx].isFavourite = true;
+        files[idx].isArchived = false;
+        files[idx].isTrashed = false;
+      }
+    });
+
+    // Update counts
+    await this.refreshCounts();
+
+    return this.toFileData(file);
+  }
+
+  @rpc
+  async unfavouriteFile(date: string): Promise<FileData | null> {
+    const userId = this._session?.userId;
+    if (!userId) return null;
+
+    const file = await updateFile(userId, date, { isFavourite: false });
+    if (!file) return null;
+
+    // Update local state
+    this.files.mutate((files) => {
+      const idx = files.findIndex((f) => f.date === date);
+      if (idx >= 0) {
+        files[idx].isFavourite = false;
+      }
+    });
+
+    // Update counts
+    await this.refreshCounts();
 
     return this.toFileData(file);
   }

@@ -143,18 +143,27 @@ export interface FileData {
   hasNotes: boolean;
   isArchived: boolean;
   isTrashed: boolean;
+  isFavourite: boolean;
   r2Key?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export type FileFilter = "all" | "archived" | "trash";
+export type FileFilter = "all" | "archived" | "trash" | "favourites";
+
+export interface FileCounts {
+  all: number;
+  archived: number;
+  trash: number;
+  favourites: number;
+}
 
 export interface FileManagerI {
   // State
   files: FileData[];
   isLoading: boolean;
   activeFilter: FileFilter;
+  counts: FileCounts;
 
   // RPCs
   refreshFiles(): Promise<FileData[]>;
@@ -164,6 +173,8 @@ export interface FileManagerI {
   unarchiveFile(date: string): Promise<FileData | null>;
   trashFile(date: string): Promise<FileData | null>;
   restoreFile(date: string): Promise<FileData | null>;
+  favouriteFile(date: string): Promise<FileData | null>;
+  unfavouriteFile(date: string): Promise<FileData | null>;
   permanentlyDeleteFile(date: string): Promise<boolean>;
   purgeDate(date: string): Promise<{ deletedTranscript: boolean; deletedFile: boolean }>;
 }

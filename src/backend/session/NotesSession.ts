@@ -33,6 +33,27 @@ export class NotesSession extends SyncedSession {
   private _appSession: AppSession | null = null;
 
   // ===========================================================================
+  // Client Connection - Refresh FileManager on connect
+  // ===========================================================================
+
+  /**
+   * Override addClient to refresh FileManager when a client connects.
+   * This ensures the file list is always up-to-date, even if the session
+   * was created earlier (e.g., from a previous connection).
+   */
+  addClient(ws: any): void {
+    super.addClient(ws);
+
+    // Refresh FileManager in the background to ensure files are up-to-date
+    // This handles cases where:
+    // - Session was created but user reconnected later (same server instance)
+    // - New transcripts/notes were added since last hydration
+    this.file.hydrate().catch((err) => {
+      console.error("[NotesSession] Failed to refresh FileManager on connect:", err);
+    });
+  }
+
+  // ===========================================================================
   // AppSession Management (glasses connection)
   // ===========================================================================
 
@@ -57,6 +78,12 @@ export class NotesSession extends SyncedSession {
       );
       // Broadcast state change
       this.broadcastStateChange("session", "hasGlassesConnected", true);
+
+      // Refresh FileManager to ensure files are up-to-date when glasses connect
+      // This handles cases where glasses connect without a webview client
+      this.file.hydrate().catch((err) => {
+        console.error("[NotesSession] Failed to refresh FileManager on glasses connect:", err);
+      });
     }
   }
 
