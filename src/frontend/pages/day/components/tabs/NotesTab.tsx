@@ -105,8 +105,8 @@ export function NotesTab({ notes, dateString }: NotesTabProps) {
     }
   };
 
-  // Floating Action Button component
-  const FloatingActions = () => (
+  // Floating Action Button JSX (rendered directly, not as a component)
+  const floatingActions = (
     <div
       ref={fabRef}
       className="fixed bottom-24 right-6 z-40 flex flex-col items-end gap-3"
@@ -160,10 +160,9 @@ export function NotesTab({ notes, dateString }: NotesTabProps) {
       </AnimatePresence>
 
       {/* Main FAB button */}
-      <motion.button
+      <button
         onClick={() => setIsExpanded(!isExpanded)}
         disabled={generating}
-        transition={{ duration: 0.2 }}
         className="w-14 h-14 rounded-full bg-zinc-900 dark:bg-white shadow-lg flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50"
       >
         {generating ? (
@@ -176,7 +175,7 @@ export function NotesTab({ notes, dateString }: NotesTabProps) {
         ) : (
           <PencilLine size={24} className="text-white dark:text-zinc-900" />
         )}
-      </motion.button>
+      </button>
     </div>
   );
 
@@ -309,7 +308,7 @@ export function NotesTab({ notes, dateString }: NotesTabProps) {
           </p>
         </div>
 
-        <FloatingActions />
+        {floatingActions}
         {timeRangePickerDrawer}
       </div>
     );
@@ -330,7 +329,7 @@ export function NotesTab({ notes, dateString }: NotesTabProps) {
         </ResponsiveMasonry>
       </div>
 
-      <FloatingActions />
+      {floatingActions}
       {timeRangePickerDrawer}
     </div>
   );

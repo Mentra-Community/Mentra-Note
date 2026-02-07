@@ -3,7 +3,7 @@
  *
  * Minimal, clean, distraction-free note editing.
  * - Title as the first line, naturally flows into content
- * - No visible toolbar - bubble menu appears on text selection
+ * - Formatting toolbar in header
  * - Auto-saves as you type
  * - Full screen, content-first design
  */
@@ -24,71 +24,10 @@ import {
   Check,
 } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
-import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useSynced } from "../../hooks/useSynced";
 import type { SessionI, Note } from "../../../shared/types";
-
-// Bubble menu - appears when text is selected
-function EditorBubbleMenu({
-  editor,
-}: {
-  editor: NonNullable<ReturnType<typeof useEditor>>;
-}) {
-  return (
-    <BubbleMenu
-      editor={editor}
-      className="flex items-center gap-0.5 px-1 py-1 bg-zinc-900 dark:bg-zinc-800 rounded-lg shadow-xl border border-zinc-700/50"
-    >
-      <button
-        onClick={() => editor.chain().focus().toggleBold().run()}
-        className={clsx(
-          "p-1.5 rounded transition-colors",
-          editor.isActive("bold")
-            ? "bg-zinc-700 text-white"
-            : "text-zinc-300 hover:text-white hover:bg-zinc-700/50",
-        )}
-      >
-        <Bold size={16} />
-      </button>
-      <button
-        onClick={() => editor.chain().focus().toggleItalic().run()}
-        className={clsx(
-          "p-1.5 rounded transition-colors",
-          editor.isActive("italic")
-            ? "bg-zinc-700 text-white"
-            : "text-zinc-300 hover:text-white hover:bg-zinc-700/50",
-        )}
-      >
-        <Italic size={16} />
-      </button>
-      <div className="w-px h-4 bg-zinc-600 mx-0.5" />
-      <button
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        className={clsx(
-          "p-1.5 rounded transition-colors",
-          editor.isActive("heading", { level: 2 })
-            ? "bg-zinc-700 text-white"
-            : "text-zinc-300 hover:text-white hover:bg-zinc-700/50",
-        )}
-      >
-        <Heading2 size={16} />
-      </button>
-      <button
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
-        className={clsx(
-          "p-1.5 rounded transition-colors",
-          editor.isActive("bulletList")
-            ? "bg-zinc-700 text-white"
-            : "text-zinc-300 hover:text-white hover:bg-zinc-700/50",
-        )}
-      >
-        <List size={16} />
-      </button>
-    </BubbleMenu>
-  );
-}
 
 export function NotePage() {
   const params = useParams<{ id: string }>();
@@ -328,27 +267,81 @@ export function NotePage() {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-black">
-      {/* Minimal Header */}
+      {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-2 py-2 border-b border-zinc-100 dark:border-zinc-900">
-        <button
-          onClick={handleBack}
-          className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500 dark:text-zinc-400 transition-colors"
-        >
-          <ChevronLeft size={24} />
-        </button>
+        {/* Left side - fixed width to balance right side */}
+        <div className="w-24 flex items-center">
+          <button
+            onClick={handleBack}
+            className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500 dark:text-zinc-400 transition-colors"
+          >
+            <ChevronLeft size={24} />
+          </button>
+        </div>
 
-        <div className="flex items-center gap-2">
+        {/* Formatting toolbar - centered */}
+        {editor && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              className={clsx(
+                "p-2 rounded-lg transition-colors",
+                editor.isActive("bold")
+                  ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900",
+              )}
+            >
+              <Bold size={18} />
+            </button>
+            <button
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              className={clsx(
+                "p-2 rounded-lg transition-colors",
+                editor.isActive("italic")
+                  ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900",
+              )}
+            >
+              <Italic size={18} />
+            </button>
+            <button
+              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+              className={clsx(
+                "p-2 rounded-lg transition-colors",
+                editor.isActive("heading", { level: 2 })
+                  ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900",
+              )}
+            >
+              <Heading2 size={18} />
+            </button>
+            <button
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+              className={clsx(
+                "p-2 rounded-lg transition-colors",
+                editor.isActive("bulletList")
+                  ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900",
+              )}
+            >
+              <List size={18} />
+            </button>
+          </div>
+        )}
+
+        {/* Right side - fixed width to keep toolbar centered */}
+        <div className="w-24 flex items-center justify-end gap-1">
           {/* Save status */}
-          {isSaving ? (
-            <span className="text-xs text-zinc-400 flex items-center gap-1">
+          <span className="text-xs text-zinc-400 flex items-center gap-1">
+            {isSaving ? (
               <Loader2 size={12} className="animate-spin" />
-            </span>
-          ) : showSaved ? (
-            <span className="text-xs text-zinc-400 flex items-center gap-1">
-              <Check size={12} />
-              Saved
-            </span>
-          ) : null}
+            ) : showSaved ? (
+              <>
+                <Check size={12} />
+                Saved
+              </>
+            ) : null}
+          </span>
 
           {/* Menu */}
           <div className="relative">
@@ -396,7 +389,6 @@ export function NotePage() {
           />
 
           {/* Content editor */}
-          {editor && <EditorBubbleMenu editor={editor} />}
           <EditorContent
             editor={editor}
             className="prose prose-zinc dark:prose-invert prose-base max-w-none
