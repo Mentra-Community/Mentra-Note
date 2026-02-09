@@ -12,14 +12,11 @@
 
 import { clsx } from "clsx";
 import {
-  X,
   FolderOpen,
   Archive,
   Trash2,
-  Layers,
   Star,
   Check,
-  ChevronDown,
 } from "lucide-react";
 import { Drawer } from "vaul";
 
@@ -64,7 +61,7 @@ function FilterOption({
         "w-full flex items-center justify-between p-4 rounded-xl transition-colors",
         isActive
           ? "bg-zinc-100 dark:bg-zinc-800"
-          : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+          : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
       )}
     >
       <div className="flex items-center gap-3">
@@ -73,7 +70,7 @@ function FilterOption({
           className={clsx(
             isActive
               ? "text-zinc-900 dark:text-white"
-              : "text-zinc-500 dark:text-zinc-400"
+              : "text-zinc-500 dark:text-zinc-400",
           )}
         />
         <span
@@ -81,7 +78,7 @@ function FilterOption({
             "font-medium",
             isActive
               ? "text-zinc-900 dark:text-white"
-              : "text-zinc-700 dark:text-zinc-300"
+              : "text-zinc-700 dark:text-zinc-300",
           )}
         >
           {label}
@@ -123,29 +120,20 @@ export function FilterDrawer({
           <div className="mx-auto w-12 h-1.5 shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-700 mt-4 mb-2" />
 
           {/* Header */}
-          <div className="flex items-center justify-between px-6 pb-4">
+          <div className="px-6 pb-4">
             <Drawer.Title className="text-lg font-semibold text-zinc-900 dark:text-white">
               Filter & sort
             </Drawer.Title>
             <Drawer.Description className="sr-only">
               Filter and sort your notes and folders
             </Drawer.Description>
-            <button
-              onClick={onClose}
-              className="p-2 -mr-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 transition-colors"
-            >
-              <X size={20} />
-            </button>
           </div>
 
           {/* Content */}
           <div className="px-6 pb-8 space-y-6">
-            {/* Sort (placeholder - can expand later) */}
+            {/* Sort label */}
             <div>
-              <button className="flex items-center justify-between w-full py-2 text-zinc-700 dark:text-zinc-300">
-                <span>Date created</span>
-                <ChevronDown size={18} className="text-zinc-400" />
-              </button>
+              <span className="text-zinc-700 dark:text-zinc-300">Date created</span>
             </div>
 
             {/* Filters Section */}
@@ -176,20 +164,7 @@ export function FilterDrawer({
                 isActive={activeFilter === "trash"}
                 onClick={() => handleFilterClick("trash")}
               />
-            </div>
 
-            {/* Views Section */}
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 px-1 mb-2">
-                Views
-              </p>
-              <FilterOption
-                icon={Layers}
-                label="All Notes"
-                count={counts.allNotes}
-                isActive={activeView === "all_notes"}
-                onClick={() => handleViewClick("all_notes")}
-              />
               <FilterOption
                 icon={Star}
                 label="Favorites"
@@ -199,6 +174,8 @@ export function FilterDrawer({
               />
             </div>
           </div>
+
+    
 
           {/* Safe area padding for mobile */}
           <div className="h-safe-area-bottom" />

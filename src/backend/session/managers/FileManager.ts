@@ -21,6 +21,7 @@ import {
   type FileI,
 } from "../../models";
 import { deleteFromR2 } from "../../services/r2Upload.service";
+import { TimeManager } from "./TimeManager";
 
 // =============================================================================
 // Types
@@ -65,6 +66,12 @@ export class FileManager extends SyncedManager {
 
   // Lock to prevent concurrent hydrations/filter operations from racing
   private _operationInProgress: Promise<void> | null = null;
+
+  // Track the last known "today" date to detect midnight rollover
+  private _lastKnownToday: string | null = null;
+
+  // TimeManager instance for timezone-aware date operations
+  private _timeManager: TimeManager | null = null;
 
   // ===========================================================================
   // Lifecycle
@@ -171,6 +178,8 @@ export class FileManager extends SyncedManager {
       if (!this._initialHydrationDone) {
         this.activeFilter = "all";
         this._initialHydrationDone = true;
+        // Initialize the last known today so midnight detection works
+        this._lastKnownToday = today;
       }
 
       // Load files based on current activeFilter
@@ -193,18 +202,20 @@ export class FileManager extends SyncedManager {
   // Private Helpers
   // ===========================================================================
 
-  private getTodayDate(): string {
-    // Get today's date from TranscriptManager's TimeManager if available
-    const transcriptManager = (this._session as any)?.transcript;
-    if (transcriptManager?.getTimeManager) {
-      return transcriptManager.getTimeManager().getTodayDate();
+  /**
+   * Get TimeManager instance for timezone-aware date operations.
+   * Uses user's timezone from settings if available.
+   */
+  private getTimeManager(): TimeManager {
+    if (!this._timeManager) {
+      const timezone = (this._session as any)?.settings?.timezone ?? undefined;
+      this._timeManager = new TimeManager(timezone);
     }
-    // Fallback: compute today's date in local timezone
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+    return this._timeManager;
+  }
+
+  private getTodayDate(): string {
+    return this.getTimeManager().getTodayDate();
   }
 
   private toFileData(file: FileI): FileData {
@@ -244,6 +255,54 @@ export class FileManager extends SyncedManager {
       trash: trashedFiles.length,
       favourites: favouriteFiles.length,
     };
+  }
+
+  /**
+   * Ensure today's file exists in the database.
+   * This handles midnight rollover - when the date changes, we need to create
+   * a new File record for the new day.
+   *
+   * @returns true if a new file was created, false if it already existed
+   */
+  private async ensureTodayFileExists(): Promise<boolean> {
+    const userId = this._session?.userId;
+    if (!userId) return false;
+
+    const today = this.getTodayDate();
+
+    // Check if date has changed since last check
+    if (this._lastKnownToday === today) {
+      return false; // No date change, nothing to do
+    }
+
+    console.log(`[FileManager] Date check - last known: ${this._lastKnownToday}, current: ${today}`);
+    this._lastKnownToday = today;
+
+    // Check if today's file already exists in our local state
+    const existsLocally = this.files.some((f) => f.date === today);
+    if (existsLocally) {
+      return false;
+    }
+
+    // Create today's file in database if it doesn't exist
+    console.log(`[FileManager] Creating file for new day: ${today}`);
+    const file = await getOrCreateFile(userId, today);
+
+    // Add to local state if we're viewing "all" filter
+    if (this.activeFilter === "all") {
+      const fileData = this.toFileData(file);
+      this.files.mutate((files) => {
+        // Check again to avoid duplicates
+        if (!files.some((f) => f.date === today)) {
+          files.unshift(fileData); // Add at the beginning (most recent)
+        }
+      });
+    }
+
+    // Update counts
+    await this.refreshCounts();
+
+    return true;
   }
 
   // ===========================================================================
@@ -374,13 +433,20 @@ export class FileManager extends SyncedManager {
     const userId = this._session?.userId;
     if (!userId) return [];
 
+    // Ensure today's file exists (handles midnight rollover)
+    // Only check when loading "all" filter to avoid unnecessary DB calls
+    const effectiveFilter = filter || this.activeFilter;
+    if (effectiveFilter === "all") {
+      await this.ensureTodayFileExists();
+    }
+
     const filterOptions: {
       isArchived?: boolean;
       isTrashed?: boolean;
       isFavourite?: boolean;
     } = {};
 
-    switch (filter || this.activeFilter) {
+    switch (effectiveFilter) {
       case "archived":
         filterOptions.isArchived = true;
         filterOptions.isTrashed = false;
@@ -430,28 +496,40 @@ export class FileManager extends SyncedManager {
     const userId = this._session?.userId;
     if (!userId) return null;
 
-    // Mutually exclusive: clear favourite and trash when archiving
-    const file = await updateFile(userId, date, {
-      isArchived: true,
-      isFavourite: false,
-      isTrashed: false,
-    });
-    if (!file) return null;
+    // Wait for any in-progress operation to complete first
+    if (this._operationInProgress) {
+      await this._operationInProgress;
+    }
 
-    // Update local state - update the file in place so DayPage can see the change
-    this.files.mutate((files) => {
-      const idx = files.findIndex((f) => f.date === date);
-      if (idx >= 0) {
-        files[idx].isArchived = true;
-        files[idx].isFavourite = false;
-        files[idx].isTrashed = false;
-      }
+    // Create a new operation promise
+    let resolveOperation: () => void;
+    this._operationInProgress = new Promise((resolve) => {
+      resolveOperation = resolve;
     });
 
-    // Update counts
-    await this.refreshCounts();
+    try {
+      // Mutually exclusive: clear favourite and trash when archiving
+      const file = await updateFile(userId, date, {
+        isArchived: true,
+        isFavourite: false,
+        isTrashed: false,
+      });
+      if (!file) return null;
 
-    return this.toFileData(file);
+      console.log(`[FileManager] Archived file ${date}, refreshing list (filter: ${this.activeFilter})`);
+
+      // Refresh the list based on current filter
+      const files = await this.getFilesRpc(this.activeFilter);
+      this.files.set(files);
+
+      // Update counts
+      await this.refreshCounts();
+
+      return this.toFileData(file);
+    } finally {
+      resolveOperation!();
+      this._operationInProgress = null;
+    }
   }
 
   @rpc
@@ -459,17 +537,35 @@ export class FileManager extends SyncedManager {
     const userId = this._session?.userId;
     if (!userId) return null;
 
-    const file = await updateFile(userId, date, { isArchived: false });
-    if (!file) return null;
+    // Wait for any in-progress operation to complete first
+    if (this._operationInProgress) {
+      await this._operationInProgress;
+    }
 
-    // Refresh the list based on current filter
-    const files = await this.getFilesRpc(this.activeFilter);
-    this.files.set(files);
+    // Create a new operation promise
+    let resolveOperation: () => void;
+    this._operationInProgress = new Promise((resolve) => {
+      resolveOperation = resolve;
+    });
 
-    // Update counts
-    await this.refreshCounts();
+    try {
+      const file = await updateFile(userId, date, { isArchived: false });
+      if (!file) return null;
 
-    return this.toFileData(file);
+      console.log(`[FileManager] Unarchived file ${date}, refreshing list (filter: ${this.activeFilter})`);
+
+      // Refresh the list based on current filter
+      const files = await this.getFilesRpc(this.activeFilter);
+      this.files.set(files);
+
+      // Update counts
+      await this.refreshCounts();
+
+      return this.toFileData(file);
+    } finally {
+      resolveOperation!();
+      this._operationInProgress = null;
+    }
   }
 
   @rpc
@@ -477,28 +573,40 @@ export class FileManager extends SyncedManager {
     const userId = this._session?.userId;
     if (!userId) return null;
 
-    // Mutually exclusive: clear favourite and archive when trashing
-    const file = await updateFile(userId, date, {
-      isTrashed: true,
-      isFavourite: false,
-      isArchived: false,
-    });
-    if (!file) return null;
+    // Wait for any in-progress operation to complete first
+    if (this._operationInProgress) {
+      await this._operationInProgress;
+    }
 
-    // Update local state - update the file in place so DayPage can see the change
-    this.files.mutate((files) => {
-      const idx = files.findIndex((f) => f.date === date);
-      if (idx >= 0) {
-        files[idx].isTrashed = true;
-        files[idx].isFavourite = false;
-        files[idx].isArchived = false;
-      }
+    // Create a new operation promise
+    let resolveOperation: () => void;
+    this._operationInProgress = new Promise((resolve) => {
+      resolveOperation = resolve;
     });
 
-    // Update counts
-    await this.refreshCounts();
+    try {
+      // Mutually exclusive: clear favourite and archive when trashing
+      const file = await updateFile(userId, date, {
+        isTrashed: true,
+        isFavourite: false,
+        isArchived: false,
+      });
+      if (!file) return null;
 
-    return this.toFileData(file);
+      console.log(`[FileManager] Trashed file ${date}, refreshing list (filter: ${this.activeFilter})`);
+
+      // Refresh the list based on current filter
+      const files = await this.getFilesRpc(this.activeFilter);
+      this.files.set(files);
+
+      // Update counts
+      await this.refreshCounts();
+
+      return this.toFileData(file);
+    } finally {
+      resolveOperation!();
+      this._operationInProgress = null;
+    }
   }
 
   @rpc
@@ -506,17 +614,36 @@ export class FileManager extends SyncedManager {
     const userId = this._session?.userId;
     if (!userId) return null;
 
-    const file = await updateFile(userId, date, { isTrashed: false });
-    if (!file) return null;
+    // Wait for any in-progress operation to complete first
+    if (this._operationInProgress) {
+      await this._operationInProgress;
+    }
 
-    // Refresh the list
-    const files = await this.getFilesRpc(this.activeFilter);
-    this.files.set(files);
+    // Create a new operation promise
+    let resolveOperation: () => void;
+    this._operationInProgress = new Promise((resolve) => {
+      resolveOperation = resolve;
+    });
 
-    // Update counts
-    await this.refreshCounts();
+    try {
+      const file = await updateFile(userId, date, { isTrashed: false });
+      if (!file) return null;
 
-    return this.toFileData(file);
+      console.log(`[FileManager] Restored file ${date}, refreshing list (filter: ${this.activeFilter})`);
+
+      // Refresh the list based on current filter
+      const files = await this.getFilesRpc(this.activeFilter);
+      this.files.set(files);
+      console.log(`[FileManager] After restore - activeFilter: ${this.activeFilter}, files count: ${files.length}`);
+
+      // Update counts
+      await this.refreshCounts();
+
+      return this.toFileData(file);
+    } finally {
+      resolveOperation!();
+      this._operationInProgress = null;
+    }
   }
 
   @rpc
@@ -524,28 +651,40 @@ export class FileManager extends SyncedManager {
     const userId = this._session?.userId;
     if (!userId) return null;
 
-    // Mutually exclusive: clear archive and trash when favouriting
-    const file = await updateFile(userId, date, {
-      isFavourite: true,
-      isArchived: false,
-      isTrashed: false,
-    });
-    if (!file) return null;
+    // Wait for any in-progress operation to complete first
+    if (this._operationInProgress) {
+      await this._operationInProgress;
+    }
 
-    // Update local state
-    this.files.mutate((files) => {
-      const idx = files.findIndex((f) => f.date === date);
-      if (idx >= 0) {
-        files[idx].isFavourite = true;
-        files[idx].isArchived = false;
-        files[idx].isTrashed = false;
-      }
+    // Create a new operation promise
+    let resolveOperation: () => void;
+    this._operationInProgress = new Promise((resolve) => {
+      resolveOperation = resolve;
     });
 
-    // Update counts
-    await this.refreshCounts();
+    try {
+      // Mutually exclusive: clear archive and trash when favouriting
+      const file = await updateFile(userId, date, {
+        isFavourite: true,
+        isArchived: false,
+        isTrashed: false,
+      });
+      if (!file) return null;
 
-    return this.toFileData(file);
+      console.log(`[FileManager] Favourited file ${date}, refreshing list (filter: ${this.activeFilter})`);
+
+      // Refresh the list based on current filter
+      const files = await this.getFilesRpc(this.activeFilter);
+      this.files.set(files);
+
+      // Update counts
+      await this.refreshCounts();
+
+      return this.toFileData(file);
+    } finally {
+      resolveOperation!();
+      this._operationInProgress = null;
+    }
   }
 
   @rpc
@@ -553,21 +692,35 @@ export class FileManager extends SyncedManager {
     const userId = this._session?.userId;
     if (!userId) return null;
 
-    const file = await updateFile(userId, date, { isFavourite: false });
-    if (!file) return null;
+    // Wait for any in-progress operation to complete first
+    if (this._operationInProgress) {
+      await this._operationInProgress;
+    }
 
-    // Update local state
-    this.files.mutate((files) => {
-      const idx = files.findIndex((f) => f.date === date);
-      if (idx >= 0) {
-        files[idx].isFavourite = false;
-      }
+    // Create a new operation promise
+    let resolveOperation: () => void;
+    this._operationInProgress = new Promise((resolve) => {
+      resolveOperation = resolve;
     });
 
-    // Update counts
-    await this.refreshCounts();
+    try {
+      const file = await updateFile(userId, date, { isFavourite: false });
+      if (!file) return null;
 
-    return this.toFileData(file);
+      console.log(`[FileManager] Unfavourited file ${date}, refreshing list (filter: ${this.activeFilter})`);
+
+      // Refresh the list based on current filter
+      const files = await this.getFilesRpc(this.activeFilter);
+      this.files.set(files);
+
+      // Update counts
+      await this.refreshCounts();
+
+      return this.toFileData(file);
+    } finally {
+      resolveOperation!();
+      this._operationInProgress = null;
+    }
   }
 
   @rpc

@@ -13,11 +13,13 @@ import { useLocation } from "wouter";
 import { useMentraAuth } from "@mentra/react";
 import {
   Loader2,
-  FileText,
   Calendar,
   Sparkles,
   ChevronDown,
   Trash2,
+  Archive,
+  Star,
+  FolderOpen,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useSynced } from "../../hooks/useSynced";
@@ -38,8 +40,9 @@ export function HomePage() {
   const { session, isConnected, reconnect } = useSynced<SessionI>(userId || "");
   const [, setLocation] = useLocation();
 
-  // Filter & view state - use backend's activeFilter as source of truth
-  const [activeView, setActiveView] = useState<ViewType>("folders");
+  // Local UI state - only for things that can't be derived from backend
+  // Note: "all_notes" view is frontend-only, so we track if user explicitly chose it
+  const [isAllNotesView, setIsAllNotesView] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [showGlobalChat, setShowGlobalChat] = useState(false);
@@ -50,10 +53,21 @@ export function HomePage() {
   const files = session?.file?.files ?? [];
   const isRecording = session?.transcript?.isRecording ?? false;
   const notes = session?.notes?.notes ?? [];
+
   // Get activeFilter from backend state - this is the source of truth
   const backendFilter = session?.file?.activeFilter ?? "all";
-  // Map FileFilter to FilterType for UI
+
+  // Derive activeView from backend filter (favourites) or local state (all_notes)
+  // This ensures the view state survives navigation for filter-based views
+  const activeView: ViewType = isAllNotesView
+    ? "all_notes"
+    : backendFilter === "favourites"
+      ? "favorites"
+      : "folders";
   const activeFilter: FilterType = backendFilter === "favourites" ? "all" : backendFilter as FilterType;
+
+  // Debug: Log filter state on every render
+  console.log(`[HomePage] Render - backendFilter: ${backendFilter}, activeView: ${activeView}, activeFilter: ${activeFilter}, files: ${files.length}`);
 
   // Transform FileData to DailyFolder format
   const folders = useMemo((): DailyFolder[] => {
@@ -94,8 +108,8 @@ export function HomePage() {
   // Handle filter change - call FileManager RPC
   // Backend's activeFilter state will sync back to update the UI
   const handleFilterChange = async (filter: FilterType) => {
-    // Reset view to folders when changing filter
-    setActiveView("folders");
+    // Clear all_notes view when changing filter
+    setIsAllNotesView(false);
 
     // Map FilterType to FileFilter
     const fileFilter: FileFilter =
@@ -109,17 +123,19 @@ export function HomePage() {
 
   // Handle view change - call FileManager RPC for favorites
   const handleViewChange = async (view: ViewType) => {
-    setActiveView(view);
-
-    if (view === "favorites") {
+    if (view === "all_notes") {
+      // all_notes is frontend-only view
+      setIsAllNotesView(true);
+    } else if (view === "favorites") {
+      setIsAllNotesView(false);
       // Set filter to favourites - backend state will sync back
       if (session?.file) {
         await session.file.setFilter("favourites");
       }
+    } else {
+      // "folders" view - clear all_notes flag, filter is set by handleFilterChange
+      setIsAllNotesView(false);
     }
-    // Note: For "folders" view, the filter is already set by handleFilterChange
-    // No need to call setFilter again here - it would cause race conditions
-    // "all_notes" view doesn't change file filter - it shows notes instead
   };
 
   // Get filter label for display
@@ -237,19 +253,38 @@ export function HomePage() {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 gap-4 p-8">
+        <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 gap-4 p-8 bg-white dark:bg-black">
           <div className="p-4 bg-zinc-100 dark:bg-zinc-900 rounded-2xl">
-            <FileText size={32} />
+            {activeFilter === "trash" ? (
+              <Trash2 size={32} />
+            ) : activeFilter === "archived" ? (
+              <Archive size={32} />
+            ) : activeView === "favorites" ? (
+              <Star size={32} />
+            ) : (
+              <FolderOpen size={32} />
+            )}
           </div>
           <div className="text-center max-w-sm">
             <p className="font-medium text-zinc-600 dark:text-zinc-400">
-              No notes yet
+              {activeFilter === "trash"
+                ? "Trash is empty"
+                : activeFilter === "archived"
+                  ? "No archived files"
+                  : activeView === "favorites"
+                    ? "No favorites yet"
+                    : "No files yet"}
             </p>
             <p className="text-sm text-zinc-400 dark:text-zinc-600 mt-1">
-              Notes and transcriptions will appear here once you start recording
-              with your glasses connected.
+              {activeFilter === "trash"
+                ? "Files you delete will appear here."
+                : activeFilter === "archived"
+                  ? "Files you archive will appear here."
+                  : activeView === "favorites"
+                    ? "Mark files as favorites to see them here."
+                    : "Notes and transcriptions will appear here once you start recording with your glasses connected."}
             </p>
-            {!isConnected && (
+            {activeFilter === "all" && activeView === "folders" && !isConnected && (
               <button
                 onClick={reconnect}
                 className="mt-4 px-4 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"

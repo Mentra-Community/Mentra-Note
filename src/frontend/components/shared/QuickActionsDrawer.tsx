@@ -16,7 +16,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useMentraAuth } from "@mentra/react";
 import { clsx } from "clsx";
-import { X, FileText, Sparkles, Clock, Loader2 } from "lucide-react";
+import { FileText, Sparkles, Loader2, Clock } from "lucide-react";
 import { Drawer } from "vaul";
 import { useSynced } from "../../hooks/useSynced";
 import type { SessionI } from "../../../shared/types";
@@ -118,7 +118,7 @@ export function QuickActionsDrawer({
           <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-700 mt-4 mb-2" />
 
           {/* Header */}
-          <div className="flex items-center justify-between px-6 pb-4">
+          <div className="px-6 pb-4">
             <Drawer.Title className="text-lg font-semibold text-zinc-900 dark:text-white">
               {showTimeRangePicker ? "Generate Summary" : "Quick Actions"}
             </Drawer.Title>
@@ -127,12 +127,6 @@ export function QuickActionsDrawer({
                 ? "Select a time range to generate a summary"
                 : "Quick actions for notes"}
             </Drawer.Description>
-            <button
-              onClick={onClose}
-              className="p-2 -mr-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 transition-colors"
-            >
-              <X size={20} />
-            </button>
           </div>
 
           {/* Content */}
@@ -156,11 +150,11 @@ export function QuickActionsDrawer({
                         type="time"
                         value={startTime}
                         onChange={(e) => setStartTime(e.target.value)}
-                        className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
+                        className="w-full pl-4 pr-12 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden [&::-webkit-clear-button]:hidden"
                       />
                       <Clock
-                        size={16}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
+                        size={18}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500 pointer-events-none"
                       />
                     </div>
                   </div>
@@ -173,11 +167,11 @@ export function QuickActionsDrawer({
                         type="time"
                         value={endTime}
                         onChange={(e) => setEndTime(e.target.value)}
-                        className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
+                        className="w-full pl-4 pr-12 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden [&::-webkit-clear-button]:hidden"
                       />
                       <Clock
-                        size={16}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
+                        size={18}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500 pointer-events-none"
                       />
                     </div>
                   </div>
