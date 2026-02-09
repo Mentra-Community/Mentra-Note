@@ -134,9 +134,15 @@ export function DayPage() {
     }
   }, [dateString, todayString, loadedDate, session?.transcript]);
 
-  // Filter notes for this day
+  // Filter notes for this day using the note's date field
+  // The date field stores the folder date (YYYY-MM-DD) that the note belongs to
   const dayNotes = useMemo(() => {
     return allNotes.filter((note) => {
+      // Use the note's date field if available, otherwise fallback to createdAt for backward compatibility
+      if (note.date) {
+        return note.date === dateString;
+      }
+      // Fallback for old notes without date field
       const noteDate = note.createdAt ? new Date(note.createdAt) : new Date();
       const noteDateString = `${noteDate.getFullYear()}-${String(noteDate.getMonth() + 1).padStart(2, "0")}-${String(noteDate.getDate()).padStart(2, "0")}`;
       return noteDateString === dateString;
