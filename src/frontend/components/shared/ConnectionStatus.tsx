@@ -5,8 +5,9 @@
  */
 
 import React from "react";
-import { Wifi, WifiOff, Glasses, Loader2 } from "lucide-react";
+import { Wifi, WifiOff, Glasses } from "lucide-react";
 import { clsx } from "clsx";
+import { Skeleton } from "../ui/skeleton";
 
 export interface ConnectionStatusProps {
   isConnected: boolean;
@@ -200,9 +201,9 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
 export const SessionLoading: React.FC<{ message?: string }> = ({
   message = "Connecting...",
 }) => (
-  <div className="flex flex-col items-center justify-center h-full gap-4 text-zinc-400">
-    <Loader2 size={32} className="animate-spin" />
-    <p className="text-sm">{message}</p>
+  <div className="flex flex-col items-center justify-center h-full gap-4">
+    <Skeleton className="w-16 h-16 rounded-2xl" />
+    <Skeleton className="h-4 w-24" />
   </div>
 );
 

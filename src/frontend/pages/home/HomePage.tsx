@@ -12,7 +12,6 @@ import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useMentraAuth } from "@mentra/react";
 import {
-  Loader2,
   Calendar,
   Sparkles,
   ChevronDown,
@@ -20,6 +19,7 @@ import {
   Archive,
   Star,
   FolderOpen,
+  Loader2,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useSynced } from "../../hooks/useSynced";
@@ -34,6 +34,7 @@ import {
 import { CalendarView } from "./components/CalendarView";
 import { GlobalAIChat } from "./components/GlobalAIChat";
 import { Drawer } from "vaul";
+import { HomePageSkeleton } from "../../components/shared/SkeletonLoader";
 
 export function HomePage() {
   const { userId } = useMentraAuth();
@@ -188,14 +189,7 @@ export function HomePage() {
 
   // Loading state - no session yet
   if (!session) {
-    return (
-      <div className="flex h-full bg-zinc-50 dark:bg-black overflow-hidden items-center justify-center">
-        <div className="flex flex-col items-center gap-4 text-zinc-400">
-          <Loader2 size={32} className="animate-spin" />
-          <p className="text-sm">Connecting...</p>
-        </div>
-      </div>
-    );
+    return <HomePageSkeleton />;
   }
 
   // Empty state

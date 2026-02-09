@@ -30,6 +30,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { Drawer } from "vaul";
 import { useSynced } from "../../hooks/useSynced";
 import type { SessionI, Note } from "../../../shared/types";
+import { NotePageSkeleton } from "../../components/shared/SkeletonLoader";
 
 export function NotePage() {
   const params = useParams<{ id: string }>();
@@ -210,13 +211,7 @@ export function NotePage() {
 
   // Loading state
   if (!session) {
-    return (
-      <div className="flex h-full bg-white dark:bg-black items-center justify-center">
-        <div className="flex flex-col items-center gap-4 text-zinc-400">
-          <Loader2 size={32} className="animate-spin" />
-        </div>
-      </div>
-    );
+    return <NotePageSkeleton />;
   }
 
   // Note not found

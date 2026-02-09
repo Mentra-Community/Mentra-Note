@@ -12,6 +12,7 @@ import { Toaster } from "sonner";
 import { clsx } from "clsx";
 import { Router } from "./router";
 import { Shell } from "./components/layout/Shell";
+import { HomePageSkeleton } from "./components/shared/SkeletonLoader";
 
 // =============================================================================
 // Theme Context
@@ -83,28 +84,8 @@ export function App() {
   // Loading state
   if (isLoading) {
     return (
-      <div
-        className={clsx(
-          "min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black",
-          theme,
-        )}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center gap-4"
-        >
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            className="w-16 h-16 rounded-2xl bg-zinc-900 dark:bg-white flex items-center justify-center shadow-lg"
-          >
-            <span className="text-white dark:text-zinc-900 font-bold text-2xl">
-              📝
-            </span>
-          </motion.div>
-          <p className="text-zinc-500 dark:text-zinc-400">Loading Notes...</p>
-        </motion.div>
+      <div className={clsx("min-h-screen", theme)}>
+        <HomePageSkeleton />
       </div>
     );
   }

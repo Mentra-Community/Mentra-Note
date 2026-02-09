@@ -18,9 +18,8 @@ import {
   Star,
   FileText,
   MessageSquare,
-  Headphones,
+  // Headphones, // TODO: Enable when audio feature is implemented
   Sparkles,
-  Loader2,
   Archive,
   ArchiveRestore,
   Trash2,
@@ -35,10 +34,11 @@ import type {
 } from "../../../shared/types";
 import { NotesTab } from "./components/tabs/NotesTab";
 import { TranscriptTab } from "./components/tabs/TranscriptTab";
-import { AudioTab } from "./components/tabs/AudioTab";
+// import { AudioTab } from "./components/tabs/AudioTab"; // TODO: Enable when audio feature is implemented
 import { AITab } from "./components/tabs/AITab";
 import { TranscribingIndicator } from "../../components/shared/TranscribingIndicator";
 import { DropdownMenu, type DropdownMenuOption } from "../../components/shared/DropdownMenu";
+import { DayPageSkeleton } from "../../components/shared/SkeletonLoader";
 
 type TabType = "notes" | "transcript" | "audio" | "ai";
 
@@ -51,7 +51,7 @@ interface TabConfig {
 const tabs: TabConfig[] = [
   { id: "notes", label: "Notes", icon: FileText },
   { id: "transcript", label: "Transcript", icon: MessageSquare },
-  { id: "audio", label: "Audio", icon: Headphones },
+  // { id: "audio", label: "Audio", icon: Headphones }, // TODO: Enable when audio feature is implemented
   { id: "ai", label: "AI", icon: Sparkles },
 ];
 
@@ -86,7 +86,6 @@ export function DayPage() {
   const interimText = session?.transcript?.interimText ?? "";
   const isRecording = session?.transcript?.isRecording ?? false;
   const loadedDate = session?.transcript?.loadedDate ?? "";
-  const isLoadingHistory = session?.transcript?.isLoadingHistory ?? false;
   const files = session?.file?.files ?? [];
 
   // Find the file for this date to get favourite status
@@ -171,18 +170,8 @@ export function DayPage() {
     });
   }, [allSegments, dateString]);
 
-  // Loading state
-  if (!session || isLoadingHistory) {
-    return (
-      <div className="flex h-full bg-white dark:bg-black items-center justify-center">
-        <div className="flex flex-col items-center gap-4 text-zinc-400">
-          <Loader2 size={32} className="animate-spin" />
-          <p className="text-sm">
-            {isLoadingHistory ? "Loading transcript..." : "Loading..."}
-          </p>
-        </div>
-      </div>
-    );
+  if (!session) {
+    return <DayPageSkeleton />;
   }
 
   const handleBack = () => {
@@ -311,7 +300,7 @@ export function DayPage() {
             onGenerateSummary={session?.transcript?.generateHourSummary}
           />
         )}
-        {activeTab === "audio" && <AudioTab />}
+        {/* {activeTab === "audio" && <AudioTab />} */}
         {activeTab === "ai" && <AITab date={date} />}
       </div>
     </div>

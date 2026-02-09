@@ -18,13 +18,13 @@ import {
   ChevronRight,
   Bell,
   Database,
-  Loader2,
   Glasses,
   Check,
 } from "lucide-react";
 import { useSynced } from "../../hooks/useSynced";
 import type { SessionI, GlassesDisplayMode } from "../../../shared/types";
 import { useTheme } from "../../App";
+import { SettingsPageSkeleton } from "../../components/shared/SkeletonLoader";
 
 interface SettingsRowProps {
   icon?: React.ReactNode;
@@ -192,14 +192,7 @@ export function SettingsPage() {
 
   // Loading state
   if (!session) {
-    return (
-      <div className="flex h-full bg-white dark:bg-black items-center justify-center">
-        <div className="flex flex-col items-center gap-4 text-zinc-400">
-          <Loader2 size={32} className="animate-spin" />
-          <p className="text-sm">Loading...</p>
-        </div>
-      </div>
-    );
+    return <SettingsPageSkeleton />;
   }
 
   return (

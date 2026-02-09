@@ -64,6 +64,10 @@ export class NotesManager extends SyncedManager {
   }
 
   private getNoteDate(note: NoteData): string {
+    // Use the note's date field (folder date) if available, otherwise derive from createdAt
+    if (note.date) {
+      return note.date;
+    }
     return this.getTimeManager().getDateString(new Date(note.createdAt));
   }
 

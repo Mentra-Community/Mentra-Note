@@ -160,26 +160,33 @@ export async function incrementNoteCount(
   date: string,
   delta: number = 1,
 ): Promise<void> {
-  await File.updateOne(
-    { userId, date },
-    {
-      $inc: { noteCount: delta },
-      $set: { hasNotes: true },
-      $setOnInsert: {
-        userId,
-        date,
-        transcriptSegmentCount: 0,
-        hasTranscript: false,
-        isArchived: false,
-        isTrashed: false,
-        isFavourite: false,
+  if (delta > 0) {
+    // Incrementing - set hasNotes to true
+    await File.updateOne(
+      { userId, date },
+      {
+        $inc: { noteCount: delta },
+        $set: { hasNotes: true },
+        $setOnInsert: {
+          userId,
+          date,
+          transcriptSegmentCount: 0,
+          hasTranscript: false,
+          isArchived: false,
+          isTrashed: false,
+          isFavourite: false,
+        },
       },
-    },
-    { upsert: true },
-  );
+      { upsert: true },
+    );
+  } else {
+    // Decrementing - just decrement first
+    await File.updateOne(
+      { userId, date },
+      { $inc: { noteCount: delta } },
+    );
 
-  // If decrementing, check if hasNotes should be false
-  if (delta < 0) {
+    // Then check if hasNotes should be false
     const file = await File.findOne({ userId, date });
     if (file && file.noteCount <= 0) {
       await File.updateOne(
