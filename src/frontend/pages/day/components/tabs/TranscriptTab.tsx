@@ -24,6 +24,7 @@ interface TranscriptTabProps {
   currentHour?: number; // Only provided for "today" - undefined for historical days
   dateString: string;
   onGenerateSummary?: (hour: number) => Promise<HourSummary>;
+  isCompactMode?: boolean; // When true, all hours show in minimal/compact view
 }
 
 interface GroupedSegments {
@@ -33,6 +34,9 @@ interface GroupedSegments {
 // Threshold in pixels - if user is within this distance from bottom, auto-scroll
 const AUTO_SCROLL_THRESHOLD = 150;
 
+// Hour display states: veryCollapsed (minimal) → collapsed (banner) → expanded (segments)
+type HourState = "veryCollapsed" | "collapsed" | "expanded";
+
 export function TranscriptTab({
   segments,
   hourSummaries = [],
@@ -40,7 +44,9 @@ export function TranscriptTab({
   currentHour,
   dateString,
   onGenerateSummary,
+  isCompactMode = false,
 }: TranscriptTabProps) {
+  // Track expanded state for each hour (only used when not in compact mode)
   const [expandedHours, setExpandedHours] = useState<Set<string>>(new Set());
   const [stuckHeader, setStuckHeader] = useState<string | null>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -48,6 +54,13 @@ export function TranscriptTab({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const headerRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const prevSegmentCountRef = useRef(segments.length);
+
+  // Helper to get hour state based on compact mode and expanded state
+  const getHourState = (hourKey: string): HourState => {
+    if (expandedHours.has(hourKey)) return "expanded";
+    if (isCompactMode) return "veryCollapsed";
+    return "collapsed";
+  };
 
   // Parse hour key and return components
   const parseHourKey = (hourKey: string): { hour24: number; label: string } => {
@@ -200,7 +213,7 @@ export function TranscriptTab({
 
     // Find which expanded header should be stuck
     for (const hourKey of sortedHours) {
-      if (!expandedHours.has(hourKey)) continue;
+      if (getHourState(hourKey) !== "expanded") continue;
 
       const header = headerRefs.current.get(hourKey);
       if (!header) continue;
@@ -216,7 +229,7 @@ export function TranscriptTab({
 
     // Update auto-scroll state based on scroll position
     setShouldAutoScroll(isNearBottom());
-  }, [expandedHours, sortedHours, isNearBottom]);
+  }, [expandedHours, isCompactMode, sortedHours, isNearBottom]);
 
   // Attach scroll listener
   useEffect(() => {
@@ -251,7 +264,13 @@ export function TranscriptTab({
     prevSegmentCountRef.current = segments.length;
   }, [segments.length, shouldAutoScroll]);
 
+  // Toggle between collapsed/veryCollapsed and expanded
   const toggleHour = (hourKey: string) => {
+    const { hour24 } = parseHourKey(hourKey);
+    const isLiveHour = currentHour !== undefined && hour24 === currentHour;
+    const wasExpanded = expandedHours.has(hourKey);
+    console.log("[TranscriptTab] toggleHour:", { hourKey, hour24, currentHour, isLiveHour, wasExpanded });
+
     setExpandedHours((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(hourKey)) {
@@ -265,6 +284,19 @@ export function TranscriptTab({
       }
       return newSet;
     });
+
+    // If expanding the current live hour, scroll to bottom after DOM updates
+    if (!wasExpanded && isLiveHour) {
+      setTimeout(() => {
+        const container = scrollContainerRef.current;
+        if (container) {
+          container.scrollTo({
+            top: container.scrollHeight,
+            behavior: "smooth",
+          });
+        }
+      }, 150);
+    }
   };
 
   // Handle generating summary for an hour
@@ -302,7 +334,9 @@ export function TranscriptTab({
         {sortedHours.map((hourKey) => {
           const hourSegments = groupedSegments[hourKey];
           const { hour24, label: hourLabel } = parseHourKey(hourKey);
-          const isExpanded = expandedHours.has(hourKey);
+          const hourState = getHourState(hourKey);
+          const isCollapsed = hourState === "collapsed";
+          const isExpanded = hourState === "expanded";
           const isStuck = stuckHeader === hourKey;
           const isCurrentHour =
             currentHour !== undefined && hour24 === currentHour;
@@ -341,8 +375,8 @@ export function TranscriptTab({
                   )}
                 </div>
 
-                {/* Banner Content (when collapsed) */}
-                {!isExpanded && (
+                {/* Banner Content (when collapsed - normal state) */}
+                {isCollapsed && (
                   <div className="flex-1 min-w-0">
                     {/* Title + Body (when summary exists) */}
                     {banner.hasSummary && banner.title ? (
@@ -395,8 +429,8 @@ export function TranscriptTab({
                   </div>
                 )}
 
-                {/* Summary shown when expanded */}
-                {isExpanded && hasSummary && (
+                {/* Summary shown when expanded (not in compact mode) */}
+                {isExpanded && hasSummary && !isCompactMode && (
                   <div className="flex-1 min-w-0">
                     {banner.title && (
                       <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
@@ -412,7 +446,7 @@ export function TranscriptTab({
                 )}
 
                 {/* Expand indicator */}
-                <div className="text-zinc-400 dark:text-zinc-500 shrink-0 ml-auto pt-0.5">
+                <div className="text-zinc-400 dark:text-zinc-500 shrink-0 ml-auto">
                   {isExpanded ? (
                     <ChevronDown size={18} />
                   ) : (

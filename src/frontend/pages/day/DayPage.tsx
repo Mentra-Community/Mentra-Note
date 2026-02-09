@@ -24,6 +24,8 @@ import {
   ArchiveRestore,
   Trash2,
   RotateCcw,
+  ListCollapse,
+  AlignJustify,
 } from "lucide-react";
 import { useSynced } from "../../hooks/useSynced";
 import type {
@@ -62,6 +64,7 @@ export function DayPage() {
   const { session, isConnected } = useSynced<SessionI>(userId || "");
 
   const [activeTab, setActiveTab] = useState<TabType>("notes");
+  const [isCompactMode, setIsCompactMode] = useState(false);
   const lastLoadedDateRef = useRef<string | null>(null);
 
   // Parse the date from URL params
@@ -275,6 +278,22 @@ export function DayPage() {
               )}
             </button>
           ))}
+
+          {/* Compact mode toggle - only shown on transcript tab */}
+          {activeTab === "transcript" && (
+            <button
+              onClick={() => setIsCompactMode(!isCompactMode)}
+              className={clsx(
+                "ml-auto pb-3 p-1 rounded transition-colors",
+                isCompactMode
+                  ? "text-zinc-900 dark:text-white"
+                  : "text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300",
+              )}
+              title={isCompactMode ? "Show details" : "Compact view"}
+            >
+              {isCompactMode ? <ListCollapse size={18} /> : <AlignJustify size={18} />}
+            </button>
+          )}
         </div>
 
         {/* Recording indicator */}
@@ -298,6 +317,7 @@ export function DayPage() {
             currentHour={isToday ? currentHour : undefined}
             dateString={dateString}
             onGenerateSummary={session?.transcript?.generateHourSummary}
+            isCompactMode={isCompactMode}
           />
         )}
         {/* {activeTab === "audio" && <AudioTab />} */}
