@@ -20,7 +20,7 @@ import {
   type AgentProvider,
   type UnifiedMessage,
 } from "../../services/llm";
-import { getUserState, updateTranscriptionBatchEndOfDay } from "../../services/userState.service";
+import { getUserState, getOrCreateUserState, updateTranscriptionBatchEndOfDay } from "../../services/userState.service";
 import { TimeManager } from "./TimeManager";
 import type { FileManager } from "./FileManager";
 
@@ -169,14 +169,15 @@ export class TranscriptManager extends SyncedManager {
         this.hourSummaries.set(loadedSummaries);
       }
 
-      // Load transcriptionBatchEndOfDay from MongoDB
-      const userState = await getUserState(userId);
-      if (userState?.transcriptionBatchEndOfDay) {
-        this.transcriptionBatchEndOfDay = userState.transcriptionBatchEndOfDay.toISOString();
-        console.log(
-          `[TranscriptManager] Loaded batch end of day from DB: ${this.transcriptionBatchEndOfDay}`,
-        );
-      }
+      // Load or create transcriptionBatchEndOfDay from MongoDB
+      const defaultEndOfDay = new Date(this.getTimeManager().getEndOfDayUTC());
+      console.log(`[TranscriptManager] Ensuring UserState exists for ${userId}, default EOD: ${defaultEndOfDay.toISOString()}`);
+      const userState = await getOrCreateUserState(userId, defaultEndOfDay);
+      this.transcriptionBatchEndOfDay = userState.transcriptionBatchEndOfDay.toISOString();
+      this.userStateInitialized = true;
+      console.log(
+        `[TranscriptManager] Loaded batch end of day from DB: ${this.transcriptionBatchEndOfDay}`,
+      );
 
       this.startRollingSummaryTimer();
     } catch (error) {
