@@ -12,7 +12,7 @@ import { Toaster } from "sonner";
 import { clsx } from "clsx";
 import { Router } from "./router";
 import { Shell } from "./components/layout/Shell";
-import { HomePageSkeleton } from "./components/shared/SkeletonLoader";
+import { SplashScreen } from "./components/shared/SplashScreen";
 
 // =============================================================================
 // Theme Context
@@ -40,6 +40,13 @@ export function useTheme() {
 
 export function App() {
   const { isLoading, error } = useMentraAuth();
+
+  // Splash screen: show for 3s, then fade out
+  const [splashVisible, setSplashVisible] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setSplashVisible(false), 3000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Theme state
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -80,15 +87,6 @@ export function App() {
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
   }, []);
-
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className={clsx("min-h-screen", theme)}>
-        <HomePageSkeleton />
-      </div>
-    );
-  }
 
   // Error state
   if (error) {
@@ -137,6 +135,7 @@ export function App() {
         <Shell>
           <Router />
         </Shell>
+        <SplashScreen visible={splashVisible} />
       </div>
     </ThemeContext.Provider>
   );
