@@ -229,38 +229,41 @@ export function DayPage() {
             >
               <Star size={20} fill={isStarred ? "currentColor" : "none"} />
             </button>
-            <DropdownMenu
-              options={[
-                {
-                  id: "archive",
-                  label: isArchived ? "Unarchive" : "Archive",
-                  icon: isArchived ? ArchiveRestore : Archive,
-                  onClick: () => {
-                    if (!session?.file) return;
-                    if (isArchived) {
-                      session.file.unarchiveFile(dateString);
-                    } else {
-                      session.file.archiveFile(dateString);
-                    }
+            {/* Only show options menu for past dates, not today */}
+            {!isToday && (
+              <DropdownMenu
+                options={[
+                  {
+                    id: "archive",
+                    label: isArchived ? "Unarchive" : "Archive",
+                    icon: isArchived ? ArchiveRestore : Archive,
+                    onClick: () => {
+                      if (!session?.file) return;
+                      if (isArchived) {
+                        session.file.unarchiveFile(dateString);
+                      } else {
+                        session.file.archiveFile(dateString);
+                      }
+                    },
                   },
-                },
-                { type: "divider" },
-                {
-                  id: "trash",
-                  label: isTrashed ? "Restore" : "Move to Trash",
-                  icon: isTrashed ? RotateCcw : Trash2,
-                  danger: !isTrashed,
-                  onClick: () => {
-                    if (!session?.file) return;
-                    if (isTrashed) {
-                      session.file.restoreFile(dateString);
-                    } else {
-                      session.file.trashFile(dateString);
-                    }
+                  { type: "divider" },
+                  {
+                    id: "trash",
+                    label: isTrashed ? "Restore" : "Move to Trash",
+                    icon: isTrashed ? RotateCcw : Trash2,
+                    danger: !isTrashed,
+                    onClick: () => {
+                      if (!session?.file) return;
+                      if (isTrashed) {
+                        session.file.restoreFile(dateString);
+                      } else {
+                        session.file.trashFile(dateString);
+                      }
+                    },
                   },
-                },
-              ] as DropdownMenuOption[]}
-            />
+                ] as DropdownMenuOption[]}
+              />
+            )}
           </div>
         </div>
 
