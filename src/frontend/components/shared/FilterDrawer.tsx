@@ -156,8 +156,10 @@ export function FilterDrawer({
                 count={counts.all}
                 isActive={activeFilter === "all" && activeView === "folders"}
                 onClick={() => {
+                  // Only call filter change - view change to folders is implicit
+                  // Calling both would cause race conditions with setFilter
+                  onViewChange("folders");
                   handleFilterClick("all");
-                  handleViewClick("folders");
                 }}
               />
               <FilterOption

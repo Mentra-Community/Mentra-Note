@@ -22,10 +22,12 @@ import {
   List,
   Heading2,
   Check,
+  AlertTriangle,
 } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import { Drawer } from "vaul";
 import { useSynced } from "../../hooks/useSynced";
 import type { SessionI, Note } from "../../../shared/types";
 
@@ -424,37 +426,50 @@ export function NotePage() {
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setShowDeleteConfirm(false)}
-          />
-          <div className="relative bg-white dark:bg-zinc-900 rounded-2xl p-6 max-w-sm w-full shadow-xl">
-            <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-2">
-              Delete Note?
-            </h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
-              This action cannot be undone.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 py-3 rounded-xl font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                className="flex-1 py-3 rounded-xl font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
-              >
-                Delete
-              </button>
+      {/* Delete Confirmation Drawer */}
+      <Drawer.Root open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
+          <Drawer.Content className="bg-white dark:bg-zinc-900 flex flex-col rounded-t-2xl mt-24 fixed bottom-0 left-0 right-0 z-50 max-w-lg mx-auto outline-none border-t border-zinc-100 dark:border-zinc-800">
+            {/* Handle */}
+            <div className="mx-auto w-12 h-1.5 shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-700 mt-4 mb-2" />
+
+            {/* Content */}
+            <div className="px-6 pb-8">
+              <div className="flex flex-col items-center text-center mb-6">
+                <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
+                  <AlertTriangle size={24} className="text-red-600 dark:text-red-400" />
+                </div>
+                <Drawer.Title className="text-lg font-semibold text-zinc-900 dark:text-white mb-2">
+                  Delete Note?
+                </Drawer.Title>
+                <Drawer.Description className="text-sm text-zinc-500 dark:text-zinc-400">
+                  This action cannot be undone. The note will be permanently deleted.
+                </Drawer.Description>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <Drawer.Close asChild>
+                  <button className="flex-1 py-4 rounded-xl font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
+                    Cancel
+                  </button>
+                </Drawer.Close>
+                <button
+                  onClick={handleDelete}
+                  className="flex-1 py-4 rounded-xl font-medium bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={18} />
+                  Delete
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+
+            {/* Safe area padding for mobile */}
+            <div className="h-safe-area-bottom" />
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
     </div>
   );
 }

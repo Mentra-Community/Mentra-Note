@@ -60,6 +60,12 @@ export class FileManager extends SyncedManager {
   @synced activeFilter: FileFilter = "all";
   @synced counts: FileCounts = { all: 0, archived: 0, trash: 0, favourites: 0 };
 
+  // Track if initial hydration has completed to avoid resetting filter on reconnects
+  private _initialHydrationDone = false;
+
+  // Lock to prevent concurrent hydrations/filter operations from racing
+  private _operationInProgress: Promise<void> | null = null;
+
   // ===========================================================================
   // Lifecycle
   // ===========================================================================
@@ -67,6 +73,20 @@ export class FileManager extends SyncedManager {
   async hydrate(): Promise<void> {
     const userId = this._session?.userId;
     if (!userId) return;
+
+    // Skip if initial hydration is done - don't re-hydrate on reconnects
+    // This prevents the glitchy behavior when clients connect/disconnect
+    if (this._initialHydrationDone) {
+      console.log(`[FileManager] Skipping hydration for ${userId} - already hydrated`);
+      return;
+    }
+
+    // Wait for any in-progress operation to complete
+    if (this._operationInProgress) {
+      console.log(`[FileManager] Waiting for in-progress operation to complete...`);
+      await this._operationInProgress;
+      return; // Another hydration completed, we're done
+    }
 
     this.isLoading = true;
     console.log(`[FileManager] Starting hydration for ${userId}`);
@@ -145,19 +165,23 @@ export class FileManager extends SyncedManager {
         }
       }
 
-      // Step 7: Reload all files and set state
-      const allFiles = await getFiles(userId, {
-        isTrashed: false,
-        isArchived: false,
-      });
+      // Step 7: Reload files based on current filter
+      // On initial hydration, use "all" filter
+      // On subsequent hydrations (reconnects), preserve the current filter
+      if (!this._initialHydrationDone) {
+        this.activeFilter = "all";
+        this._initialHydrationDone = true;
+      }
 
-      this.files.set(allFiles.map((f) => this.toFileData(f)));
+      // Load files based on current activeFilter
+      const files = await this.getFilesRpc(this.activeFilter);
+      this.files.set(files);
 
       // Update counts
       await this.refreshCounts();
 
-      console.log(`[FileManager] ✓ Hydration complete: ${allFiles.length} files for ${userId}`);
-      console.log(`[FileManager] Final files:`, allFiles.map(f => ({ date: f.date, hasTranscript: f.hasTranscript, r2Key: f.r2Key, noteCount: f.noteCount })));
+      console.log(`[FileManager] ✓ Hydration complete: ${files.length} files for ${userId} (filter: ${this.activeFilter})`);
+      console.log(`[FileManager] Final files:`, files.map(f => ({ date: f.date, hasTranscript: f.hasTranscript, r2Key: f.r2Key, noteCount: f.noteCount })));
     } catch (error) {
       console.error("[FileManager] Failed to hydrate:", error);
     } finally {
@@ -379,10 +403,26 @@ export class FileManager extends SyncedManager {
 
   @rpc
   async setFilter(filter: FileFilter): Promise<FileData[]> {
-    this.activeFilter = filter;
-    const files = await this.getFilesRpc(filter);
-    this.files.set(files);
-    return files;
+    // Wait for any in-progress operation to complete first
+    if (this._operationInProgress) {
+      await this._operationInProgress;
+    }
+
+    // Create a new operation promise
+    let resolveOperation: () => void;
+    this._operationInProgress = new Promise((resolve) => {
+      resolveOperation = resolve;
+    });
+
+    try {
+      this.activeFilter = filter;
+      const files = await this.getFilesRpc(filter);
+      this.files.set(files);
+      return files;
+    } finally {
+      resolveOperation!();
+      this._operationInProgress = null;
+    }
   }
 
   @rpc

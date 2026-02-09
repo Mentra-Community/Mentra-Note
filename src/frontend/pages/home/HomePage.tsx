@@ -8,7 +8,7 @@
  * - Global AI chat trigger (sparkles icon)
  */
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useMentraAuth } from "@mentra/react";
 import {
@@ -38,8 +38,7 @@ export function HomePage() {
   const { session, isConnected, reconnect } = useSynced<SessionI>(userId || "");
   const [, setLocation] = useLocation();
 
-  // Filter & view state
-  const [activeFilter, setActiveFilter] = useState<FilterType>("all");
+  // Filter & view state - use backend's activeFilter as source of truth
   const [activeView, setActiveView] = useState<ViewType>("folders");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
@@ -51,16 +50,10 @@ export function HomePage() {
   const files = session?.file?.files ?? [];
   const isRecording = session?.transcript?.isRecording ?? false;
   const notes = session?.notes?.notes ?? [];
-
-  // Ensure files are loaded when session first connects
-  const hasInitializedRef = useRef(false);
-  useEffect(() => {
-    if (session?.file && !hasInitializedRef.current) {
-      hasInitializedRef.current = true;
-      // Refresh files to ensure we have the latest data
-      session.file.setFilter("all");
-    }
-  }, [session?.file]);
+  // Get activeFilter from backend state - this is the source of truth
+  const backendFilter = session?.file?.activeFilter ?? "all";
+  // Map FileFilter to FilterType for UI
+  const activeFilter: FilterType = backendFilter === "favourites" ? "all" : backendFilter as FilterType;
 
   // Transform FileData to DailyFolder format
   const folders = useMemo((): DailyFolder[] => {
@@ -99,8 +92,8 @@ export function HomePage() {
   );
 
   // Handle filter change - call FileManager RPC
+  // Backend's activeFilter state will sync back to update the UI
   const handleFilterChange = async (filter: FilterType) => {
-    setActiveFilter(filter);
     // Reset view to folders when changing filter
     setActiveView("folders");
 
@@ -108,7 +101,7 @@ export function HomePage() {
     const fileFilter: FileFilter =
       filter === "archived" ? "archived" : filter === "trash" ? "trash" : "all";
 
-    // Call RPC to update files
+    // Call RPC to update files - backend state will sync back
     if (session?.file) {
       await session.file.setFilter(fileFilter);
     }
@@ -119,17 +112,13 @@ export function HomePage() {
     setActiveView(view);
 
     if (view === "favorites") {
-      // Set filter to favourites
-      setActiveFilter("all"); // Reset filter state
+      // Set filter to favourites - backend state will sync back
       if (session?.file) {
         await session.file.setFilter("favourites");
       }
-    } else if (view === "folders") {
-      // Reset to all files
-      if (session?.file) {
-        await session.file.setFilter(activeFilter === "all" ? "all" : activeFilter as FileFilter);
-      }
     }
+    // Note: For "folders" view, the filter is already set by handleFilterChange
+    // No need to call setFilter again here - it would cause race conditions
     // "all_notes" view doesn't change file filter - it shows notes instead
   };
 
