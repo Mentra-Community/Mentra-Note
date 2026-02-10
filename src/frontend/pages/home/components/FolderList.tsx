@@ -77,7 +77,7 @@ export function FolderList({ folders, onSelectFolder }: FolderListProps) {
             <button
               key={folder.id}
               onClick={() => onSelectFolder(folder)}
-              className="w-full text-left p-4 border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-white dark:hover:bg-zinc-900/50 transition-colors"
+              className="w-full text-left py-[16px] px-[14px] border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-white dark:hover:bg-zinc-900/50 transition-colors"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">

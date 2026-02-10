@@ -127,6 +127,7 @@ export interface SettingsManagerI {
   displayName: string | null;
   timezone: string | null; // IANA timezone e.g. "America/Los_Angeles"
   glassesDisplayMode: GlassesDisplayMode;
+  superCollapsed: boolean;
 
   // RPCs
   updateSettings(settings: {
@@ -134,6 +135,7 @@ export interface SettingsManagerI {
     displayName?: string;
     timezone?: string;
     glassesDisplayMode?: GlassesDisplayMode;
+    superCollapsed?: boolean;
   }): Promise<void>;
 }
 
