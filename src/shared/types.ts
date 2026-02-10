@@ -15,6 +15,10 @@ export interface TranscriptSegment {
   timestamp: Date;
   isFinal: boolean;
   speakerId?: string;
+  type?: "transcript" | "photo";
+  photoUrl?: string;
+  photoMimeType?: string;
+  timezone?: string;
 }
 
 export interface Note {

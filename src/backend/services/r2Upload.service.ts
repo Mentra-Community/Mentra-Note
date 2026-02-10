@@ -16,6 +16,10 @@ export interface R2TranscriptSegment {
   isFinal: boolean;
   speakerId?: string;
   index: number;
+  type?: "transcript" | "photo";
+  photoUrl?: string;
+  photoMimeType?: string;
+  timezone?: string;
 }
 
 export interface R2BatchData {
@@ -31,6 +35,88 @@ export interface UploadResult {
   success: boolean;
   url?: string;
   error?: Error;
+}
+
+// =============================================================================
+// Photo Upload Function
+// =============================================================================
+
+/**
+ * Upload a photo to R2 immediately
+ * Path: transcripts/{userId}/{date}/photos/photo-{timestamp}.{ext}
+ */
+export async function uploadPhotoToR2(params: {
+  userId: string;
+  date: string; // YYYY-MM-DD
+  buffer: Buffer;
+  mimeType: string;
+  timestamp: Date;
+  timezone?: string;
+}): Promise<UploadResult> {
+  const { userId, date, buffer, mimeType, timestamp, timezone } = params;
+
+  const extension = mimeType === "image/png" ? "png" : "jpg";
+  const photoFilename = `photo-${timestamp.getTime()}.${extension}`;
+  const key = `transcripts/${userId}/${date}/photos/${photoFilename}`;
+
+  const endpoint = process.env.CLOUDFLARE_R2_ENDPOINT;
+  const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME || "mentra-notes";
+  const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+
+  if (!endpoint || !accessKeyId || !secretAccessKey) {
+    console.error(`[R2-Photo] Missing R2 credentials`);
+    return { success: false, error: new Error("R2 credentials not configured") };
+  }
+
+  const s3Client = new S3Client({
+    region: "auto",
+    endpoint,
+    credentials: { accessKeyId, secretAccessKey },
+  });
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      console.log(`[R2-Photo] Uploading ${key} (attempt ${attempt}/3, ${buffer.length} bytes)`);
+
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: bucketName,
+          Key: key,
+          Body: buffer,
+          ContentType: mimeType,
+          Metadata: {
+            userId,
+            date,
+            capturedAt: timestamp.toISOString(),
+            capturedAtLocal: timezone
+              ? new Date(timestamp).toLocaleString("en-US", { timeZone: timezone })
+              : timestamp.toISOString(),
+            timezone: timezone || "UTC",
+          },
+        }),
+      );
+
+      const publicBase = process.env.CLOUDFLARE_R2_PUBLIC_URL;
+      const publicUrl = publicBase
+        ? `${publicBase}/${key}`
+        : `/api/photos/${date}/${photoFilename}`;
+      console.log(`[R2-Photo] Upload successful: ${publicUrl}`);
+      return { success: true, url: publicUrl };
+    } catch (error) {
+      console.error(
+        `[R2-Photo] Attempt ${attempt} failed:`,
+        error instanceof Error ? error.message : error,
+      );
+      if (attempt < 3) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.pow(2, attempt - 1) * 1000),
+        );
+      }
+    }
+  }
+
+  return { success: false, error: new Error("Photo upload failed after 3 attempts") };
 }
 
 // =============================================================================
@@ -288,13 +374,22 @@ async function fetchExistingBatch(
 export function formatSegmentForR2(
   segment: TranscriptSegmentI,
 ): R2TranscriptSegment {
-  return {
+  const result: R2TranscriptSegment = {
     text: segment.text,
     timestamp: segment.timestamp.toISOString(), // Already UTC
     isFinal: segment.isFinal,
     speakerId: segment.speakerId,
     index: segment.index,
   };
+
+  if (segment.type === "photo") {
+    result.type = "photo";
+    result.photoUrl = segment.photoUrl;
+    result.photoMimeType = segment.photoMimeType;
+    result.timezone = segment.timezone;
+  }
+
+  return result;
 }
 
 /**

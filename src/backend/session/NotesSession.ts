@@ -17,6 +17,7 @@ import {
   SettingsManager,
   CloudflareR2Manager,
   FileManager,
+  PhotoManager,
 } from "./managers";
 import type { AppSession } from "@mentra/sdk";
 
@@ -28,6 +29,7 @@ export class NotesSession extends SyncedSession {
   @manager settings = new SettingsManager();
   @manager r2 = new CloudflareR2Manager();
   @manager file = new FileManager();
+  @manager photo = new PhotoManager();
 
   // MentraOS AppSession - null if no glasses connected (not synced)
   private _appSession: AppSession | null = null;
