@@ -536,6 +536,15 @@ export function TranscriptTab({
                               alt="Photo capture"
                               className="rounded-lg max-w-xs w-full h-auto border border-zinc-200 dark:border-zinc-700"
                               loading="lazy"
+                              onLoad={() => {
+                                const container = scrollContainerRef.current;
+                                if (container && shouldAutoScroll) {
+                                  container.scrollTo({
+                                    top: container.scrollHeight,
+                                    behavior: "smooth",
+                                  });
+                                }
+                              }}
                             />
                             <span className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 block">
                               Photo captured
