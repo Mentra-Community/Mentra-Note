@@ -18,6 +18,7 @@ export interface TranscriptSegment {
   type?: "transcript" | "photo";
   photoUrl?: string;
   photoMimeType?: string;
+  photoDescription?: string;
   timezone?: string;
 }
 
@@ -81,6 +82,7 @@ export interface TranscriptManagerI {
   loadedDate: string; // Currently loaded date (YYYY-MM-DD)
   availableDates: string[]; // Dates with transcripts (for folder list)
   isLoadingHistory: boolean; // Loading indicator for historical data
+  isSyncingPhoto: boolean; // True while a photo is being uploaded/analyzed
 
   // RPCs
   getRecentSegments(count?: number): Promise<TranscriptSegment[]>;

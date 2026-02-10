@@ -19,6 +19,7 @@ export interface R2TranscriptSegment {
   type?: "transcript" | "photo";
   photoUrl?: string;
   photoMimeType?: string;
+  photoDescription?: string;
   timezone?: string;
 }
 

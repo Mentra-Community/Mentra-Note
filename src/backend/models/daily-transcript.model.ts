@@ -20,6 +20,7 @@ export interface TranscriptSegmentI {
   type?: "transcript" | "photo";
   photoUrl?: string;
   photoMimeType?: string;
+  photoDescription?: string;
   timezone?: string;
 }
 
@@ -46,6 +47,7 @@ const TranscriptSegmentSchema = new Schema<TranscriptSegmentI>(
     type: { type: String, enum: ["transcript", "photo"], default: "transcript" },
     photoUrl: { type: String },
     photoMimeType: { type: String },
+    photoDescription: { type: String },
     timezone: { type: String },
   },
   { _id: false },

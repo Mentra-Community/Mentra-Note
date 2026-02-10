@@ -37,6 +37,7 @@ export interface TranscriptSegment {
   type?: "transcript" | "photo";
   photoUrl?: string;
   photoMimeType?: string;
+  photoDescription?: string;
   timezone?: string;
 }
 
@@ -64,6 +65,7 @@ export class TranscriptManager extends SyncedManager {
   @synced loadedDate = "";
   @synced availableDates = synced<string[]>([]);
   @synced isLoadingHistory = false;
+  @synced isSyncingPhoto = false;
 
   private segmentIndex = 0;
   private provider: AgentProvider | null = null;
@@ -354,17 +356,18 @@ export class TranscriptManager extends SyncedManager {
     this.scheduleSave();
   }
 
-  async addPhotoSegment(photoUrl: string, mimeType: string, timezone?: string): Promise<void> {
+  async addPhotoSegment(photoUrl: string, mimeType: string, timezone?: string, description?: string): Promise<void> {
     this.segmentIndex++;
 
     const segment: TranscriptSegment = {
       id: `seg_${this.segmentIndex}`,
-      text: `[Photo captured]`,
+      text: description || `[Photo captured]`,
       timestamp: new Date(),
       isFinal: true,
       type: "photo",
       photoUrl,
       photoMimeType: mimeType,
+      photoDescription: description,
       timezone,
     };
 
@@ -378,6 +381,7 @@ export class TranscriptManager extends SyncedManager {
       type: "photo",
       photoUrl,
       photoMimeType: mimeType,
+      photoDescription: description,
       timezone,
     });
 

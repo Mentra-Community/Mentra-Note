@@ -25,6 +25,7 @@ interface TranscriptTabProps {
   dateString: string;
   onGenerateSummary?: (hour: number) => Promise<HourSummary>;
   isCompactMode?: boolean; // When true, all hours show in minimal/compact view
+  isSyncingPhoto?: boolean; // When true, a photo is being uploaded/analyzed
 }
 
 interface GroupedSegments {
@@ -56,6 +57,7 @@ export function TranscriptTab({
   dateString,
   onGenerateSummary,
   isCompactMode = false,
+  isSyncingPhoto = false,
 }: TranscriptTabProps) {
   // Track expanded state for each hour (only used when not in compact mode)
   const [expandedHours, setExpandedHours] = useState<Set<string>>(new Set());
@@ -546,9 +548,6 @@ export function TranscriptTab({
                                 }
                               }}
                             />
-                            <span className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 block">
-                              Photo captured
-                            </span>
                           </div>
                         ) : (
                           <>
@@ -582,6 +581,14 @@ export function TranscriptTab({
             </div>
           );
         })}
+
+        {/* Syncing photo indicator */}
+        {isSyncingPhoto && (
+          <div className="flex items-center gap-2 px-4 py-3 text-zinc-400 dark:text-zinc-500">
+            <Loader2 size={14} className="animate-spin" />
+            <span className="text-sm">Syncing image...</span>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -498,6 +498,54 @@ export function createGeminiProvider(config: ProviderConfig): AgentProvider {
 }
 
 /**
+ * Analyze an image and return a brief description using Gemini vision
+ */
+export async function analyzeImage(
+  imageBase64: string,
+  mimeType: string,
+  apiKey?: string,
+): Promise<string> {
+  const key = apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
+  if (!key) {
+    throw new Error("GEMINI_API_KEY or GOOGLE_AI_API_KEY is required for image analysis");
+  }
+
+  const client = new GoogleGenAI({ apiKey: key });
+
+  const response = await client.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            inlineData: {
+              mimeType,
+              data: imageBase64,
+            },
+          },
+          {
+            text: "Describe what you see in this photo in 1-2 concise sentences. Focus on the key subject and context. Do not be overly detailed.",
+          },
+        ],
+      },
+    ],
+    config: {
+      maxOutputTokens: 256,
+      temperature: 0.3,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  });
+
+  const text = response.candidates?.[0]?.content?.parts
+    ?.filter((p): p is Part & { text: string } => "text" in p && !!p.text)
+    .map((p) => p.text)
+    .join("") || "Photo captured";
+
+  return text.trim();
+}
+
+/**
  * Extract tool calls from a unified response
  */
 export function extractToolCalls(response: UnifiedResponse): UnifiedToolCall[] {

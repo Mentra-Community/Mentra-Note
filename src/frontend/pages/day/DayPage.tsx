@@ -93,6 +93,7 @@ export function DayPage() {
   const hourSummaries = session?.transcript?.hourSummaries ?? [];
   const interimText = session?.transcript?.interimText ?? "";
   const isRecording = session?.transcript?.isRecording ?? false;
+  const isSyncingPhoto = session?.transcript?.isSyncingPhoto ?? false;
   const loadedDate = session?.transcript?.loadedDate ?? "";
   const files = session?.file?.files ?? [];
 
@@ -323,6 +324,7 @@ export function DayPage() {
             dateString={dateString}
             onGenerateSummary={session?.transcript?.generateHourSummary}
             isCompactMode={isCompactMode}
+            isSyncingPhoto={isToday ? isSyncingPhoto : false}
           />
         )}
         {/* {activeTab === "audio" && <AudioTab />} */}

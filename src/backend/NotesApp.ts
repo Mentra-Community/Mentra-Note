@@ -15,9 +15,8 @@ import { sessions, NotesSession } from "./session";
 import { TimeManager } from "./session/managers/TimeManager";
 import { connectDB, disconnectDB } from "./services/db";
 import { uploadPhotoToR2 } from "./services/r2Upload.service";
+import { analyzeImage } from "./services/llm/gemini";
 
-// TODO: Remove mock once camera is working
-const MOCK_PHOTO_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAIAAADTED8xAAADMElEQVR4nOzVwQnAIBQFQYXff81RUkQCOyDj1YOPnbXWPmeTRef+/3O/OyBjzh3CD95BfqICMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMO0TAAD//2Anhf4QtqobAAAAAElFTkSuQmCC";
 
 export interface NotesAppConfig {
   packageName: string;
@@ -103,32 +102,46 @@ export class NotesApp extends AppServer {
       console.log(`[NotesApp] Button pressed: ${data.buttonId} (${data.pressType})`);
 
       try {
-        // TODO: Replace mock with session.camera.requestPhoto() once camera is working
-        const buffer = Buffer.from(MOCK_PHOTO_BASE64, "base64");
-        const now = new Date();
-        console.log(`[NotesApp] Using mock photo (${buffer.length} bytes)`);
+        const photo = await session.camera.requestPhoto({ size: "small" });
+        console.log(`[NotesApp] Photo captured: ${photo.filename} (${photo.size} bytes)`);
 
         const timezone = notesSession.settings.timezone ?? undefined;
         const timeManager = new TimeManager(timezone);
         const todayDate = timeManager.getTodayDate();
 
+        // Signal frontend that a photo is being synced
+        notesSession.transcript.isSyncingPhoto = true;
+
         const result = await uploadPhotoToR2({
           userId,
           date: todayDate,
-          buffer,
-          mimeType: "image/png",
-          timestamp: now,
+          buffer: photo.buffer,
+          mimeType: photo.mimeType,
+          timestamp: photo.timestamp,
           timezone,
         });
 
         if (result.success) {
           console.log(`[NotesApp] Photo uploaded to R2: ${result.url}`);
-          notesSession.transcript.addPhotoSegment(result.url!, "image/png", timezone);
+
+          // Analyze the image for a description (non-blocking — segment is added either way)
+          let description: string | undefined;
+          try {
+            description = await analyzeImage(photo.buffer.toString("base64"), photo.mimeType);
+            console.log(`[NotesApp] Photo description: ${description}`);
+          } catch (err) {
+            console.warn(`[NotesApp] Image analysis failed, saving without description:`, err);
+          }
+
+          notesSession.transcript.addPhotoSegment(result.url!, photo.mimeType, timezone, description);
         } else {
           console.error(`[NotesApp] Photo R2 upload failed: ${result.error?.message}`);
         }
+
+        notesSession.transcript.isSyncingPhoto = false;
       } catch (error) {
         console.error(`[NotesApp] Photo capture/upload error:`, error);
+        notesSession.transcript.isSyncingPhoto = false;
       }
     });
 
