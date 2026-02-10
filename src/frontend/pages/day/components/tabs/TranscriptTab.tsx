@@ -67,6 +67,9 @@ export function TranscriptTab({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const headerRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const prevSegmentCountRef = useRef(segments.length);
+  const knownSegmentIdsRef = useRef<Set<string>>(new Set(segments.map((s, i) => s.id || `idx-${i}`)));
+  const [newSegmentIds, setNewSegmentIds] = useState<Set<string>>(new Set());
+  const bottomAnchorRef = useRef<HTMLDivElement>(null);
 
   // Helper to get hour state based on compact mode and expanded state
   const getHourState = (hourKey: string): HourState => {
@@ -218,30 +221,30 @@ export function TranscriptTab({
 
   // Handle scroll to track if user scrolled up
   const handleScroll = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
+    // const container = scrollContainerRef.current;
+    // if (!container) return;
 
-    const containerRect = container.getBoundingClientRect();
-    let currentStuck: string | null = null;
+    // const containerRect = container.getBoundingClientRect();
+    // let currentStuck: string | null = null;
 
-    // Find which expanded header should be stuck
-    for (const hourKey of sortedHours) {
-      if (getHourState(hourKey) !== "expanded") continue;
+    // // Find which expanded header should be stuck
+    // for (const hourKey of sortedHours) {
+    //   if (getHourState(hourKey) !== "expanded") continue;
 
-      const header = headerRefs.current.get(hourKey);
-      if (!header) continue;
+    //   const header = headerRefs.current.get(hourKey);
+    //   if (!header) continue;
 
-      const headerRect = header.getBoundingClientRect();
-      // If the header's top is at or above the container top, it should be stuck
-      if (headerRect.top <= containerRect.top + 1) {
-        currentStuck = hourKey;
-      }
-    }
+    //   const headerRect = header.getBoundingClientRect();
+    //   // If the header's top is at or above the container top, it should be stuck
+    //   if (headerRect.top <= containerRect.top + 1) {
+    //     currentStuck = hourKey;
+    //   }
+    // }
 
-    setStuckHeader(currentStuck);
+    // setStuckHeader(currentStuck);
 
-    // Update auto-scroll state based on scroll position
-    setShouldAutoScroll(isNearBottom());
+    // // Update auto-scroll state based on scroll position
+    // setShouldAutoScroll(isNearBottom());
   }, [expandedHours, isCompactMode, sortedHours, isNearBottom]);
 
   // Attach scroll listener
@@ -277,6 +280,22 @@ export function TranscriptTab({
 
     // Check if new segments were added
     if (segments.length > prevSegmentCountRef.current) {
+      // Find newly added segment IDs for fade-in animation
+      const currentIds = new Set(segments.map((s, i) => s.id || `idx-${i}`));
+      const freshIds = new Set<string>();
+      currentIds.forEach((id) => {
+        if (!knownSegmentIdsRef.current.has(id)) {
+          freshIds.add(id);
+        }
+      });
+      knownSegmentIdsRef.current = currentIds;
+
+      if (freshIds.size > 0) {
+        setNewSegmentIds(freshIds);
+        // Clear after animation completes
+        setTimeout(() => setNewSegmentIds(new Set()), 400);
+      }
+
       // Only auto-scroll if user was near the bottom
       if (shouldAutoScroll) {
         // Use requestAnimationFrame to ensure DOM has updated
@@ -291,6 +310,29 @@ export function TranscriptTab({
 
     prevSegmentCountRef.current = segments.length;
   }, [segments.length, shouldAutoScroll]);
+
+  // Auto-scroll when photo syncing feedback appears
+  useEffect(() => {
+    if (!isSyncingPhoto) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    requestAnimationFrame(() => {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: "smooth",
+      });
+    });
+  }, [isSyncingPhoto]);
+
+  // Keep bottom in view while interim text is active
+  useEffect(() => {
+    if (!interimText.trim()) return;
+    if (!bottomAnchorRef.current) return;
+
+    // Instant snap — no animation so no jitter on rapid updates
+    bottomAnchorRef.current.scrollIntoView({ behavior: "instant", block: "end" });
+  }, [interimText]);
 
   // Toggle between collapsed/veryCollapsed and expanded
   const toggleHour = (hourKey: string) => {
@@ -522,57 +564,71 @@ export function TranscriptTab({
               {/* Expanded Segments */}
               {isExpanded && (
                 <div className="px-4 pb-4 space-y-3 bg-zinc-50/50 dark:bg-[#313338]/20">
-                  {hourSegments.map((segment, idx) => (
-                    <div key={segment.id || idx} className="flex gap-3">
-                      {/* Timestamp */}
-                      <span className="text-xs font-mono text-zinc-400 dark:text-zinc-500 w-16 shrink-0 pt-0.5">
-                        {segment.timestamp ? formatTime(segment.timestamp) : ""}
-                      </span>
+                  {hourSegments.map((segment, idx) => {
+                    const segId = segment.id || `idx-${idx}`;
+                    const isNew = newSegmentIds.has(segId);
+                    return (
+                      <div
+                        key={segId}
+                        className={clsx("flex gap-3", isNew && "animate-segment-in")}
+                      >
+                        {/* Timestamp */}
+                        <span className="text-xs font-mono text-zinc-400 dark:text-zinc-500 w-16 shrink-0 pt-0.5">
+                          {segment.timestamp ? formatTime(segment.timestamp) : ""}
+                        </span>
 
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        {segment.type === "photo" && segment.photoUrl ? (
-                          <div>
-                            <img
-                              src={getPhotoSrc(segment.photoUrl)}
-                              alt="Photo capture"
-                              className="rounded-lg max-w-xs w-full h-auto border border-zinc-200 dark:border-zinc-700"
-                              loading="lazy"
-                              onLoad={() => {
-                                const container = scrollContainerRef.current;
-                                if (container && shouldAutoScroll) {
-                                  container.scrollTo({
-                                    top: container.scrollHeight,
-                                    behavior: "smooth",
-                                  });
-                                }
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <>
-                            <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
-                              {segment.text}
-                            </p>
-                            {segment.speakerId && (
-                              <span className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 block">
-                                Speaker {segment.speakerId}
-                              </span>
-                            )}
-                          </>
-                        )}
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          {segment.type === "photo" && segment.photoUrl ? (
+                            <div>
+                              <img
+                                src={getPhotoSrc(segment.photoUrl)}
+                                alt="Photo capture"
+                                className="rounded-lg max-w-xs w-full h-auto border border-zinc-200 dark:border-zinc-700"
+                                loading="lazy"
+                                onLoad={() => {
+                                  const container = scrollContainerRef.current;
+                                  if (container && shouldAutoScroll) {
+                                    container.scrollTo({
+                                      top: container.scrollHeight,
+                                      behavior: "smooth",
+                                    });
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                                {segment.text}
+                              </p>
+                              {segment.speakerId && (
+                                <span className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 block">
+                                  Speaker {segment.speakerId}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
-                  {/* Show interim text at the bottom for current hour */}
-                  {isCurrentHour && interimText.trim() && (
-                    <div className="flex gap-3 opacity-70">
+                  {/* Show interim text at the bottom for current hour - always rendered with transition */}
+                  {isCurrentHour && (
+                    <div
+                      className={clsx(
+                        "flex gap-3 transition-all duration-300 ease-out overflow-hidden",
+                        interimText.trim()
+                          ? "opacity-70 max-h-24"
+                          : "opacity-0 max-h-0",
+                      )}
+                    >
                       <span className="text-xs font-mono text-zinc-400 dark:text-zinc-500 w-16 shrink-0 pt-0.5">
                         now
                       </span>
                       <p className="flex-1 text-sm text-zinc-400 dark:text-zinc-500 font-light italic leading-relaxed">
-                        {interimText}
+                        {interimText || "\u00A0"}
                       </p>
                     </div>
                   )}
@@ -589,6 +645,9 @@ export function TranscriptTab({
             <span className="text-sm">Syncing image...</span>
           </div>
         )}
+
+        {/* Scroll anchor — scrollIntoView target for interim text updates */}
+        <div ref={bottomAnchorRef} />
       </div>
     </div>
   );

@@ -15,6 +15,22 @@
   animation: shimmer 2s linear infinite;
 }
 
+/* Fade-in for new transcript segments */
+@keyframes segment-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-segment-in {
+  animation: segment-fade-in 0.3s ease-out forwards;
+}
+
 /* Masonry grid - ensure items fill column width */
 [data-masonry] > div {
   width: 100% !important;
