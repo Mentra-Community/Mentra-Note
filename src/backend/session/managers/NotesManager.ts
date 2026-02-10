@@ -242,10 +242,11 @@ export class NotesManager extends SyncedManager {
         .map((s) => s.text)
         .join(" ");
 
-      // Collect photo URLs from segments
-      const photoUrls = relevantSegments
+      // Collect photos with descriptions from segments
+      const photos = relevantSegments
         .filter((s) => s.type === "photo" && s.photoUrl)
-        .map((s) => s.photoUrl!);
+        .map((s) => ({ url: s.photoUrl!, description: s.photoDescription || "No description" }));
+      const photoUrls = photos.map((p) => p.url);
 
       if (!transcriptText.trim() && photoUrls.length === 0) {
         throw new Error("No transcript content to generate note from");
@@ -257,8 +258,8 @@ export class NotesManager extends SyncedManager {
       const provider = this.getProvider();
       if (provider && (transcriptText.length > 50 || photoUrls.length > 0)) {
         try {
-          const photoInstruction = photoUrls.length > 0
-            ? `\n- Include the following ${photoUrls.length} photo(s) in the note using <img> tags at contextually appropriate locations:\n${photoUrls.map((url, i) => `  Photo ${i + 1}: ${url}`).join("\n")}`
+          const photoInstruction = photos.length > 0
+            ? `\n- You have ${photos.length} photo(s) available. Include a photo ONLY if it is relevant to the surrounding note content. Use <img> tags with the exact URLs provided. Omit photos that don't add value to the notes.\n${photos.map((p, i) => `  Photo ${i + 1}: ${p.url}\n    Description: ${p.description}`).join("\n")}`
             : "";
 
           const messages: UnifiedMessage[] = [
@@ -295,7 +296,7 @@ Output your notes in clean HTML format using ONLY these tags:
 - <strong> for bold/important text
 - <em> for italic/emphasized text
 - <ul> and <li> for bulleted lists
-${photoUrls.length > 0 ? "- <img> for photos (use the exact URLs provided, do NOT invent URLs)" : ""}
+${photos.length > 0 ? "- <img> for photos (use the exact URLs provided, do NOT invent URLs)\n\nPhoto rules:\n- Only include a photo if it is relevant to the note content\n- Place photos near the text they relate to\n- If a photo doesn't relate to any section, leave it out" : ""}
 
 Rules:
 - Write between 100-500 words
@@ -325,16 +326,6 @@ Rules:
             summary = contentMatch[1].trim();
           }
 
-          // Ensure all photos are included - append any the AI missed
-          if (photoUrls.length > 0) {
-            const missingPhotos = photoUrls.filter((url) => !summary.includes(url));
-            if (missingPhotos.length > 0) {
-              const photoHtml = missingPhotos
-                .map((url) => `<img src="${url}">`)
-                .join("\n");
-              summary += `\n${photoHtml}`;
-            }
-          }
         } catch (error) {
           console.error("[NotesManager] AI generation failed:", error);
           const photoHtml = photoUrls.map((url) => `<img src="${url}">`).join("\n");
