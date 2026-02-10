@@ -30,6 +30,7 @@ export class SettingsManager extends SyncedManager {
   @synced displayName: string | null = null;
   @synced timezone: string | null = null; // IANA timezone e.g. "America/Los_Angeles"
   @synced glassesDisplayMode: GlassesDisplayMode = "live_transcript";
+  @synced superCollapsed = false;
 
   // ===========================================================================
   // Lifecycle
@@ -45,6 +46,7 @@ export class SettingsManager extends SyncedManager {
       this.showLiveTranscript = settings.showLiveTranscript;
       this.glassesDisplayMode =
         (settings.glassesDisplayMode as GlassesDisplayMode) || "live_transcript";
+      this.superCollapsed = settings.superCollapsed ?? false;
       this.displayName = settings.displayName || null;
 
       console.log(`[SettingsManager] Hydrated settings for ${userId}`);
@@ -63,6 +65,7 @@ export class SettingsManager extends SyncedManager {
     displayName?: string;
     timezone?: string;
     glassesDisplayMode?: GlassesDisplayMode;
+    superCollapsed?: boolean;
   }): Promise<void> {
     const userId = this._session?.userId;
 
@@ -82,6 +85,9 @@ export class SettingsManager extends SyncedManager {
         `[SettingsManager] Glasses display mode set to ${settings.glassesDisplayMode}`,
       );
     }
+    if (settings.superCollapsed !== undefined) {
+      this.superCollapsed = settings.superCollapsed;
+    }
 
     // Persist to database
     if (userId) {
@@ -89,6 +95,7 @@ export class SettingsManager extends SyncedManager {
         await updateUserSettings(userId, {
           showLiveTranscript: this.showLiveTranscript,
           glassesDisplayMode: this.glassesDisplayMode,
+          superCollapsed: this.superCollapsed,
           displayName: this.displayName || undefined,
         });
       } catch (error) {
@@ -103,12 +110,14 @@ export class SettingsManager extends SyncedManager {
     displayName: string | null;
     timezone: string | null;
     glassesDisplayMode: GlassesDisplayMode;
+    superCollapsed: boolean;
   }> {
     return {
       showLiveTranscript: this.showLiveTranscript,
       displayName: this.displayName,
       timezone: this.timezone,
       glassesDisplayMode: this.glassesDisplayMode,
+      superCollapsed: this.superCollapsed,
     };
   }
 }

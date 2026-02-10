@@ -15,6 +15,7 @@ export interface UserSettingsI extends Document {
   showTranscriptOnGlasses: boolean;
   showLiveTranscript: boolean;
   glassesDisplayMode: "off" | "live_transcript" | "hour_summary" | "key_points";
+  superCollapsed: boolean;
   displayName?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -34,6 +35,7 @@ const UserSettingsSchema = new Schema<UserSettingsI>(
       enum: ["off", "live_transcript", "hour_summary", "key_points"],
       default: "live_transcript",
     },
+    superCollapsed: { type: Boolean, default: false },
     displayName: { type: String },
   },
   { timestamps: true },
@@ -89,6 +91,7 @@ export async function updateUserSettings(
     showTranscriptOnGlasses: boolean;
     showLiveTranscript: boolean;
     glassesDisplayMode: "off" | "live_transcript" | "hour_summary" | "key_points";
+    superCollapsed: boolean;
     displayName: string;
   }>,
 ): Promise<UserSettingsI | null> {

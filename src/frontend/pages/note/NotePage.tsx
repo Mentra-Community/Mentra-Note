@@ -27,6 +27,7 @@ import {
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import Image from "@tiptap/extension-image";
 import { Drawer } from "vaul";
 import { useSynced } from "../../hooks/useSynced";
 import type { SessionI, Note } from "../../../shared/types";
@@ -56,6 +57,13 @@ export function NotePage() {
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3],
+        },
+      }),
+      Image.configure({
+        inline: false,
+        allowBase64: false,
+        HTMLAttributes: {
+          class: "rounded-lg max-w-full h-auto my-3",
         },
       }),
       Placeholder.configure({
@@ -120,30 +128,40 @@ export function NotePage() {
     return html;
   }, []);
 
+  // Rewrite private R2 URLs to public URLs in HTML content
+  const rewritePhotoUrls = useCallback((html: string): string => {
+    return html.replaceAll(
+      "https://3c764e987404b8a1199ce5fdc3544a94.r2.cloudflarestorage.com/mentra-notes/",
+      "https://pub-b5f134142a0f4fbdb5c05a2f75fc8624.r2.dev/",
+    );
+  }, []);
+
   // Build editor content from note
   const buildEditorContent = useCallback(
     (note: Note): string => {
+      let html = "";
+
       // Content is already HTML from AI generation, use it directly
       if (note.content && !isPlaceholderContent(note.content)) {
         // If content already has HTML tags, use it directly
         if (note.content.includes("<p>") || note.content.includes("<h")) {
-          return note.content;
+          html = note.content;
+        } else {
+          // Otherwise parse markdown-style content
+          html = parseContent(note.content);
         }
-        // Otherwise parse markdown-style content
-        return parseContent(note.content);
-      }
-
-      // Fallback to summary if no content
-      if (note.summary && !isPlaceholderContent(note.summary)) {
+      } else if (note.summary && !isPlaceholderContent(note.summary)) {
+        // Fallback to summary if no content
         if (note.summary.includes("<p>") || note.summary.includes("<h")) {
-          return note.summary;
+          html = note.summary;
+        } else {
+          html = `<p>${note.summary}</p>`;
         }
-        return `<p>${note.summary}</p>`;
       }
 
-      return "";
+      return rewritePhotoUrls(html);
     },
-    [parseContent],
+    [parseContent, rewritePhotoUrls],
   );
 
   // Initialize editor content when note loads

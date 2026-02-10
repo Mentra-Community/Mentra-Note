@@ -64,8 +64,13 @@ export function DayPage() {
   const { session, isConnected } = useSynced<SessionI>(userId || "");
 
   const [activeTab, setActiveTab] = useState<TabType>("notes");
-  const [isCompactMode, setIsCompactMode] = useState(false);
   const lastLoadedDateRef = useRef<string | null>(null);
+
+  // Super collapsed mode from persisted settings
+  const isCompactMode = session?.settings?.superCollapsed ?? false;
+  const setIsCompactMode = (value: boolean) => {
+    session?.settings?.updateSettings({ superCollapsed: value });
+  };
 
   // Parse the date from URL params
   const dateString = params.date || "";
@@ -190,7 +195,7 @@ export function DayPage() {
       {/* Header */}
       <div className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
         {/* Top row with back button and actions */}
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div className="flex items-center justify-between px-[10px] pt-4 pb-2">
           <button
             onClick={handleBack}
             className="p-2 -ml-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-600 dark:text-zinc-400 transition-colors"

@@ -34,6 +34,17 @@ interface GroupedSegments {
 // Threshold in pixels - if user is within this distance from bottom, auto-scroll
 const AUTO_SCROLL_THRESHOLD = 150;
 
+// R2 private endpoint → public URL rewrite for legacy segments
+const R2_PRIVATE_PREFIX = "https://3c764e987404b8a1199ce5fdc3544a94.r2.cloudflarestorage.com/mentra-notes/";
+const R2_PUBLIC_PREFIX = "https://pub-b5f134142a0f4fbdb5c05a2f75fc8624.r2.dev/";
+
+function getPhotoSrc(url: string): string {
+  if (url.startsWith(R2_PRIVATE_PREFIX)) {
+    return url.replace(R2_PRIVATE_PREFIX, R2_PUBLIC_PREFIX);
+  }
+  return url;
+}
+
 // Hour display states: veryCollapsed (minimal) → collapsed (banner) → expanded (segments)
 type HourState = "veryCollapsed" | "collapsed" | "expanded";
 
@@ -242,6 +253,21 @@ export function TranscriptTab({
     return () => container.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
 
+  // Scroll to bottom on initial load
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || segments.length === 0) return;
+
+    // Use requestAnimationFrame to ensure DOM has rendered
+    requestAnimationFrame(() => {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: "instant",
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only on mount
+
   // Auto-scroll when new segments arrive (only if user is near bottom)
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -285,13 +311,34 @@ export function TranscriptTab({
       return newSet;
     });
 
-    // If expanding the current live hour, scroll to bottom after DOM updates
-    if (!wasExpanded && isLiveHour) {
+    // If expanding any hour, scroll to show the bottom of that hour's content
+    if (!wasExpanded) {
       setTimeout(() => {
         const container = scrollContainerRef.current;
-        if (container) {
+        const header = headerRefs.current.get(hourKey);
+        if (!container || !header) return;
+
+        // Find the hour's parent div (the section containing header + segments)
+        const hourSection = header.closest("[data-hour-section]") as HTMLElement;
+        if (!hourSection) {
+          // Fallback: scroll to bottom (for live hour or if section not found)
           container.scrollTo({
             top: container.scrollHeight,
+            behavior: "smooth",
+          });
+          return;
+        }
+
+        // Scroll so the bottom of the hour section is visible
+        const containerRect = container.getBoundingClientRect();
+        const sectionRect = hourSection.getBoundingClientRect();
+        const sectionBottom = sectionRect.bottom - containerRect.top + container.scrollTop;
+        const targetScroll = sectionBottom - containerRect.height;
+
+        // Only scroll down, not up — and only if the bottom isn't already visible
+        if (sectionRect.bottom > containerRect.bottom) {
+          container.scrollTo({
+            top: Math.max(container.scrollTop, targetScroll),
             behavior: "smooth",
           });
         }
@@ -349,6 +396,7 @@ export function TranscriptTab({
           return (
             <div
               key={hourKey}
+              data-hour-section={hourKey}
               className="border-b border-zinc-100 dark:border-[#3f4147] last:border-0"
             >
               {/* Hour Header - Sticky when expanded */}
@@ -375,6 +423,15 @@ export function TranscriptTab({
                   )}
                 </div>
 
+                {/* Live transcription in veryCollapsed (compact) mode for current hour */}
+                {hourState === "veryCollapsed" && hasInterimForHour(hourKey) && (
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <p className="text-sm text-zinc-400 dark:text-zinc-500 font-light italic whitespace-nowrap" style={{ direction: "rtl", textAlign: "left" }}>
+                      {interimText}
+                    </p>
+                  </div>
+                )}
+
                 {/* Banner Content (when collapsed - normal state) */}
                 {isCollapsed && (
                   <div className="flex-1 min-w-0">
@@ -399,7 +456,7 @@ export function TranscriptTab({
 
                     {/* Interim text shown BELOW summary for current hour */}
                     {hasInterimForHour(hourKey) && (
-                      <p className="text-sm text-green-600 dark:text-green-400 italic mt-1 line-clamp-1">
+                      <p className="text-sm text-zinc-400 dark:text-zinc-500 font-light italic mt-1 line-clamp-1">
                         {interimText}
                       </p>
                     )}
@@ -410,10 +467,15 @@ export function TranscriptTab({
                         {hourSegments.length !== 1 ? "s" : ""}
                       </span>
                       {!banner.hasSummary && onGenerateSummary && (
-                        <button
+                        <span
+                          role="button"
                           onClick={(e) => handleGenerateSummary(e, hour24)}
-                          disabled={isGenerating}
-                          className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 font-medium flex items-center gap-1 transition-colors"
+                          className={clsx(
+                            "text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer",
+                            isGenerating
+                              ? "text-zinc-400 dark:text-zinc-500"
+                              : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200",
+                          )}
                         >
                           {isGenerating ? (
                             <>
@@ -423,7 +485,7 @@ export function TranscriptTab({
                           ) : (
                             <span>Generate summary</span>
                           )}
-                        </button>
+                        </span>
                       )}
                     </div>
                   </div>
@@ -467,13 +529,38 @@ export function TranscriptTab({
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
-                          {segment.text}
-                        </p>
-                        {segment.speakerId && (
-                          <span className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 block">
-                            Speaker {segment.speakerId}
-                          </span>
+                        {segment.type === "photo" && segment.photoUrl ? (
+                          <div>
+                            <img
+                              src={getPhotoSrc(segment.photoUrl)}
+                              alt="Photo capture"
+                              className="rounded-lg max-w-xs w-full h-auto border border-zinc-200 dark:border-zinc-700"
+                              loading="lazy"
+                              onLoad={() => {
+                                const container = scrollContainerRef.current;
+                                if (container && shouldAutoScroll) {
+                                  container.scrollTo({
+                                    top: container.scrollHeight,
+                                    behavior: "smooth",
+                                  });
+                                }
+                              }}
+                            />
+                            <span className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 block">
+                              Photo captured
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                              {segment.text}
+                            </p>
+                            {segment.speakerId && (
+                              <span className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 block">
+                                Speaker {segment.speakerId}
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -485,7 +572,7 @@ export function TranscriptTab({
                       <span className="text-xs font-mono text-zinc-400 dark:text-zinc-500 w-16 shrink-0 pt-0.5">
                         now
                       </span>
-                      <p className="flex-1 text-sm text-green-600 dark:text-green-400 italic leading-relaxed">
+                      <p className="flex-1 text-sm text-zinc-400 dark:text-zinc-500 font-light italic leading-relaxed">
                         {interimText}
                       </p>
                     </div>

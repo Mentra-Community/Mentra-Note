@@ -34,6 +34,10 @@ export interface TranscriptSegment {
   timestamp: Date;
   isFinal: boolean;
   speakerId?: string;
+  type?: "transcript" | "photo";
+  photoUrl?: string;
+  photoMimeType?: string;
+  timezone?: string;
 }
 
 export interface HourSummary {
@@ -142,6 +146,10 @@ export class TranscriptManager extends SyncedManager {
             timestamp: seg.timestamp,
             isFinal: seg.isFinal,
             speakerId: seg.speakerId,
+            type: seg.type,
+            photoUrl: seg.photoUrl,
+            photoMimeType: seg.photoMimeType,
+            timezone: seg.timezone,
           }),
         );
 
@@ -346,6 +354,38 @@ export class TranscriptManager extends SyncedManager {
     this.scheduleSave();
   }
 
+  async addPhotoSegment(photoUrl: string, mimeType: string, timezone?: string): Promise<void> {
+    this.segmentIndex++;
+
+    const segment: TranscriptSegment = {
+      id: `seg_${this.segmentIndex}`,
+      text: `[Photo captured]`,
+      timestamp: new Date(),
+      isFinal: true,
+      type: "photo",
+      photoUrl,
+      photoMimeType: mimeType,
+      timezone,
+    };
+
+    this.segments.mutate((s) => s.push(segment));
+
+    this.pendingSegments.push({
+      text: segment.text,
+      timestamp: segment.timestamp,
+      isFinal: true,
+      index: this.segmentIndex,
+      type: "photo",
+      photoUrl,
+      photoMimeType: mimeType,
+      timezone,
+    });
+
+    // Persist photo segments immediately (don't wait 30s)
+    await this.persist();
+    console.log(`[TranscriptManager] Photo segment persisted: ${photoUrl}`);
+  }
+
   stopRecording(): void {
     this.isRecording = false;
     this.interimText = "";
@@ -408,6 +448,10 @@ export class TranscriptManager extends SyncedManager {
               timestamp: new Date(seg.timestamp), // R2 stores as ISO string
               isFinal: seg.isFinal,
               speakerId: seg.speakerId,
+              type: seg.type,
+              photoUrl: seg.photoUrl,
+              photoMimeType: seg.photoMimeType,
+              timezone: seg.timezone,
             }),
           );
 

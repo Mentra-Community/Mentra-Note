@@ -236,9 +236,18 @@ export class NotesManager extends SyncedManager {
         });
       }
 
-      const transcriptText = relevantSegments.map((s) => s.text).join(" ");
+      // Build transcript text, skipping photo placeholder text
+      const transcriptText = relevantSegments
+        .filter((s) => s.type !== "photo")
+        .map((s) => s.text)
+        .join(" ");
 
-      if (!transcriptText.trim()) {
+      // Collect photo URLs from segments
+      const photoUrls = relevantSegments
+        .filter((s) => s.type === "photo" && s.photoUrl)
+        .map((s) => s.photoUrl!);
+
+      if (!transcriptText.trim() && photoUrls.length === 0) {
         throw new Error("No transcript content to generate note from");
       }
 
@@ -246,8 +255,12 @@ export class NotesManager extends SyncedManager {
       let generatedTitle = title;
 
       const provider = this.getProvider();
-      if (provider && transcriptText.length > 50) {
+      if (provider && (transcriptText.length > 50 || photoUrls.length > 0)) {
         try {
+          const photoInstruction = photoUrls.length > 0
+            ? `\n- Include the following ${photoUrls.length} photo(s) in the note using <img> tags at contextually appropriate locations:\n${photoUrls.map((url, i) => `  Photo ${i + 1}: ${url}`).join("\n")}`
+            : "";
+
           const messages: UnifiedMessage[] = [
             {
               role: "user",
@@ -258,10 +271,10 @@ Requirements:
 - Use <h2> headings to organize sections
 - Use bullet lists for key points
 - Bold important terms with <strong>
-- Output valid HTML only (no markdown)
+- Output valid HTML only (no markdown)${photoInstruction}
 
 Transcript:
-${transcriptText}
+${transcriptText || "(No speech transcript - only photos captured)"}
 
 ${title ? `Title to use: "${title}"` : "Also generate an appropriate title."}
 
@@ -282,6 +295,7 @@ Output your notes in clean HTML format using ONLY these tags:
 - <strong> for bold/important text
 - <em> for italic/emphasized text
 - <ul> and <li> for bulleted lists
+${photoUrls.length > 0 ? "- <img> for photos (use the exact URLs provided, do NOT invent URLs)" : ""}
 
 Rules:
 - Write between 100-500 words
@@ -310,12 +324,25 @@ Rules:
           if (contentMatch) {
             summary = contentMatch[1].trim();
           }
+
+          // Ensure all photos are included - append any the AI missed
+          if (photoUrls.length > 0) {
+            const missingPhotos = photoUrls.filter((url) => !summary.includes(url));
+            if (missingPhotos.length > 0) {
+              const photoHtml = missingPhotos
+                .map((url) => `<img src="${url}">`)
+                .join("\n");
+              summary += `\n${photoHtml}`;
+            }
+          }
         } catch (error) {
           console.error("[NotesManager] AI generation failed:", error);
-          summary = `<p>${transcriptText.length > 500 ? transcriptText.substring(0, 500) + "..." : transcriptText}</p>`;
+          const photoHtml = photoUrls.map((url) => `<img src="${url}">`).join("\n");
+          summary = `<p>${transcriptText.length > 500 ? transcriptText.substring(0, 500) + "..." : transcriptText}</p>${photoHtml}`;
         }
       } else {
-        summary = `<p>${transcriptText.length > 500 ? transcriptText.substring(0, 500) + "..." : transcriptText}</p>`;
+        const photoHtml = photoUrls.map((url) => `<img src="${url}">`).join("\n");
+        summary = `<p>${transcriptText.length > 500 ? transcriptText.substring(0, 500) + "..." : transcriptText}</p>${photoHtml}`;
       }
 
       const now = new Date();

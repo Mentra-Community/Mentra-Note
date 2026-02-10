@@ -17,6 +17,10 @@ export interface TranscriptSegmentI {
   isFinal: boolean;
   speakerId?: string;
   index: number;
+  type?: "transcript" | "photo";
+  photoUrl?: string;
+  photoMimeType?: string;
+  timezone?: string;
 }
 
 export interface DailyTranscriptI extends Document {
@@ -39,6 +43,10 @@ const TranscriptSegmentSchema = new Schema<TranscriptSegmentI>(
     isFinal: { type: Boolean, required: true },
     speakerId: { type: String },
     index: { type: Number, required: true },
+    type: { type: String, enum: ["transcript", "photo"], default: "transcript" },
+    photoUrl: { type: String },
+    photoMimeType: { type: String },
+    timezone: { type: String },
   },
   { _id: false },
 );

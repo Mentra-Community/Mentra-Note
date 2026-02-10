@@ -8,6 +8,7 @@
 
 import { Hono } from "hono";
 import { createAuthMiddleware } from "@mentra/sdk";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { sessions } from "../session";
 import {
   getOrCreateDailyTranscript,
@@ -613,6 +614,63 @@ api.get("/session/status", authMiddleware, (c) => {
     });
   } catch (err: any) {
     return c.json({ error: err.error || "Internal error" }, err.status || 500);
+  }
+});
+
+// =============================================================================
+// Photo Proxy (serves R2 images to the browser)
+// =============================================================================
+
+/**
+ * GET /photos/:date/:filename - Proxy photo from R2
+ * The browser can't access R2 directly (requires auth), so we stream it through.
+ */
+api.get("/photos/:date/:filename", authMiddleware, async (c) => {
+  try {
+    const userId = requireAuth(c);
+    const date = c.req.param("date");
+    const filename = c.req.param("filename");
+
+    const endpoint = process.env.CLOUDFLARE_R2_ENDPOINT;
+    const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME || "mentra-notes";
+    const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+
+    if (!endpoint || !accessKeyId || !secretAccessKey) {
+      return c.json({ error: "R2 not configured" }, 500);
+    }
+
+    const key = `transcripts/${userId}/${date}/photos/${filename}`;
+
+    const s3Client = new S3Client({
+      region: "auto",
+      endpoint,
+      credentials: { accessKeyId, secretAccessKey },
+    });
+
+    const response = await s3Client.send(
+      new GetObjectCommand({ Bucket: bucketName, Key: key }),
+    );
+
+    if (!response.Body) {
+      return c.json({ error: "Photo not found" }, 404);
+    }
+
+    const contentType = response.ContentType || "image/png";
+    const bodyBytes = await response.Body.transformToByteArray();
+
+    return new Response(bodyBytes, {
+      headers: {
+        "Content-Type": contentType,
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
+    });
+  } catch (err: any) {
+    if (err.name === "NoSuchKey") {
+      return c.json({ error: "Photo not found" }, 404);
+    }
+    console.error("[Photo Proxy] Error:", err);
+    return c.json({ error: "Failed to fetch photo" }, 500);
   }
 });
 

@@ -11,3 +11,4 @@ export { ChatManager, type ChatMessage } from "./ChatManager";
 export { SettingsManager, type GlassesDisplayMode } from "./SettingsManager";
 export { CloudflareR2Manager, type BatchStatus, type BatchInfo } from "./CloudflareR2Manager";
 export { FileManager, type FileData, type FileFilter } from "./FileManager";
+export { PhotoManager, type PhotoSize } from "./PhotoManager";

@@ -14,6 +14,10 @@ import { AppServer, AppSession } from "@mentra/sdk";
 import { sessions, NotesSession } from "./session";
 import { TimeManager } from "./session/managers/TimeManager";
 import { connectDB, disconnectDB } from "./services/db";
+import { uploadPhotoToR2 } from "./services/r2Upload.service";
+
+// TODO: Remove mock once camera is working
+const MOCK_PHOTO_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAIAAADTED8xAAADMElEQVR4nOzVwQnAIBQFQYXff81RUkQCOyDj1YOPnbXWPmeTRef+/3O/OyBjzh3CD95BfqICMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMK0CMO0TAAD//2Anhf4QtqobAAAAAElFTkSuQmCC";
 
 export interface NotesAppConfig {
   packageName: string;
@@ -86,9 +90,45 @@ export class NotesApp extends AppServer {
       if (data.isFinal) {
         const timezone = notesSession.settings.timezone ?? undefined;
         const timeManager = new TimeManager(timezone);
-        console.log(`Today's date: ${timeManager.getTimestampInTimezone()} ${timeManager.getEndOfDayUTC()} ${timeManager.getCurrentTimestamp()} `);
+        console.log(
+          `Today's date: ${timeManager.getTimestampInTimezone()} ${timeManager.getEndOfDayUTC()} ${timeManager.getCurrentTimestamp()} `,
+        );
         // Check and update batch date if day has passed
         await notesSession.transcript.setBatchDate();
+      }
+    });
+
+    // Capture photo on button press and upload to R2
+    session.events.onButtonPress(async (data) => {
+      console.log(`[NotesApp] Button pressed: ${data.buttonId} (${data.pressType})`);
+
+      try {
+        // TODO: Replace mock with session.camera.requestPhoto() once camera is working
+        const buffer = Buffer.from(MOCK_PHOTO_BASE64, "base64");
+        const now = new Date();
+        console.log(`[NotesApp] Using mock photo (${buffer.length} bytes)`);
+
+        const timezone = notesSession.settings.timezone ?? undefined;
+        const timeManager = new TimeManager(timezone);
+        const todayDate = timeManager.getTodayDate();
+
+        const result = await uploadPhotoToR2({
+          userId,
+          date: todayDate,
+          buffer,
+          mimeType: "image/png",
+          timestamp: now,
+          timezone,
+        });
+
+        if (result.success) {
+          console.log(`[NotesApp] Photo uploaded to R2: ${result.url}`);
+          notesSession.transcript.addPhotoSegment(result.url!, "image/png", timezone);
+        } else {
+          console.error(`[NotesApp] Photo R2 upload failed: ${result.error?.message}`);
+        }
+      } catch (error) {
+        console.error(`[NotesApp] Photo capture/upload error:`, error);
       }
     });
 

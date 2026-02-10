@@ -15,6 +15,10 @@ export interface TranscriptSegment {
   timestamp: Date;
   isFinal: boolean;
   speakerId?: string;
+  type?: "transcript" | "photo";
+  photoUrl?: string;
+  photoMimeType?: string;
+  timezone?: string;
 }
 
 export interface Note {
@@ -123,6 +127,7 @@ export interface SettingsManagerI {
   displayName: string | null;
   timezone: string | null; // IANA timezone e.g. "America/Los_Angeles"
   glassesDisplayMode: GlassesDisplayMode;
+  superCollapsed: boolean;
 
   // RPCs
   updateSettings(settings: {
@@ -130,6 +135,7 @@ export interface SettingsManagerI {
     displayName?: string;
     timezone?: string;
     glassesDisplayMode?: GlassesDisplayMode;
+    superCollapsed?: boolean;
   }): Promise<void>;
 }
 

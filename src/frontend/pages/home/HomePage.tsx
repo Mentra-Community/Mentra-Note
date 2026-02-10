@@ -305,7 +305,7 @@ export function HomePage() {
   return (
     <div className="flex h-full flex-col bg-zinc-50 dark:bg-black overflow-hidden">
       {/* Header */}
-      <div className="px-6 pt-4 pb-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
+      <div className="px-[10px] pt-4 pb-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
         <div className="flex items-center justify-between">
           <button
             onClick={() => setIsFilterOpen(true)}
