@@ -56,6 +56,9 @@ export function Shell({ children }: ShellProps) {
     return false;
   };
 
+  // Hide bottom nav when viewing a day or note (detail pages)
+  const hideBottomNav = location.startsWith("/day/") || location.startsWith("/note/");
+
   return (
     <div className="flex h-screen w-full bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100">
       {/* Desktop Sidebar */}
@@ -99,12 +102,13 @@ export function Shell({ children }: ShellProps) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-black relative">
-        <main className="flex-1 overflow-hidden relative pb-16 md:pb-0">
+        <main className={clsx("flex-1 overflow-hidden relative md:pb-0", hideBottomNav ? "pb-0" : "pb-16")}>
           {children}
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation */}
+      {/* Mobile Bottom Navigation - hidden on detail pages */}
+      {!hideBottomNav && (
       <div className="fixed bottom-0 left-0 right-0 md:hidden bg-white dark:bg-zinc-950  border-zinc-200 dark:border-zinc-800  z-30">
         <div className="flex items-center justify-between h-[72px] px-12">
           {/* Home */}
@@ -152,6 +156,7 @@ export function Shell({ children }: ShellProps) {
           </button>
         </div>
       </div>
+      )}
 
       {/* Quick Actions Drawer */}
       <QuickActionsDrawer
