@@ -11,7 +11,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { clsx } from "clsx";
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowDown, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import type {
   TranscriptSegment,
   HourSummary,
@@ -296,36 +296,52 @@ export function TranscriptTab({
     }
   };
 
-  // Watch the scroll container for any DOM changes and auto-scroll to bottom.
-  // This catches: initial load, new segments, syncing indicator, hour expand — everything.
-  const userHasScrolledRef = useRef(false);
+  // Lock/unlock scroll: when locked (near bottom), auto-scroll on DOM changes.
+  // When unlocked (user scrolled up), stop auto-scrolling and show a FAB to re-lock.
+  const isLive = currentHour !== undefined;
+  const [isScrollLocked, setIsScrollLocked] = useState(true);
+  const isScrollLockedRef = useRef(true);
+
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    // Track if user manually scrolled away from bottom
+    const LOCK_THRESHOLD = 100;
+
+    // Update lock state based on scroll position
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
       const distFromBottom = scrollHeight - scrollTop - clientHeight;
-      userHasScrolledRef.current = distFromBottom > 150;
+      const locked = distFromBottom <= LOCK_THRESHOLD;
+      isScrollLockedRef.current = locked;
+      setIsScrollLocked(locked);
     };
 
+    // Auto-scroll on DOM mutations only when locked
     const observer = new MutationObserver(() => {
-      // Don't auto-scroll if user has manually scrolled up
-      if (userHasScrolledRef.current) return;
+      if (!isScrollLockedRef.current) return;
       container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
     });
 
     observer.observe(container, { childList: true, subtree: true, characterData: true });
     container.addEventListener("scroll", handleScroll);
 
-    // Initial scroll
+    // Initial scroll to bottom
     container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
 
     return () => {
       observer.disconnect();
       container.removeEventListener("scroll", handleScroll);
     };
+  }, []);
+
+  // Scroll to bottom and re-lock
+  const scrollToBottomAndLock = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
+    isScrollLockedRef.current = true;
+    setIsScrollLocked(true);
   }, []);
 
   // Handle generating summary for an hour
@@ -358,7 +374,8 @@ export function TranscriptTab({
   }
 
   return (
-    <div ref={scrollContainerRef} className="h-full overflow-y-auto relative">
+    <div className="h-full relative">
+    <div ref={scrollContainerRef} className="h-full overflow-y-auto">
       <div className="pb-2">
         {sortedHours.map((hourKey) => {
           const hourSegments = groupedSegments[hourKey];
@@ -580,6 +597,18 @@ export function TranscriptTab({
         )}
 
       </div>
+
+    </div>
+
+      {/* Scroll-to-bottom FAB — only shown for live (today) when unlocked */}
+      {isLive && !isScrollLocked && (
+        <button
+          onClick={scrollToBottomAndLock}
+          className="absolute bottom-4 right-4 z-20 w-9 h-9 rounded-full bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 flex items-center justify-center shadow-lg"
+        >
+          <ArrowDown size={18} />
+        </button>
+      )}
     </div>
   );
 }
