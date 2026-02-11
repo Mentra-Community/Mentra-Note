@@ -459,8 +459,26 @@ export class TranscriptManager extends SyncedManager {
             }),
           );
 
-          // R2 doesn't store hour summaries separately
-          const loadedSummaries: HourSummary[] = [];
+          // R2 doesn't store hour summaries, but they may exist in MongoDB
+          let loadedSummaries: HourSummary[] = [];
+          try {
+            const savedSummaries = await getHourSummaries(userId, date);
+            if (savedSummaries.length > 0) {
+              loadedSummaries = savedSummaries.map((s) => ({
+                id: `summary_${s.date}_${s.hour}`,
+                date: s.date,
+                hour: s.hour,
+                hourLabel: s.hourLabel,
+                summary: s.summary,
+                segmentCount: s.segmentCount,
+                createdAt: s.createdAt,
+                updatedAt: s.updatedAt,
+              }));
+              console.log(`[TranscriptManager] ✓ Loaded ${loadedSummaries.length} hour summaries from MongoDB for ${date}`);
+            }
+          } catch (err) {
+            console.error(`[TranscriptManager] Failed to load hour summaries from MongoDB for ${date}:`, err);
+          }
 
           this.segments.set(loadedSegments);
           this.loadedDate = date;

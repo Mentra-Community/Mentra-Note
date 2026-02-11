@@ -576,7 +576,7 @@ export function TranscriptTab({
                           className={clsx(
                             "flex gap-3 transition-all duration-300 ease-out overflow-hidden",
                             interimText.trim()
-                              ? "opacity-70 max-h-24"
+                              ? "opacity-70 "
                               : "opacity-0 max-h-0",
                           )}
                         >

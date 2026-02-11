@@ -109,7 +109,7 @@ export function NotesTab({ notes, dateString }: NotesTabProps) {
   const floatingActions = (
     <div
       ref={fabRef}
-      className="fixed bottom-24 right-6 z-40 flex flex-col items-end gap-3"
+      className="fixed bottom-8 right-6 z-40 flex flex-col items-end gap-3"
     >
       {/* Expanded options */}
       <AnimatePresence>
