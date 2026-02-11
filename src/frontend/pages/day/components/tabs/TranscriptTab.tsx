@@ -583,13 +583,15 @@ export function TranscriptTab({
                         {/* Content */}
                         <div className="flex-1 min-w-0">
                           {segment.type === "photo" && segment.photoUrl ? (
-                            <div>
+                            <div className="w-full max-w-xs">
                               <img
                                 src={getPhotoSrc(segment.photoUrl)}
                                 alt="Photo capture"
-                                className="rounded-lg max-w-xs w-full h-auto border border-zinc-200 dark:border-zinc-700"
+                                className="block rounded-lg w-full min-h-24 object-cover border border-zinc-200 dark:border-zinc-700"
                                 loading="lazy"
-                                onLoad={() => {
+                                onLoad={(e) => {
+                                  // Remove min-h once the real dimensions are known
+                                  (e.target as HTMLImageElement).classList.remove("min-h-24");
                                   const container = scrollContainerRef.current;
                                   if (container && shouldAutoScroll) {
                                     container.scrollTo({
