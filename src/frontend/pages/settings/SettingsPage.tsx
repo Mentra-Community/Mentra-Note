@@ -9,7 +9,6 @@
  * - Auto-detects and sends user timezone
  */
 
-import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useMentraAuth } from "@mentra/react";
 import { clsx } from "clsx";
@@ -145,20 +144,7 @@ export function SettingsPage() {
     session?.settings?.glassesDisplayMode ?? "live_transcript";
   const savedTimezone = session?.settings?.timezone;
 
-  // Auto-detect and send user timezone on first load
-  useEffect(() => {
-    if (!session?.settings?.updateSettings) return;
-    if (savedTimezone) return; // Already set
-
-    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (userTimezone) {
-      session.settings
-        .updateSettings({ timezone: userTimezone })
-        .catch((err) => {
-          console.error("[SettingsPage] Failed to set timezone:", err);
-        });
-    }
-  }, [session?.settings, savedTimezone]);
+  // Timezone is now auto-synced at connection time in useSynced hook
 
   // Toggle persistent transcription via RPC
   const handleTogglePersistentTranscription = async () => {

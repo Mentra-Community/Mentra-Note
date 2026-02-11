@@ -48,8 +48,9 @@ export class SettingsManager extends SyncedManager {
         (settings.glassesDisplayMode as GlassesDisplayMode) || "live_transcript";
       this.superCollapsed = settings.superCollapsed ?? false;
       this.displayName = settings.displayName || null;
+      this.timezone = settings.timezone || null;
 
-      console.log(`[SettingsManager] Hydrated settings for ${userId}`);
+      console.log(`[SettingsManager] Hydrated settings for ${userId} (timezone: ${this.timezone})`);
     } catch (error) {
       console.error("[SettingsManager] Failed to hydrate:", error);
     }
@@ -97,6 +98,7 @@ export class SettingsManager extends SyncedManager {
           glassesDisplayMode: this.glassesDisplayMode,
           superCollapsed: this.superCollapsed,
           displayName: this.displayName || undefined,
+          timezone: this.timezone || undefined,
         });
       } catch (error) {
         console.error("[SettingsManager] Failed to persist settings:", error);

@@ -320,7 +320,7 @@ export function HomePage() {
             />
           </button>
 
-          <div className="flex items-center gap-1 mr-[100px]">
+          <div className="flex items-center gap-1">
             {/* Empty Trash button - only shown when viewing trash */}
             {activeFilter === "trash" && filterCounts.trash > 0 && (
               <button

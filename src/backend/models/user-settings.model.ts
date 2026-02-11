@@ -17,6 +17,7 @@ export interface UserSettingsI extends Document {
   glassesDisplayMode: "off" | "live_transcript" | "hour_summary" | "key_points";
   superCollapsed: boolean;
   displayName?: string;
+  timezone?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,6 +38,7 @@ const UserSettingsSchema = new Schema<UserSettingsI>(
     },
     superCollapsed: { type: Boolean, default: false },
     displayName: { type: String },
+    timezone: { type: String },
   },
   { timestamps: true },
 );
@@ -93,6 +95,7 @@ export async function updateUserSettings(
     glassesDisplayMode: "off" | "live_transcript" | "hour_summary" | "key_points";
     superCollapsed: boolean;
     displayName: string;
+    timezone: string;
   }>,
 ): Promise<UserSettingsI | null> {
   return UserSettings.findOneAndUpdate(

@@ -82,6 +82,8 @@ class SyncClient<T> {
         this.state = message.state;
         this._version++;
         this.notifyListeners();
+        // Auto-detect and sync user timezone on connection
+        this.syncTimezone();
         break;
 
       case "state_change":
@@ -117,6 +119,31 @@ class SyncClient<T> {
           this.pendingRPCs.delete(message.id);
         }
         break;
+    }
+  }
+
+  /**
+   * Auto-detect and sync the user's local timezone to the backend.
+   * Runs on every connection/reconnection to keep it up to date.
+   */
+  private syncTimezone(): void {
+    try {
+      const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (!localTimezone) return;
+
+      const savedTimezone = this.state?.settings?.timezone;
+      if (savedTimezone === localTimezone) return; // Already correct
+
+      console.log(
+        `[Synced] Syncing timezone: ${savedTimezone ?? "unset"} -> ${localTimezone}`,
+      );
+      this.callRPC("settings", "updateSettings", [
+        { timezone: localTimezone },
+      ]).catch((err) => {
+        console.error("[Synced] Failed to sync timezone:", err);
+      });
+    } catch {
+      // Intl API not available, skip
     }
   }
 
