@@ -9,7 +9,7 @@
  * - Auto-scroll for new segments (only when user is near bottom)
  */
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { clsx } from "clsx";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import type {
@@ -31,9 +31,6 @@ interface TranscriptTabProps {
 interface GroupedSegments {
   [hourKey: string]: TranscriptSegment[];
 }
-
-// Threshold in pixels - if user is within this distance from bottom, auto-scroll
-const AUTO_SCROLL_THRESHOLD = 150;
 
 // R2 private endpoint → public URL rewrite for legacy segments
 const R2_PRIVATE_PREFIX = "https://3c764e987404b8a1199ce5fdc3544a94.r2.cloudflarestorage.com/mentra-notes/";
@@ -61,15 +58,10 @@ export function TranscriptTab({
 }: TranscriptTabProps) {
   // Track expanded state for each hour (only used when not in compact mode)
   const [expandedHours, setExpandedHours] = useState<Set<string>>(new Set());
-  const [stuckHeader, setStuckHeader] = useState<string | null>(null);
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [generatingHour, setGeneratingHour] = useState<number | null>(null);
+  const [loadingHour, setLoadingHour] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const headerRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
-  const prevSegmentCountRef = useRef(segments.length);
-  const knownSegmentIdsRef = useRef<Set<string>>(new Set(segments.map((s, i) => s.id || `idx-${i}`)));
-  const [newSegmentIds, setNewSegmentIds] = useState<Set<string>>(new Set());
-  const bottomAnchorRef = useRef<HTMLDivElement>(null);
 
   // Helper to get hour state based on compact mode and expanded state
   const getHourState = (hourKey: string): HourState => {
@@ -212,186 +204,129 @@ export function TranscriptTab({
     return isCurrentHour && interimText.trim().length > 0;
   };
 
-  // Check if user is near bottom of scroll container
-  const isNearBottom = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return true;
+  // Tracks which hour we last expanded — images loading in this section will re-trigger scroll
+  const activeScrollHourRef = useRef<string | null>(null);
 
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    return distanceFromBottom <= AUTO_SCROLL_THRESHOLD;
+  // Scroll so the last segment of a given hour section is at the bottom of the viewport
+  const scrollToEndOfHour = useCallback((hourKey: string) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const section = container.querySelector(`[data-hour-section="${hourKey}"]`) as HTMLElement;
+    if (!section) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const sectionRect = section.getBoundingClientRect();
+    const sectionBottom = sectionRect.bottom - containerRect.top + container.scrollTop;
+    const targetScroll = sectionBottom - containerRect.height;
+
+    container.scrollTo({
+      top: Math.max(0, targetScroll),
+      behavior: "instant",
+    });
   }, []);
 
-  // Handle scroll to track if user scrolled up
-  const handleScroll = useCallback(() => {
-    // const container = scrollContainerRef.current;
-    // if (!container) return;
-
-    // const containerRect = container.getBoundingClientRect();
-    // let currentStuck: string | null = null;
-
-    // // Find which expanded header should be stuck
-    // for (const hourKey of sortedHours) {
-    //   if (getHourState(hourKey) !== "expanded") continue;
-
-    //   const header = headerRefs.current.get(hourKey);
-    //   if (!header) continue;
-
-    //   const headerRect = header.getBoundingClientRect();
-    //   // If the header's top is at or above the container top, it should be stuck
-    //   if (headerRect.top <= containerRect.top + 1) {
-    //     currentStuck = hourKey;
-    //   }
-    // }
-
-    // setStuckHeader(currentStuck);
-
-    // // Update auto-scroll state based on scroll position
-    // setShouldAutoScroll(isNearBottom());
-  }, [expandedHours, isCompactMode, sortedHours, isNearBottom]);
-
-  // Attach scroll listener
-  useEffect(() => {
+  // Called when any image inside an expanded section finishes loading
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>, hourKey: string) => {
+    (e.target as HTMLImageElement).classList.remove("min-h-24");
+    // If this image belongs to the hour we just scrolled to, re-scroll to end of that hour
+    if (activeScrollHourRef.current === hourKey) {
+      scrollToEndOfHour(hourKey);
+    }
+    // Also scroll to absolute bottom so newly loaded photos are always visible
     const container = scrollContainerRef.current;
-    if (!container) return;
-
-    container.addEventListener("scroll", handleScroll);
-    handleScroll(); // Initial check
-
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
-
-  // Scroll to bottom on initial load
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container || segments.length === 0) return;
-
-    // Use requestAnimationFrame to ensure DOM has rendered
-    requestAnimationFrame(() => {
-      container.scrollTo({
-        top: container.scrollHeight,
-        behavior: "instant",
-      });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only on mount
-
-  // Auto-scroll when new segments arrive (only if user is near bottom)
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    // Check if new segments were added
-    if (segments.length > prevSegmentCountRef.current) {
-      // Find newly added segment IDs for fade-in animation
-      const currentIds = new Set(segments.map((s, i) => s.id || `idx-${i}`));
-      const freshIds = new Set<string>();
-      currentIds.forEach((id) => {
-        if (!knownSegmentIdsRef.current.has(id)) {
-          freshIds.add(id);
-        }
-      });
-      knownSegmentIdsRef.current = currentIds;
-
-      if (freshIds.size > 0) {
-        setNewSegmentIds(freshIds);
-        // Clear after animation completes
-        setTimeout(() => setNewSegmentIds(new Set()), 400);
-      }
-
-      // Only auto-scroll if user was near the bottom
-      if (shouldAutoScroll) {
-        // Use requestAnimationFrame to ensure DOM has updated
-        requestAnimationFrame(() => {
-          container.scrollTo({
-            top: container.scrollHeight,
-            behavior: "smooth",
-          });
-        });
+    if (container) {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      // Only if user was already near the bottom (within 300px)
+      if (scrollHeight - scrollTop - clientHeight < 300) {
+        container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
       }
     }
+  }, [scrollToEndOfHour]);
 
-    prevSegmentCountRef.current = segments.length;
-  }, [segments.length, shouldAutoScroll]);
+  // When loadingHour clears (content rendered), scroll to the end of that hour
+  const pendingScrollRef = useRef<string | null>(null);
 
-  // Auto-scroll when photo syncing feedback appears
   useEffect(() => {
-    if (!isSyncingPhoto) return;
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    requestAnimationFrame(() => {
-      container.scrollTo({
-        top: container.scrollHeight,
-        behavior: "smooth",
+    if (pendingScrollRef.current && !loadingHour) {
+      const hourKey = pendingScrollRef.current;
+      pendingScrollRef.current = null;
+      activeScrollHourRef.current = hourKey;
+      // Double rAF to ensure layout is complete after React render
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          scrollToEndOfHour(hourKey);
+        });
       });
-    });
-  }, [isSyncingPhoto]);
-
-  // Keep bottom in view while interim text is active
-  useEffect(() => {
-    if (!interimText.trim()) return;
-    if (!bottomAnchorRef.current) return;
-
-    // Instant snap — no animation so no jitter on rapid updates
-    bottomAnchorRef.current.scrollIntoView({ behavior: "instant", block: "end" });
-  }, [interimText]);
+      // Stop re-scrolling on image loads after a generous timeout
+      setTimeout(() => {
+        if (activeScrollHourRef.current === hourKey) {
+          activeScrollHourRef.current = null;
+        }
+      }, 3000);
+    }
+  }, [loadingHour, scrollToEndOfHour]);
 
   // Toggle between collapsed/veryCollapsed and expanded
   const toggleHour = (hourKey: string) => {
-    const { hour24 } = parseHourKey(hourKey);
-    const isLiveHour = currentHour !== undefined && hour24 === currentHour;
     const wasExpanded = expandedHours.has(hourKey);
-    console.log("[TranscriptTab] toggleHour:", { hourKey, hour24, currentHour, isLiveHour, wasExpanded });
 
-    setExpandedHours((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(hourKey)) {
+    if (wasExpanded) {
+      // Collapsing — clear any active scroll tracking
+      activeScrollHourRef.current = null;
+      setExpandedHours((prev) => {
+        const newSet = new Set(prev);
         newSet.delete(hourKey);
-        // Clear stuck header if we're collapsing it
-        if (stuckHeader === hourKey) {
-          setStuckHeader(null);
-        }
-      } else {
+        return newSet;
+      });
+    } else {
+      // Expanding — show spinner first, then render content + scroll
+      setLoadingHour(hourKey);
+      setExpandedHours((prev) => {
+        const newSet = new Set(prev);
         newSet.add(hourKey);
-      }
-      return newSet;
-    });
+        return newSet;
+      });
+      pendingScrollRef.current = hourKey;
 
-    // If expanding any hour, scroll to show the bottom of that hour's content
-    if (!wasExpanded) {
-      setTimeout(() => {
-        const container = scrollContainerRef.current;
-        const header = headerRefs.current.get(hourKey);
-        if (!container || !header) return;
-
-        // Find the hour's parent div (the section containing header + segments)
-        const hourSection = header.closest("[data-hour-section]") as HTMLElement;
-        if (!hourSection) {
-          // Fallback: scroll to bottom (for live hour or if section not found)
-          container.scrollTo({
-            top: container.scrollHeight,
-            behavior: "smooth",
-          });
-          return;
-        }
-
-        // Scroll so the bottom of the hour section is visible
-        const containerRect = container.getBoundingClientRect();
-        const sectionRect = hourSection.getBoundingClientRect();
-        const sectionBottom = sectionRect.bottom - containerRect.top + container.scrollTop;
-        const targetScroll = sectionBottom - containerRect.height;
-
-        // Only scroll down, not up — and only if the bottom isn't already visible
-        if (sectionRect.bottom > containerRect.bottom) {
-          container.scrollTo({
-            top: Math.max(container.scrollTop, targetScroll),
-            behavior: "smooth",
-          });
-        }
-      }, 150);
+      // Brief delay to let the spinner show, then clear loading to render segments
+      requestAnimationFrame(() => {
+        setLoadingHour(null);
+      });
     }
   };
+
+  // Watch the scroll container for any DOM changes and auto-scroll to bottom.
+  // This catches: initial load, new segments, syncing indicator, hour expand — everything.
+  const userHasScrolledRef = useRef(false);
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    // Track if user manually scrolled away from bottom
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const distFromBottom = scrollHeight - scrollTop - clientHeight;
+      userHasScrolledRef.current = distFromBottom > 150;
+    };
+
+    const observer = new MutationObserver(() => {
+      // Don't auto-scroll if user has manually scrolled up
+      if (userHasScrolledRef.current) return;
+      container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
+    });
+
+    observer.observe(container, { childList: true, subtree: true, characterData: true });
+    container.addEventListener("scroll", handleScroll);
+
+    // Initial scroll
+    container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
+
+    return () => {
+      observer.disconnect();
+      container.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
   // Handle generating summary for an hour
   const handleGenerateSummary = async (e: React.MouseEvent, hour: number) => {
@@ -431,7 +366,6 @@ export function TranscriptTab({
           const hourState = getHourState(hourKey);
           const isCollapsed = hourState === "collapsed";
           const isExpanded = hourState === "expanded";
-          const isStuck = stuckHeader === hourKey;
           const isCurrentHour =
             currentHour !== undefined && hour24 === currentHour;
 
@@ -453,11 +387,8 @@ export function TranscriptTab({
                 }}
                 onClick={() => toggleHour(hourKey)}
                 className={clsx(
-                  "w-full flex items-start gap-3 px-4 py-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors text-left",
+                  "w-full flex items-start gap-3 px-4 py-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/30 text-left",
                   isExpanded && "bg-[#f1f1f1] dark:bg-[#2b2d31] sticky top-0 z-10",
-                  isExpanded &&
-                    isStuck &&
-                    "shadow-sm border-b border-zinc-200 dark:border-[#4f545c]",
                 )}
               >
                 {/* Hour Label */}
@@ -566,75 +497,72 @@ export function TranscriptTab({
 
               {/* Expanded Segments */}
               {isExpanded && (
-                <div className="px-4 pb-4 space-y-3 bg-zinc-50/50 dark:bg-[#313338]/20">
-                  {hourSegments.map((segment, idx) => {
-                    const segId = segment.id || `idx-${idx}`;
-                    const isNew = newSegmentIds.has(segId);
-                    return (
-                      <div
-                        key={segId}
-                        className={clsx("flex gap-3", isNew && "animate-segment-in")}
-                      >
-                        {/* Timestamp */}
-                        <span className="text-xs font-mono text-zinc-400 dark:text-zinc-500 w-16 shrink-0 pt-0.5">
-                          {segment.timestamp ? formatTime(segment.timestamp) : ""}
-                        </span>
+                <div className="px-4 pb-4 bg-zinc-50/50 dark:bg-[#313338]/20">
+                  {loadingHour === hourKey ? (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 size={18} className="animate-spin text-zinc-400" />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {hourSegments.map((segment, idx) => {
+                        const segId = segment.id || `idx-${idx}`;
+                        return (
+                          <div
+                            key={segId}
+                            className="flex gap-3"
+                          >
+                            {/* Timestamp */}
+                            <span className="text-xs font-mono text-zinc-400 dark:text-zinc-500 w-16 shrink-0 pt-0.5">
+                              {segment.timestamp ? formatTime(segment.timestamp) : ""}
+                            </span>
 
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          {segment.type === "photo" && segment.photoUrl ? (
-                            <div className="w-full max-w-xs">
-                              <img
-                                src={getPhotoSrc(segment.photoUrl)}
-                                alt="Photo capture"
-                                className="block rounded-lg w-full min-h-24 object-cover border border-zinc-200 dark:border-zinc-700"
-                                loading="lazy"
-                                onLoad={(e) => {
-                                  // Remove min-h once the real dimensions are known
-                                  (e.target as HTMLImageElement).classList.remove("min-h-24");
-                                  const container = scrollContainerRef.current;
-                                  if (container && shouldAutoScroll) {
-                                    container.scrollTo({
-                                      top: container.scrollHeight,
-                                      behavior: "smooth",
-                                    });
-                                  }
-                                }}
-                              />
-                            </div>
-                          ) : (
-                            <>
-                              <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
-                                {segment.text}
-                              </p>
-                              {segment.speakerId && (
-                                <span className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 block">
-                                  Speaker {segment.speakerId}
-                                </span>
+                            {/* Content */}
+                            <div className="flex-1 min-w-0">
+                              {segment.type === "photo" && segment.photoUrl ? (
+                                <div className="w-full max-w-xs">
+                                  <img
+                                    src={getPhotoSrc(segment.photoUrl)}
+                                    alt="Photo capture"
+                                    className="block rounded-lg w-full min-h-24 object-cover border border-zinc-200 dark:border-zinc-700"
+                                    loading="lazy"
+                                    onLoad={(e) => handleImageLoad(e, hourKey)}
+                                  />
+                                </div>
+                              ) : (
+                                <>
+                                  <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                                    {segment.text}
+                                  </p>
+                                  {segment.speakerId && (
+                                    <span className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 block">
+                                      Speaker {segment.speakerId}
+                                    </span>
+                                  )}
+                                </>
                               )}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                            </div>
+                          </div>
+                        );
+                      })}
 
-                  {/* Show interim text at the bottom for current hour - always rendered with transition */}
-                  {isCurrentHour && (
-                    <div
-                      className={clsx(
-                        "flex gap-3 transition-all duration-300 ease-out overflow-hidden",
-                        interimText.trim()
-                          ? "opacity-70 max-h-24"
-                          : "opacity-0 max-h-0",
+                      {/* Show interim text at the bottom for current hour */}
+                      {isCurrentHour && (
+                        <div
+                          className={clsx(
+                            "flex gap-3 transition-all duration-300 ease-out overflow-hidden",
+                            interimText.trim()
+                              ? "opacity-70 max-h-24"
+                              : "opacity-0 max-h-0",
+                          )}
+                        >
+                          <span className="text-xs font-mono text-zinc-400 dark:text-zinc-500 w-16 shrink-0 pt-0.5">
+                            now
+                          </span>
+                          <p className="flex-1 text-sm text-zinc-400 dark:text-zinc-500 font-light italic leading-relaxed">
+                            {interimText || "\u00A0"}
+                          </p>
+                        </div>
                       )}
-                    >
-                      <span className="text-xs font-mono text-zinc-400 dark:text-zinc-500 w-16 shrink-0 pt-0.5">
-                        now
-                      </span>
-                      <p className="flex-1 text-sm text-zinc-400 dark:text-zinc-500 font-light italic leading-relaxed">
-                        {interimText || "\u00A0"}
-                      </p>
                     </div>
                   )}
                 </div>
@@ -651,8 +579,6 @@ export function TranscriptTab({
           </div>
         )}
 
-        {/* Scroll anchor — scrollIntoView target for interim text updates */}
-        <div ref={bottomAnchorRef} />
       </div>
     </div>
   );

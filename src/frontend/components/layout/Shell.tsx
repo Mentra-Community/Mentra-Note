@@ -102,7 +102,7 @@ export function Shell({ children }: ShellProps) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-black relative">
-        <main className={clsx("flex-1 overflow-hidden relative md:pb-0", hideBottomNav ? "pb-0" : "pb-16")}>
+        <main className={clsx("flex-1 min-h-0 overflow-hidden relative md:pb-0", hideBottomNav ? "pb-0" : "pb-16")}>
           {children}
         </main>
       </div>

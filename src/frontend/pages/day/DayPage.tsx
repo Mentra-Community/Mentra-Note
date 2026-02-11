@@ -314,7 +314,7 @@ export function DayPage() {
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === "notes" && (
           <NotesTab notes={dayNotes} dateString={dateString} />
         )}
