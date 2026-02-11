@@ -9,7 +9,7 @@
  * - Auto-scroll for new segments (only when user is near bottom)
  */
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { clsx } from "clsx";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import type {
@@ -113,23 +113,26 @@ export function TranscriptTab({
     });
   };
 
-  // Group segments by hour
-  const groupedSegments: GroupedSegments = segments.reduce((acc, segment) => {
-    if (!segment.timestamp) return acc;
-    const hourKey = getHourKey(segment.timestamp);
-    if (!acc[hourKey]) {
-      acc[hourKey] = [];
-    }
-    acc[hourKey].push(segment);
-    return acc;
-  }, {} as GroupedSegments);
+  // Group segments by hour (memoized to avoid re-computing on every render)
+  const { groupedSegments, sortedHours } = useMemo(() => {
+    const grouped: GroupedSegments = segments.reduce((acc, segment) => {
+      if (!segment.timestamp) return acc;
+      const hourKey = getHourKey(segment.timestamp);
+      if (!acc[hourKey]) {
+        acc[hourKey] = [];
+      }
+      acc[hourKey].push(segment);
+      return acc;
+    }, {} as GroupedSegments);
 
-  // Sort hours chronologically
-  const sortedHours = Object.keys(groupedSegments).sort((a, b) => {
-    const { hour24: hourA } = parseHourKey(a);
-    const { hour24: hourB } = parseHourKey(b);
-    return hourA - hourB;
-  });
+    const sorted = Object.keys(grouped).sort((a, b) => {
+      const { hour24: hourA } = parseHourKey(a);
+      const { hour24: hourB } = parseHourKey(b);
+      return hourA - hourB;
+    });
+
+    return { groupedSegments: grouped, sortedHours: sorted };
+  }, [segments]);
 
   // Get summary for a specific hour
   const getHourSummary = (hour: number): HourSummary | undefined => {
@@ -421,7 +424,7 @@ export function TranscriptTab({
 
   return (
     <div ref={scrollContainerRef} className="h-full overflow-y-auto relative">
-      <div className="py-2">
+      <div className="pb-2">
         {sortedHours.map((hourKey) => {
           const hourSegments = groupedSegments[hourKey];
           const { hour24, label: hourLabel } = parseHourKey(hourKey);
@@ -451,7 +454,7 @@ export function TranscriptTab({
                 onClick={() => toggleHour(hourKey)}
                 className={clsx(
                   "w-full flex items-start gap-3 px-4 py-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors text-left",
-                  isExpanded && "bg-white dark:bg-[#2b2d31] sticky top-0 z-10",
+                  isExpanded && "bg-[#f1f1f1] dark:bg-[#2b2d31] sticky top-0 z-10",
                   isExpanded &&
                     isStuck &&
                     "shadow-sm border-b border-zinc-200 dark:border-[#4f545c]",
@@ -486,7 +489,7 @@ export function TranscriptTab({
                           {banner.title}
                         </p>
                         {banner.body && (
-                          <p className="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-2 mt-0.5">
+                          <p className="text-[10px] text-zinc-500 dark:text-zinc-400 line-clamp-2 mt-0.5">
                             {banner.body}
                           </p>
                         )}
@@ -505,7 +508,7 @@ export function TranscriptTab({
                       </p>
                     )}
 
-                    <div className="flex items-center gap-2 mt-1.5">
+                    {/* <div className="flex items-center gap-2 mt-1.5">
                       <span className="text-xs text-zinc-400 dark:text-zinc-500">
                         {hourSegments.length} segment
                         {hourSegments.length !== 1 ? "s" : ""}
@@ -531,7 +534,7 @@ export function TranscriptTab({
                           )}
                         </span>
                       )}
-                    </div>
+                    </div> */}
                   </div>
                 )}
 
@@ -544,7 +547,7 @@ export function TranscriptTab({
                       </p>
                     )}
                     {banner.body && (
-                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
                         {banner.body}
                       </p>
                     )}

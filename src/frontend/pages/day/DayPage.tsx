@@ -8,7 +8,7 @@
  * - AI: AI chat interface for this day's content
  */
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useTransition } from "react";
 import { useParams, useLocation } from "wouter";
 import { useMentraAuth } from "@mentra/react";
 import { format, parse } from "date-fns";
@@ -68,8 +68,11 @@ export function DayPage() {
 
   // Super collapsed mode from persisted settings
   const isCompactMode = session?.settings?.superCollapsed ?? false;
+  const [, startTransition] = useTransition();
   const setIsCompactMode = (value: boolean) => {
-    session?.settings?.updateSettings({ superCollapsed: value });
+    startTransition(() => {
+      session?.settings?.updateSettings({ superCollapsed: value });
+    });
   };
 
   // Parse the date from URL params
