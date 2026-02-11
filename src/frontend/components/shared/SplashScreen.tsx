@@ -130,7 +130,7 @@ export function SplashScreen({ visible = true }: SplashScreenProps) {
           className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-white"
         >
           {/* Hand-drawn cursive "notes" animation */}
-          <div className="flex flex-col justify-center items-center">
+          <div className="flex flex-col justify-center items-center -mt-[15px]">
             <NotesAnimation />
             <motion.div
               initial={{ opacity: 0 }}
