@@ -50,13 +50,9 @@ export function App() {
 
   // Theme state
   const [theme, setTheme] = useState<"light" | "dark">(() => {
-    // Check for saved preference or system preference
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("theme");
       if (saved === "dark" || saved === "light") return saved;
-      if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        return "dark";
-      }
     }
     return "light";
   });

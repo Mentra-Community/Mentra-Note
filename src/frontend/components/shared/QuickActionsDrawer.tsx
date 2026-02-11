@@ -225,7 +225,7 @@ export function QuickActionsDrawer({
                   </div>
                   <div>
                     <span className="font-medium text-zinc-900 dark:text-white block">
-                      Add Note
+                      Add notes for today
                     </span>
                     <span className="text-sm text-zinc-500 dark:text-zinc-400">
                       Create a new blank note
@@ -246,7 +246,7 @@ export function QuickActionsDrawer({
                   </div>
                   <div>
                     <span className="font-medium text-zinc-900 dark:text-white block">
-                      Generate note from current hour
+                      Generate notes AI for today
                     </span>
                     <span className="text-sm text-zinc-500 dark:text-zinc-400">
                       AI summary from your transcript

@@ -293,14 +293,14 @@ export function DayPage() {
             <button
               onClick={() => setIsCompactMode(!isCompactMode)}
               className={clsx(
-                "ml-auto pb-3 p-1 rounded transition-colors",
+                "ml-auto pb-3 p-1 rounded",
                 isCompactMode
                   ? "text-zinc-900 dark:text-white"
                   : "text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300",
               )}
               title={isCompactMode ? "Show details" : "Compact view"}
             >
-              {isCompactMode ? <ListCollapse size={18} /> : <AlignJustify size={18} />}
+              {isCompactMode ? <ListCollapse size={15} /> : <AlignJustify size={15} />}
             </button>
           )}
         </div>

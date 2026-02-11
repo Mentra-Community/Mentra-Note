@@ -301,6 +301,14 @@ export function TranscriptTab({
   const isLive = currentHour !== undefined;
   const [isScrollLocked, setIsScrollLocked] = useState(true);
   const isScrollLockedRef = useRef(true);
+  const suppressAutoScrollRef = useRef(false);
+
+  // Suppress auto-scroll briefly when compact mode changes to prevent layout shift
+  useEffect(() => {
+    suppressAutoScrollRef.current = true;
+    const timer = setTimeout(() => { suppressAutoScrollRef.current = false; }, 200);
+    return () => clearTimeout(timer);
+  }, [isCompactMode]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -317,9 +325,9 @@ export function TranscriptTab({
       setIsScrollLocked(locked);
     };
 
-    // Auto-scroll on DOM mutations only when locked
+    // Auto-scroll on DOM mutations only when locked and not suppressed
     const observer = new MutationObserver(() => {
-      if (!isScrollLockedRef.current) return;
+      if (!isScrollLockedRef.current || suppressAutoScrollRef.current) return;
       container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
     });
 
