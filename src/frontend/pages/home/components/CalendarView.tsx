@@ -25,7 +25,7 @@ import {
   isToday,
 } from "date-fns";
 import { clsx } from "clsx";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Mic } from "lucide-react";
 import type { DailyFolder } from "./FolderList";
 
 interface CalendarViewProps {
@@ -205,23 +205,25 @@ export function CalendarView({ folders, onSelectDate }: CalendarViewProps) {
           <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-3 px-2">
             Activity this month
           </h3>
-          <div className="space-y-1">
+          <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {currentMonthFolders.slice(0, 5).map((folder) => (
               <button
                 key={folder.id}
                 onClick={() => onSelectDate(folder.dateString)}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
+                className="w-full flex items-center justify-between px-3 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
               >
                 <span className="text-sm text-zinc-700 dark:text-zinc-300">
                   {format(folder.date, "EEEE, MMM d")}
                 </span>
-                <div className="flex items-center gap-2 text-xs text-zinc-400">
+                <div className="flex items-center gap-3 text-xs text-zinc-400">
                   {folder.noteCount > 0 && (
                     <span>
                       {folder.noteCount} note{folder.noteCount !== 1 && "s"}
                     </span>
                   )}
-                  {folder.hasTranscript && <span>🎙️</span>}
+                  {folder.hasTranscript && (
+                    <Mic size={13} className="text-zinc-400 dark:text-zinc-500" />
+                  )}
                 </div>
               </button>
             ))}

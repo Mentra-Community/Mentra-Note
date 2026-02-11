@@ -21,9 +21,10 @@ import { NoteCard } from "../NoteCard";
 interface NotesTabProps {
   notes: Note[];
   dateString: string;
+  isLoading?: boolean;
 }
 
-export function NotesTab({ notes, dateString }: NotesTabProps) {
+export function NotesTab({ notes, dateString, isLoading = false }: NotesTabProps) {
   const { userId } = useMentraAuth();
   const { session } = useSynced<SessionI>(userId || "");
   const [, setLocation] = useLocation();
@@ -290,6 +291,31 @@ export function NotesTab({ notes, dateString }: NotesTabProps) {
       </Drawer.Portal>
     </Drawer.Root>
   );
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="p-4 pt-6">
+          <div className="grid grid-cols-2 gap-2.5">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl space-y-3"
+              >
+                <div className="h-4 w-3/4 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
+                <div className="space-y-2">
+                  <div className="h-3 w-full bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
+                  <div className="h-3 w-5/6 bg-zinc-100 dark:bg-zinc-800/60 rounded animate-pulse" />
+                </div>
+                <div className="h-3 w-1/3 bg-zinc-100 dark:bg-zinc-800/60 rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Empty state
   if (notes.length === 0) {

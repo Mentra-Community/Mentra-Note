@@ -18,6 +18,7 @@ import type { SessionI, ChatMessage } from "../../../../../shared/types";
 
 interface AITabProps {
   date: Date;
+  isLoading?: boolean;
 }
 
 const SUGGESTIONS = [
@@ -27,7 +28,7 @@ const SUGGESTIONS = [
   "Any deadlines mentioned?",
 ];
 
-export function AITab({ date }: AITabProps) {
+export function AITab({ date, isLoading = false }: AITabProps) {
   const { userId } = useMentraAuth();
   const { session, isConnected } = useSynced<SessionI>(userId || "");
 
@@ -99,6 +100,32 @@ export function AITab({ date }: AITabProps) {
       hour12: true,
     });
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full bg-white dark:bg-black">
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+          {/* AI avatar + welcome skeleton */}
+          <div className="flex gap-3 items-start">
+            <div className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-900 animate-pulse shrink-0" />
+            <div className="space-y-2 flex-1">
+              <div className="h-4 w-3/4 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
+              <div className="h-4 w-1/2 bg-zinc-100 dark:bg-zinc-800/60 rounded animate-pulse" />
+            </div>
+          </div>
+          {/* Suggestion skeletons */}
+          <div className="space-y-2 mt-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-12 w-full bg-zinc-100 dark:bg-zinc-900 rounded-xl animate-pulse"
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-black relative">

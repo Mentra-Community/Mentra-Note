@@ -13,6 +13,7 @@ import { useParams, useLocation } from "wouter";
 import { useMentraAuth } from "@mentra/react";
 import { format, parse } from "date-fns";
 import { clsx } from "clsx";
+import { AnimatePresence, motion } from "motion/react";
 import {
   ChevronLeft,
   Star,
@@ -99,6 +100,9 @@ export function DayPage() {
   const isSyncingPhoto = session?.transcript?.isSyncingPhoto ?? false;
   const loadedDate = session?.transcript?.loadedDate ?? "";
   const files = session?.file?.files ?? [];
+
+  // Data is loading when the transcript hasn't loaded for this date yet
+  const isDataLoading = loadedDate !== dateString;
 
   // Find the file for this date to get favourite status
   const currentFile = useMemo(() => {
@@ -283,7 +287,11 @@ export function DayPage() {
             >
               {tab.label}
               {activeTab === tab.id && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-900 dark:bg-white rounded-full" />
+                <motion.div
+                  layoutId="tab-underline"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-900 dark:bg-white rounded-full"
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
+                />
               )}
             </button>
           ))}
@@ -314,24 +322,36 @@ export function DayPage() {
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {activeTab === "notes" && (
-          <NotesTab notes={dayNotes} dateString={dateString} />
-        )}
-        {activeTab === "transcript" && (
-          <TranscriptTab
-            segments={daySegments}
-            hourSummaries={hourSummaries}
-            interimText={interimText}
-            currentHour={isToday ? currentHour : undefined}
-            dateString={dateString}
-            onGenerateSummary={session?.transcript?.generateHourSummary}
-            isCompactMode={isCompactMode}
-            isSyncingPhoto={isToday ? isSyncingPhoto : false}
-          />
-        )}
-        {/* {activeTab === "audio" && <AudioTab />} */}
-        {activeTab === "ai" && <AITab date={date} />}
+      <div className="flex-1 min-h-0 overflow-hidden relative">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.08, ease: "easeInOut" }}
+            className="h-full"
+          >
+            {activeTab === "notes" && (
+              <NotesTab notes={dayNotes} dateString={dateString} isLoading={isDataLoading} />
+            )}
+            {activeTab === "transcript" && (
+              <TranscriptTab
+                segments={daySegments}
+                hourSummaries={hourSummaries}
+                interimText={interimText}
+                currentHour={isToday ? currentHour : undefined}
+                dateString={dateString}
+                onGenerateSummary={session?.transcript?.generateHourSummary}
+                isCompactMode={isCompactMode}
+                isSyncingPhoto={isToday ? isSyncingPhoto : false}
+                isLoading={isDataLoading}
+              />
+            )}
+            {/* {activeTab === "audio" && <AudioTab />} */}
+            {activeTab === "ai" && <AITab date={date} isLoading={isDataLoading} />}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );

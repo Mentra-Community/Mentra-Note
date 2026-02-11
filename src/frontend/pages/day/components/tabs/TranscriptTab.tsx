@@ -26,6 +26,7 @@ interface TranscriptTabProps {
   onGenerateSummary?: (hour: number) => Promise<HourSummary>;
   isCompactMode?: boolean; // When true, all hours show in minimal/compact view
   isSyncingPhoto?: boolean; // When true, a photo is being uploaded/analyzed
+  isLoading?: boolean; // When true, show skeleton loading state
 }
 
 interface GroupedSegments {
@@ -55,6 +56,7 @@ export function TranscriptTab({
   onGenerateSummary,
   isCompactMode = false,
   isSyncingPhoto = false,
+  isLoading = false,
 }: TranscriptTabProps) {
   // Track expanded state for each hour (only used when not in compact mode)
   const [expandedHours, setExpandedHours] = useState<Set<string>>(new Set());
@@ -367,6 +369,29 @@ export function TranscriptTab({
       setGeneratingHour(null);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="pb-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="border-b border-zinc-100 dark:border-[#3f4147] last:border-0">
+              <div className="flex items-start gap-3 px-4 py-4">
+                <div className="flex items-center gap-2 shrink-0 w-20">
+                  <div className="h-5 w-14 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
+                </div>
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="h-4 w-3/4 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
+                  <div className="h-3 w-1/2 bg-zinc-100 dark:bg-zinc-800/60 rounded animate-pulse" />
+                </div>
+                <div className="h-4 w-4 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse shrink-0 ml-auto" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (segments.length === 0) {
     return (
