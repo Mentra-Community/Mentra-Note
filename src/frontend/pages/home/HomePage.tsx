@@ -220,29 +220,6 @@ export function HomePage() {
                 <Calendar size={20} strokeWidth={1.5} />
               </button>
 
-              <button
-                onClick={handleGlobalChat}
-                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
-              >
-                <motion.div
-                  animate={{
-                    filter: [
-                      "drop-shadow(0px 0px 0px rgba(34, 197, 94, 0))",
-                      "drop-shadow(0px 0px 6px rgba(34, 197, 94, 0.6))",
-                      "drop-shadow(0px 0px 0px rgba(34, 197, 94, 0))",
-                    ],
-                    color: ["#71717a", "#22c55e", "#71717a"],
-                  }}
-                  transition={{
-                    repeat: Infinity,
-                    duration: 4,
-                    ease: "easeInOut",
-                  }}
-                  className="text-current"
-                >
-                  <Sparkles size={20} strokeWidth={1.5} />
-                </motion.div>
-              </button>
             </div>
           </div>
         </div>
@@ -342,7 +319,7 @@ export function HomePage() {
             >
               <Calendar size={20} strokeWidth={1.5} />
             </button>
-
+{/* 
             <button
               onClick={handleGlobalChat}
               className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
@@ -365,7 +342,7 @@ export function HomePage() {
               >
                 <Sparkles size={20} strokeWidth={1.5} />
               </motion.div>
-            </button>
+            </button> */}
           </div>
         </div>
       </div>

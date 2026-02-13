@@ -52,8 +52,8 @@ interface TabConfig {
 }
 
 const tabs: TabConfig[] = [
-  { id: "notes", label: "Notes", icon: FileText },
   { id: "transcript", label: "Transcript", icon: MessageSquare },
+  { id: "notes", label: "Notes", icon: FileText },
   // { id: "audio", label: "Audio", icon: Headphones }, // TODO: Enable when audio feature is implemented
   { id: "ai", label: "AI", icon: Sparkles },
 ];
@@ -64,7 +64,7 @@ export function DayPage() {
   const { userId } = useMentraAuth();
   const { session, isConnected } = useSynced<SessionI>(userId || "");
 
-  const [activeTab, setActiveTab] = useState<TabType>("notes");
+  const [activeTab, setActiveTab] = useState<TabType>("transcript");
   const lastLoadedDateRef = useRef<string | null>(null);
 
   // Super collapsed mode from persisted settings
