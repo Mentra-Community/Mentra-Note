@@ -132,25 +132,69 @@ export function SkeletonLoader({
 // =============================================================================
 
 /**
- * HomePage Skeleton - folder list loading state
+ * Reusable page header skeleton matching the Mentra Notes kicker + title pattern
+ */
+function PageHeaderSkeleton({
+  showSubtitle = false,
+  rightSlots = 0,
+}: {
+  showSubtitle?: boolean;
+  rightSlots?: number;
+}) {
+  return (
+    <div className="shrink-0 px-6 pt-2 pb-4 bg-white dark:bg-zinc-950">
+      <div className="flex items-end justify-between gap-3">
+        <div className="space-y-2 flex-1 min-w-0">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-9 w-44" />
+          {showSubtitle && <Skeleton className="h-4 w-36" />}
+        </div>
+        {/* {rightSlots > 0 && (
+          <div className="flex items-center gap-2">
+            {Array.from({ length: rightSlots }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-9 rounded-lg" />
+            ))}
+          </div>
+        )} */}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * HomePage Skeleton — kicker + "Transcripts" + status bar + date list
  */
 export function HomePageSkeleton() {
   return (
-    <div className="flex h-full flex-col bg-zinc-50 dark:bg-black overflow-hidden">
-      {/* Header skeleton */}
-      <div className="px-6 pt-4 pb-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-7 w-24" />
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-10 w-10 rounded-lg" />
-            <Skeleton className="h-10 w-10 rounded-lg" />
-          </div>
+    <div className="flex h-full flex-col bg-white dark:bg-black overflow-hidden">
+      <PageHeaderSkeleton showSubtitle rightSlots={2} />
+
+      {/* Transcription status bar */}
+      <div className="px-6 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-2 w-2 rounded-full" />
+          <Skeleton className="h-4 w-24" />
         </div>
+        <Skeleton className="h-8 w-20 rounded-full" />
       </div>
 
-      {/* Folder list skeleton */}
-      <div className="flex-1 overflow-hidden bg-white dark:bg-zinc-950">
-        <FolderListSkeleton count={6} />
+      {/* Date list */}
+      <div className="flex-1 overflow-hidden pb-32">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center justify-between gap-3"
+          >
+            <div className="flex-1 min-w-0 space-y-2">
+              <Skeleton className="h-5 w-28" />
+              <Skeleton className="h-3 w-40" />
+            </div>
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-6 w-12 rounded-full" />
+              <Skeleton className="h-4 w-4" />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -193,10 +237,10 @@ export function DayPageSkeleton() {
       <div className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <Skeleton className="h-10 w-10 rounded-lg" />
-          <Skeleton className="h-6 w-36" />
-          <div className="flex items-center gap-1">
-            <Skeleton className="h-10 w-10 rounded-lg" />
-            <Skeleton className="h-10 w-10 rounded-lg" />
+          <div className="h-6 w-36" />
+          <div className="flex items-center gap-1 mt4">
+            <div className="h-10 w-10 rounded-lg" />
+            <div className="h-10 w-10 rounded-lg" />
           </div>
         </div>
         {/* Tabs skeleton */}
@@ -274,28 +318,44 @@ export function TranscriptTabSkeleton({ count = 4 }: { count?: number }) {
 }
 
 /**
- * Note Editor Skeleton - for NotePage
+ * NotePage Skeleton — back chevron + "Note", title row with actions, body
  */
 export function NotePageSkeleton() {
   return (
     <div className="h-full flex flex-col bg-white dark:bg-black">
-      {/* Header skeleton */}
-      <div className="shrink-0 flex items-center justify-between px-2 py-2 border-b border-zinc-100 dark:border-zinc-900">
-        <Skeleton className="h-10 w-10 rounded-lg" />
-        <Skeleton className="h-5 w-16" />
+      {/* Header */}
+      <div className="shrink-0 flex items-center justify-between px-3 py-3">
+        <div className="h-9 w-9" />
+        <div className="h-4 w-10" />
+
+        <div className="w-9" />
       </div>
 
-      {/* Content skeleton */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {/* Title */}
-        <Skeleton className="h-8 w-2/3" />
-        {/* Content */}
-        <div className="space-y-3">
-          <Skeleton className="h-5 w-full" />
-          <Skeleton className="h-5 w-full" />
-          <Skeleton className="h-5 w-4/5" />
-          <Skeleton className="h-5 w-full" />
-          <Skeleton className="h-5 w-3/4" />
+      <div className="flex-1 overflow-y-auto px-6 pb-32 space-y-4">
+        {/* Title + action icons */}
+        <div className="flex items-start justify-between gap-3 pt-2">
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-8 w-5/6" />
+            <Skeleton className="h-8 w-3/4" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-8 rounded-lg" />
+            <Skeleton className="h-8 w-8 rounded-lg" />
+          </div>
+        </div>
+
+        {/* Timestamp */}
+        <Skeleton className="h-3 w-44" />
+
+        {/* Body */}
+        <div className="space-y-3 pt-4">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-11/12" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-4/5" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/4" />
         </div>
       </div>
     </div>
@@ -303,24 +363,320 @@ export function NotePageSkeleton() {
 }
 
 /**
- * Settings Page Skeleton
+ * SettingsPage Skeleton — back button + Settings title + profile + action rows
  */
 export function SettingsPageSkeleton() {
   return (
     <div className="h-full flex flex-col bg-white dark:bg-black">
-      {/* Header skeleton */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-4 border-b border-zinc-200 dark:border-zinc-800">
-        <Skeleton className="h-10 w-10 rounded-lg" />
-        <Skeleton className="h-6 w-20" />
-        <div className="w-10" />
+      {/* Header */}
+
+      <div className="flex-1 overflow-y-auto px-6 pb-32 space-y-6">
+        {/* Profile row */}
+        <div className="flex items-center gap-3 pt-2">
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-3 w-28" />
+          </div>
+        </div>
+
+        {/* Export row */}
+        <div className="flex items-center justify-between gap-3 py-3">
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-3 w-52" />
+          </div>
+          <Skeleton className="h-4 w-4" />
+        </div>
+
+        {/* Delete row */}
+        <div className="flex items-center justify-between gap-3 py-3">
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="h-3 w-48" />
+          </div>
+          <Skeleton className="h-4 w-4" />
+        </div>
+
+        {/* Timezone card */}
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900">
+          <Skeleton className="h-6 w-6 rounded-md" />
+          <Skeleton className="h-4 w-24" />
+          <div className="flex-1" />
+          <Skeleton className="h-6 w-20 rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * TranscriptPage Skeleton — back, title + time range, dropdown + delete, hour groups
+ */
+export function TranscriptPageSkeleton() {
+  return (
+    <div className="h-full flex flex-col bg-white dark:bg-black">
+      <div className="shrink-0 flex items-center justify-between px-6 py-3">
+        <Skeleton className="h-9 w-9 rounded-lg" />
+        
+
       </div>
 
-      {/* Content skeleton */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="space-y-3">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-12 w-full rounded-xl" />
+      <div className="flex-1 overflow-y-auto px-6 pb-32">
+        <TranscriptTabSkeleton count={3} />
+      </div>
+
+      {/* Bottom recording bar */}
+      <div className="shrink-0 flex items-center justify-between px-6 py-3 border-t border-zinc-100 dark:border-zinc-800/50">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-2 w-2 rounded-full" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+        <Skeleton className="h-10 w-32 rounded-full" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * ConversationDetailPage Skeleton — header, summary, transcript preview
+ */
+export function ConversationDetailPageSkeleton() {
+  return (
+    <div className="h-full flex flex-col bg-white dark:bg-black">
+      <div className="shrink-0 flex items-center justify-between px-3 py-3">
+        <Skeleton className="h-9 w-9 rounded-lg" />
+        <div className="flex-1 flex flex-col items-center gap-1">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-3 w-32" />
+        </div>
+        <div className="flex items-center gap-1">
+          <Skeleton className="h-9 w-9 rounded-lg" />
+          <Skeleton className="h-9 w-9 rounded-lg" />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 pb-32 space-y-6 pt-2">
+        {/* Summary section */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-5 w-10 rounded-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+          <Skeleton className="h-11 w-full rounded-xl" />
+        </div>
+
+        {/* Transcript section */}
+        <div className="space-y-4">
+          <Skeleton className="h-3 w-24" />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-start gap-3">
+              <Skeleton className="h-6 w-6 rounded-full shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Reusable NoteRow skeleton — used by NotesPage, FolderPage, etc.
+ */
+function NoteRowSkeleton() {
+  return (
+    <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800/50 flex items-start gap-3">
+      <Skeleton className="h-5 w-10 rounded-full mt-1" />
+      <div className="flex-1 min-w-0 space-y-2">
+        <Skeleton className="h-5 w-4/5" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-3 w-24" />
+      </div>
+      <Skeleton className="h-4 w-4 mt-2" />
+    </div>
+  );
+}
+
+/**
+ * NotesPage Skeleton — kicker + "Notes", day-grouped note rows
+ */
+export function NotesPageSkeleton() {
+  return (
+    <div className="h-full flex flex-col bg-white dark:bg-black overflow-hidden">
+      <PageHeaderSkeleton rightSlots={2} />
+
+      <div className="flex-1 overflow-hidden pb-32">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i}>
+            <div className="px-6 pt-4 pb-2">
+              <Skeleton className="h-4 w-16" />
+            </div>
+            {Array.from({ length: 2 }).map((_, j) => (
+              <NoteRowSkeleton key={j} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * FolderPage Skeleton — back, folder icon + name + count, note list
+ */
+export function FolderPageSkeleton() {
+  return (
+    <div className="h-full flex flex-col bg-white dark:bg-black overflow-hidden">
+      <div className="shrink-0 flex items-center justify-between px-3 py-3">
+        <Skeleton className="h-9 w-9 rounded-lg" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-6 w-6 rounded-md" />
+          <Skeleton className="h-5 w-28" />
+        </div>
+        <Skeleton className="h-9 w-9 rounded-lg" />
+      </div>
+
+      <div className="px-6 pt-2 pb-3">
+        <Skeleton className="h-3 w-20" />
+      </div>
+
+      <div className="flex-1 overflow-hidden pb-32">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <NoteRowSkeleton key={i} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * CollectionsPage Skeleton — kicker + "Notes" + "Collections" sub, toggles,
+ * filter pills, system rows, folder grid
+ */
+export function CollectionsPageSkeleton() {
+  return (
+    <div className="h-full flex flex-col bg-white dark:bg-black overflow-hidden">
+      <div className="shrink-0 px-6 pt-6 pb-4">
+        <div className="flex items-end justify-between gap-3">
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="h-9 w-32" />
+            <Skeleton className="h-4 w-28" />
+          </div>
+          <div className="flex items-center gap-1">
+            <Skeleton className="h-9 w-9 rounded-lg" />
+            <Skeleton className="h-9 w-9 rounded-lg" />
+          </div>
+        </div>
+      </div>
+
+      {/* Filter pills */}
+      <div className="px-6 flex items-center gap-2 pb-4">
+        <Skeleton className="h-8 w-14 rounded-full" />
+        <Skeleton className="h-8 w-20 rounded-full" />
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 pb-32 space-y-6">
+        {/* System collections */}
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between gap-3 py-3"
+            >
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <Skeleton className="h-5 w-24" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-5 w-8 rounded-full" />
+                <Skeleton className="h-4 w-4" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Folder grid */}
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+            >
+              <Skeleton className="h-2 w-full rounded-none" />
+              <div className="p-3 space-y-2">
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+            </div>
+          ))}
+          <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 p-3 flex items-center justify-center">
+            <Skeleton className="h-5 w-24" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * SearchPage Skeleton — kicker + "Search", search input, results
+ */
+export function SearchPageSkeleton() {
+  return (
+    <div className="h-full flex flex-col bg-white dark:bg-black overflow-hidden">
+      <PageHeaderSkeleton />
+
+      {/* Search bar */}
+      <div className="px-6 pb-3">
+        <Skeleton className="h-11 w-full rounded-xl" />
+      </div>
+
+      {/* Result count */}
+      <div className="px-6 pb-2">
+        <Skeleton className="h-3 w-20" />
+      </div>
+
+      <div className="flex-1 overflow-y-auto pb-32">
+        {/* Notes results */}
+        <div className="px-6 pt-3 pb-1">
+          <Skeleton className="h-3 w-12" />
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div
+            key={i}
+            className="px-6 py-3 border-b border-zinc-100 dark:border-zinc-800/50 space-y-2"
+          >
+            <Skeleton className="h-5 w-3/4" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-3 w-20" />
+          </div>
+        ))}
+
+        {/* Transcript results */}
+        <div className="px-6 pt-5 pb-1">
+          <Skeleton className="h-3 w-20" />
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div
+            key={i}
+            className="px-6 py-3 border-b border-zinc-100 dark:border-zinc-800/50 flex items-start gap-3"
+          >
+            <Skeleton className="h-5 w-5 rounded-full mt-0.5 shrink-0" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+            </div>
           </div>
         ))}
       </div>

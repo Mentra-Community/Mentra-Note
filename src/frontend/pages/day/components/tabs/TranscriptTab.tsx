@@ -92,6 +92,8 @@ interface TranscriptTabProps {
   targetHour?: number;
   /** Segment id (`${date}-${segIndex}`) to expand + scroll + yellow-flash (from #seg-<id>) */
   targetSegId?: string;
+  /** Fired once after the deep-link target (hour or segment) has been scrolled into view. */
+  onDeepLinkScrolled?: () => void;
 }
 
 interface GroupedSegments {
@@ -135,6 +137,7 @@ export function TranscriptTab({
   isLoading = false,
   targetHour,
   targetSegId,
+  onDeepLinkScrolled,
 }: TranscriptTabProps) {
   // Track expanded state for each hour (only used when not in compact mode)
   const [expandedHours, setExpandedHours] = useState<Set<string>>(new Set());
@@ -255,6 +258,21 @@ export function TranscriptTab({
     return hourSummaries.find((s) => s.date === dateString && s.hour === hour);
   };
 
+  // Strip raw markdown artifacts the LLM sometimes leaks into summary text:
+  // leading "## "/"# ", surrounding bold/italic markers, leading "Title:" prefix,
+  // and stray underscores. Conservative — only touches obvious markdown syntax.
+  const stripMarkdown = (s: string): string => {
+    return s
+      .replace(/^\s*#{1,6}\s+/, "")            // leading "# ", "## ", etc.
+      .replace(/^\s*(?:title|summary)\s*:\s*/i, "") // leading "Title:" / "Summary:"
+      .replace(/\*\*([^*]+)\*\*/g, "$1")        // **bold** → bold
+      .replace(/__([^_]+)__/g, "$1")            // __bold__ → bold
+      .replace(/(^|\s)\*([^*\s][^*]*?)\*(\s|$|[.,!?;:])/g, "$1$2$3") // *italic* → italic
+      .replace(/(^|\s)_([^_\s][^_]*?)_(\s|$|[.,!?;:])/g, "$1$2$3")   // _italic_ → italic
+      .replace(/^\s*[-*+]\s+/, "")              // leading bullet "- " / "* "
+      .trim();
+  };
+
   /**
    * Parse summary into title and body (split by newline)
    */
@@ -268,13 +286,13 @@ export function TranscriptTab({
 
     if (lines.length === 1) {
       // Single line - treat as title only
-      return { title: lines[0].trim(), body: "" };
+      return { title: stripMarkdown(lines[0]), body: "" };
     }
 
     // First line is title, rest is body
     return {
-      title: lines[0].trim(),
-      body: lines.slice(1).join(" ").trim(),
+      title: stripMarkdown(lines[0]),
+      body: stripMarkdown(lines.slice(1).join(" ")),
     };
   };
 
@@ -321,63 +339,11 @@ export function TranscriptTab({
   };
 
 
-  // Tracks which hour we last expanded — images loading in this section will re-trigger scroll
-  const activeScrollHourRef = useRef<string | null>(null);
-
-  // Scroll so the last segment of a given hour section is at the bottom of the viewport
-  const scrollToEndOfHour = useCallback((hourKey: string) => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const section = container.querySelector(`[data-hour-section="${hourKey}"]`) as HTMLElement;
-    if (!section) return;
-
-    const containerRect = container.getBoundingClientRect();
-    const sectionRect = section.getBoundingClientRect();
-    const sectionBottom = sectionRect.bottom - containerRect.top + container.scrollTop;
-    const targetScroll = sectionBottom - containerRect.height;
-
-    container.scrollTo({
-      top: Math.max(0, targetScroll),
-      behavior: "instant",
-    });
-  }, []);
-
   // Called when any image inside an expanded section finishes loading
-  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>, hourKey: string) => {
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     (e.target as HTMLImageElement).classList.remove("min-h-24");
-    // If this image belongs to the hour we just scrolled to, re-scroll to end of that hour
-    if (activeScrollHourRef.current === hourKey) {
-      scrollToEndOfHour(hourKey);
-    }
-    // Also scroll to absolute bottom so newly loaded photos are always visible
-    const container = scrollContainerRef.current;
-    if (container) {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      // Only if user was already near the bottom (within 300px)
-      if (scrollHeight - scrollTop - clientHeight < 300) {
-        container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
-      }
-    }
-  }, [scrollToEndOfHour]);
-
-  // Called when content mounts after spinner — immediately scroll to bottom of that hour
-  const handleContentReady = useCallback((hourKey: string) => {
-    // Stop the pin loop now that content is laid out
-    pinningHourRef.current = null;
-
-    activeScrollHourRef.current = hourKey;
-    // Use rAF to ensure DOM has painted the content before measuring
-    requestAnimationFrame(() => {
-      scrollToEndOfHour(hourKey);
-      // Stop re-scrolling on image loads after a generous timeout
-      setTimeout(() => {
-        if (activeScrollHourRef.current === hourKey) {
-          activeScrollHourRef.current = null;
-        }
-      }, 3000);
-    });
-  }, [scrollToEndOfHour]);
+    // No auto-scroll on image load — let images settle in place.
+  }, []);
 
   // Scroll a header to the top of the scroll container
   const scrollHeaderToTop = useCallback((hourKey: string, behavior: ScrollBehavior = "smooth") => {
@@ -394,6 +360,17 @@ export function TranscriptTab({
       behavior,
     });
   }, []);
+
+  // Called when content mounts after spinner — keep the header pinned at the top
+  // so the user lands at the beginning of the hour they just expanded.
+  const handleContentReady = useCallback((hourKey: string) => {
+    // Stop the pin loop now that content is laid out
+    pinningHourRef.current = null;
+    // Use rAF to ensure DOM has painted the content before measuring
+    requestAnimationFrame(() => {
+      scrollHeaderToTop(hourKey, "instant");
+    });
+  }, [scrollHeaderToTop]);
 
   // rAF loop that continuously pins a header to the top during content animation
   const pinningHourRef = useRef<string | null>(null);
@@ -414,9 +391,8 @@ export function TranscriptTab({
     const wasExpanded = expandedHours.has(hourKey);
 
     if (wasExpanded) {
-      // Collapsing — clear all tracking: pin loop, auto-scroll suppression, active scroll
+      // Collapsing — clear pin loop
       pinningHourRef.current = null;
-      activeScrollHourRef.current = null;
         setLoadingHours((prev) => {
         const newSet = new Set(prev);
         newSet.delete(hourKey);
@@ -479,16 +455,43 @@ export function TranscriptTab({
   const isLive = currentHour !== undefined;
   const [showScrollButton, setShowScrollButton] = useState(false);
   const lockedRef = useRef(true);
-  // Initial scroll to bottom on first load only
+  // Initial mount behavior — only for today's live transcript:
+  //   1. auto-expand the current hour so the live section is open
+  //   2. scroll to bottom so the latest segment is visible
+  // Past days mount collapsed with scroll at the top.
   const initialScrollDone = useRef(false);
   useEffect(() => {
     if (isLoading || initialScrollDone.current) return;
+    if (currentHour === undefined) {
+      initialScrollDone.current = true;
+      lockedRef.current = false;
+      return;
+    }
     const container = scrollContainerRef.current;
     if (!container) return;
     initialScrollDone.current = true;
     lockedRef.current = true;
-    container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
-  }, [isLoading]);
+    const currentHourKey = createHourKey(currentHour);
+    setExpandedHours((prev) => {
+      if (prev.has(currentHourKey)) return prev;
+      const next = new Set(prev);
+      next.add(currentHourKey);
+      return next;
+    });
+    // Snap to bottom across multiple frames + a short tail timeout. The expanded
+    // content can take a few paint cycles to fully lay out (images, summary
+    // banners, etc.), so a single rAF often measures the pre-expansion height.
+    const snap = () => {
+      container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
+    };
+    requestAnimationFrame(() => {
+      snap();
+      requestAnimationFrame(() => {
+        snap();
+        setTimeout(snap, 200);
+      });
+    });
+  }, [isLoading, currentHour]);
 
   // Reset initial scroll flag when date changes
   useEffect(() => {
@@ -520,11 +523,12 @@ export function TranscriptTab({
       next.add(hourKey);
       return next;
     });
-    // Give React a frame to mount the expanded content, then scroll
+    // Give React a frame to mount the expanded content, then jump instantly
     requestAnimationFrame(() => {
-      scrollHeaderToTop(hourKey, "smooth");
+      scrollHeaderToTop(hourKey, "instant");
+      onDeepLinkScrolled?.();
     });
-  }, [targetHour, dateString, isLoading, scrollHeaderToTop]);
+  }, [targetHour, dateString, isLoading, scrollHeaderToTop, onDeepLinkScrolled]);
 
   // Deep-link: when `targetSegId` is provided (e.g. /transcript/{date}#seg-<id>),
   // find that segment, expand its hour, scroll it into view, and briefly
@@ -732,13 +736,8 @@ export function TranscriptTab({
           `[TranscriptTab] Flashing DOM node: data-seg-id=${el.getAttribute("data-seg-id")} rect.top=${el.getBoundingClientRect().top}`,
         );
 
-        // Use scrollIntoView — the native API re-measures layout on each call
-        // and handles mid-animation cases better than a manual scrollTo with a
-        // precomputed offset. The hour-expand animation is typically still
-        // running when we get here; scrollIntoView with block:"center" puts
-        // the segment in the middle of the viewport, survives re-layout, and
-        // is the most reliable cross-browser behavior.
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        // Jump directly to the segment — instant, no scroll animation.
+        el.scrollIntoView({ behavior: "instant", block: "center" });
 
         // Flash after a beat so the scroll animation doesn't fight the class
         // change. Color stays for 1.5s, then fades via the SegmentRow's
@@ -752,15 +751,13 @@ export function TranscriptTab({
           }, 6000);
         }, 400);
 
-        // Re-scroll once the layout likely settled (hour expand animations
-        // typically run ~300-500ms). Without this, the smooth scroll started
-        // above can land at the wrong position because the segment's real
-        // final y changes as sibling hours expand/collapse.
+        // Re-snap once layout settles (hour-expand animations typically run
+        // ~300–500ms and the segment's final y can shift as siblings settle).
         setTimeout(() => {
           if (cancelled) return;
-          // Confirm the element is still in the DOM before re-scrolling
           if (!document.body.contains(flashEl)) return;
-          flashEl.scrollIntoView({ behavior: "smooth", block: "center" });
+          flashEl.scrollIntoView({ behavior: "instant", block: "center" });
+          onDeepLinkScrolled?.();
         }, 700);
       };
       requestAnimationFrame(() => attemptFlash(30));
@@ -791,7 +788,10 @@ export function TranscriptTab({
     };
   }, [targetSegId, dateString, isLoading]);
 
+  // Live-follow: only today's transcript auto-scrolls to the latest segment
+  // and shows the "scroll to bottom" button. Past days are always user-driven.
   useEffect(() => {
+    if (currentHour === undefined) return;
     const container = scrollContainerRef.current;
     if (!container) return;
 
@@ -827,7 +827,7 @@ export function TranscriptTab({
       container.removeEventListener("scroll", handleScroll);
       observer.disconnect();
     };
-  }, [isLoading]);
+  }, [isLoading, currentHour]);
 
   const scrollToBottom = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -1079,7 +1079,7 @@ export function TranscriptTab({
                               segId={toSegId(dateString, segment.id)}
                               formatTime={formatTime}
                               getPhotoSrc={getPhotoSrc}
-                              onImageLoad={(e) => handleImageLoad(e, hourKey)}
+                              onImageLoad={handleImageLoad}
                               isLive={isLiveSegment}
                             />
                           );

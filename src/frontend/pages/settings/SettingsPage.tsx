@@ -11,6 +11,7 @@ import type { SessionI } from "../../../shared/types";
 import { SettingsPageSkeleton } from "../../components/shared/SkeletonLoader";
 import { BottomDrawer } from "../../components/shared/BottomDrawer";
 import { toast } from "../../components/shared/toast";
+import { ChevronRightIcon, ClockIcon, CheckIcon } from "../../components/shared/custom-icons";
 
 export function SettingsPage() {
   const { userId } = useMentraAuth();
@@ -98,9 +99,7 @@ export function SettingsPage() {
                   Download transcripts and notes as a ZIP file
                 </span>
               </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C5C0B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
+              <ChevronRightIcon stroke="#C5C0B8" />
             </button>
 
             <button
@@ -123,21 +122,7 @@ export function SettingsPage() {
           {savedTimezone && (
             <div className="pt-6 select-none">
               <div className="flex items-start gap-3 rounded-[14px] bg-[#F5F3F0] border border-[#ECE8E2] px-4 py-3.5">
-                <svg
-                  aria-hidden
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#B0AAA2"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="shrink-0 mt-px"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 15 14" />
-                </svg>
+                <ClockIcon aria-hidden className="shrink-0 mt-px" />
                 <div className="flex flex-col gap-1.5 min-w-0">
                   <p className="text-[12px] leading-4 text-[#6B655D] font-red-hat">
                     Days and times are shown in your local timezone.
@@ -407,9 +392,7 @@ function DeleteAllDialog({
           }`}
         >
           {confirmed && (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-              <polyline points="6,12 10,16 18,8" stroke="#FAFAF9" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <CheckIcon size={12} stroke="#FAFAF9" strokeWidth={3} />
           )}
         </div>
         <span className="text-[14px] leading-5 text-[#1C1917] font-red-hat">

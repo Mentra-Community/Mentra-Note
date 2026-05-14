@@ -27,6 +27,17 @@ import { EmailDrawer } from "../../components/shared/EmailDrawer";
 import { toast } from "../../components/shared/toast";
 import { ExportDrawer, type ExportOptions } from "../../components/shared/ExportDrawer";
 import { useTabBar } from "../../components/layout/Shell";
+import {
+  BackChevronIcon,
+  ExportIcon,
+  TrashIcon,
+  ConversationIcon,
+  BoldIcon,
+  ItalicIcon,
+  HeadingIcon,
+  BulletListIcon,
+  LinkIcon,
+} from "../../components/shared/custom-icons";
 import { isDevelopmentMode } from "../../lib/devMode";
 import { rewriteR2Urls } from "../../../shared/constants";
 
@@ -396,9 +407,7 @@ export function NotePage() {
       {/* Header bar — back chevron + "Note" label */}
       <div className="flex items-center justify-between py-3 px-6 shrink-0">
         <button onClick={handleBack} className="flex items-center gap-2">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
+          <BackChevronIcon />
           <span className="text-[18px] leading-[22px] text-[#1A1A1A] font-red-hat font-bold">
             Note
           </span>
@@ -442,17 +451,10 @@ export function NotePage() {
             />
             <div className="flex gap-3 w-fit shrink-0 pt-1">
               <button onClick={() => setShowExportDrawer(true)} aria-label="Export note">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B655D" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                  <polyline points="16 6 12 2 8 6" />
-                  <line x1="12" y1="2" x2="12" y2="15" />
-                </svg>
+                <ExportIcon />
               </button>
               <button onClick={() => setShowDeleteConfirm(true)} aria-label="Delete note">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B655D" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
+                <TrashIcon />
               </button>
             </div>
           </div>
@@ -466,15 +468,7 @@ export function NotePage() {
               onClick={() => push(`/conversation/${sourceConversation.id}`)}
               className="flex items-center gap-2 active:opacity-70 transition-opacity self-start"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                  stroke="#A8A29E"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <ConversationIcon />
               <span className="text-[13px] leading-[18px] text-[#78716C] font-red-hat font-medium underline underline-offset-2 decoration-[#D6D3D1]">
                 {sourceLabel}
               </span>
@@ -519,19 +513,7 @@ export function NotePage() {
                 editor.isActive("bold") ? "bg-[#F5F5F4]" : ""
               }`}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={editor.isActive("bold") ? "#1C1917" : "#71717A"}
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
-                <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
-              </svg>
+              <BoldIcon stroke={editor.isActive("bold") ? "#1C1917" : "#71717A"} />
             </button>
             {/* Italic */}
             <button
@@ -540,20 +522,7 @@ export function NotePage() {
                 editor.isActive("italic") ? "bg-[#F5F5F4]" : ""
               }`}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={editor.isActive("italic") ? "#1C1917" : "#71717A"}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="19" y1="4" x2="10" y2="4" />
-                <line x1="14" y1="20" x2="5" y2="20" />
-                <line x1="15" y1="4" x2="9" y2="20" />
-              </svg>
+              <ItalicIcon stroke={editor.isActive("italic") ? "#1C1917" : "#71717A"} />
             </button>
             {/* Heading */}
             <button
@@ -564,25 +533,7 @@ export function NotePage() {
                 editor.isActive("heading", { level: 2 }) ? "bg-[#F5F5F4]" : ""
               }`}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={
-                  editor.isActive("heading", { level: 2 })
-                    ? "#1C1917"
-                    : "#71717A"
-                }
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M4 12h8" />
-                <path d="M4 18V6" />
-                <path d="M12 18V6" />
-                <path d="M17 12a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v1a2 2 0 0 1-.6 1.4L17 18h4" />
-              </svg>
+              <HeadingIcon stroke={editor.isActive("heading", { level: 2 }) ? "#1C1917" : "#71717A"} />
             </button>
             {/* Bullet list */}
             <button
@@ -591,23 +542,7 @@ export function NotePage() {
                 editor.isActive("bulletList") ? "bg-[#F5F5F4]" : ""
               }`}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={editor.isActive("bulletList") ? "#1C1917" : "#71717A"}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="8" y1="6" x2="21" y2="6" />
-                <line x1="8" y1="12" x2="21" y2="12" />
-                <line x1="8" y1="18" x2="21" y2="18" />
-                <line x1="3" y1="6" x2="3.01" y2="6" />
-                <line x1="3" y1="12" x2="3.01" y2="12" />
-                <line x1="3" y1="18" x2="3.01" y2="18" />
-              </svg>
+              <BulletListIcon stroke={editor.isActive("bulletList") ? "#1C1917" : "#71717A"} />
             </button>
             {/* Link (placeholder) */}
             {/* <button className="flex items-center justify-center rounded-[10px] shrink-0 size-10">
@@ -660,16 +595,10 @@ export function NotePage() {
             <Drawer.Title className="sr-only">Delete Note</Drawer.Title>
             <Drawer.Description className="sr-only">Confirm permanent note deletion</Drawer.Description>
             <div className="px-6 pb-10">
-              <div className="flex items-center justify-between pb-1">
+              <div className="pb-1">
                 <span className="text-xl leading-[26px] text-[#1C1917] font-red-hat font-extrabold tracking-[-0.02em]">
                   Delete Note?
                 </span>
-                <button onClick={() => setShowDeleteConfirm(false)}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <line x1="18" y1="6" x2="6" y2="18" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                    <line x1="6" y1="6" x2="18" y2="18" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </button>
               </div>
               <p className="text-[14px] leading-5 text-[#78716C] font-red-hat pb-6">
                 This will permanently delete this note. This cannot be undone.

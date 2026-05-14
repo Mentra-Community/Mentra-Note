@@ -11,6 +11,7 @@ import { ReactNode, createContext, useContext, useState, useCallback, useTransit
 import { useLocation } from "wouter";
 import { AnimatePresence, motion } from "motion/react";
 import { useNavigation, type TabId } from "../../navigation/NavigationStack";
+import { MicrophoneIcon, SearchIcon, DocumentIcon, SettingsIcon } from "../shared/custom-icons";
 
 interface ShellProps {
   children: ReactNode;
@@ -87,7 +88,7 @@ export function Shell({ children }: ShellProps) {
           animate={{ y: 0 }}
           exit={{ y: 80 }}
           transition={{ type: "tween", duration: 0.2, ease: "easeOut" }}
-          className="[font-synthesis:none] fixed bottom-0 left-0 right-0 flex items-start justify-around pt-2.5 pb-5.5 px-7.5 bg-white border-t border-t-solid border-t-[#E8E5E1] antialiased z-30 min-h-20"
+          className="[font-synthesis:none] fixed bottom-0 left-0 right-0 flex items-start justify-between pt-2.5 pb-5.5 px-7.5 bg-white border-t border-t-solid border-t-[#E8E5E1] antialiased z-30 min-h-20"
         >
           {/* Transcripts */}
           <button
@@ -104,12 +105,11 @@ export function Shell({ children }: ShellProps) {
                 />
               )}
             </div>
-            <svg width="21" height="21" fill="none" stroke={activeTab === "transcripts" ? "#D32F2F" : "#B8B2A9"} strokeWidth={activeTab === "transcripts" ? 1.6 : 1.5} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-              <line x1="12" y1="19" x2="12" y2="23" />
-              <line x1="8" y1="23" x2="16" y2="23" />
-            </svg>
+            <MicrophoneIcon
+              stroke={activeTab === "transcripts" ? "#D32F2F" : "#B8B2A9"}
+              strokeWidth={activeTab === "transcripts" ? 1.6 : 1.5}
+              style={{ flexShrink: 0 }}
+            />
             <div
               className={`inline-block font-red-hat text-[10px]/3 ${
                 activeTab === "transcripts"
@@ -135,10 +135,11 @@ export function Shell({ children }: ShellProps) {
                 />
               )}
             </div>
-            <svg width="21" height="21" fill="none" stroke={activeTab === "search" ? "#D32F2F" : "#B8B2A9"} strokeWidth={activeTab === "search" ? 1.6 : 1.5} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
+            <SearchIcon
+              stroke={activeTab === "search" ? "#D32F2F" : "#B8B2A9"}
+              strokeWidth={activeTab === "search" ? 1.6 : 1.5}
+              style={{ flexShrink: 0 }}
+            />
             <div
               className={`inline-block font-red-hat text-[10px]/3 ${
                 activeTab === "search"
@@ -164,12 +165,11 @@ export function Shell({ children }: ShellProps) {
                 />
               )}
             </div>
-            <svg width="21" height="21" fill="none" stroke={activeTab === "notes" ? "#D32F2F" : "#B8B2A9"} strokeWidth={activeTab === "notes" ? 1.6 : 1.5} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-            </svg>
+            <DocumentIcon
+              stroke={activeTab === "notes" ? "#D32F2F" : "#B8B2A9"}
+              strokeWidth={activeTab === "notes" ? 1.6 : 1.5}
+              style={{ flexShrink: 0 }}
+            />
             <div
               className={`inline-block font-red-hat text-[10px]/3 ${
                 activeTab === "notes"
@@ -195,10 +195,11 @@ export function Shell({ children }: ShellProps) {
                 />
               )}
             </div>
-            <svg width="21" height="21" fill="none" stroke={activeTab === "settings" ? "#D32F2F" : "#B8B2A9"} strokeWidth={activeTab === "settings" ? 1.6 : 1.5} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
+            <SettingsIcon
+              stroke={activeTab === "settings" ? "#D32F2F" : "#B8B2A9"}
+              strokeWidth={activeTab === "settings" ? 1.6 : 1.5}
+              style={{ flexShrink: 0 }}
+            />
             <div
               className={`inline-block font-red-hat text-[10px]/3 ${
                 activeTab === "settings"

@@ -6,6 +6,7 @@
  */
 
 import { useState, useRef, useEffect, type ReactNode } from "react";
+import { MoreVerticalIcon } from "./custom-icons";
 
 export interface DropdownMenuItem {
   id: string;
@@ -76,11 +77,7 @@ export function DropdownMenu({
       <div onClick={() => setIsOpen(!isOpen)} className="cursor-pointer">
         {trigger ?? (
           <button className="p-1">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="6" r="1.5" fill="#52525B" />
-              <circle cx="12" cy="12" r="1.5" fill="#52525B" />
-              <circle cx="12" cy="18" r="1.5" fill="#52525B" />
-            </svg>
+            <MoreVerticalIcon />
           </button>
         )}
       </div>

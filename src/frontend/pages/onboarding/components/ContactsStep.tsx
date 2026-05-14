@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import type { OnboardingData } from "../OnboardingPage";
+import { UserIcon, CalendarGridIcon, CloseIcon } from "../../../components/shared/custom-icons";
 
 interface ContactsStepProps {
   onNext: () => void;
@@ -55,10 +56,7 @@ export function ContactsStep({ onNext, onBack, data, onChange }: ContactsStepPro
       {/* Name Input */}
       <div className="flex flex-col pt-6 gap-3.5 px-6">
         <div className="flex items-center rounded-xl py-3.5 px-4 gap-2.5 bg-[#F5F5F4] dark:bg-zinc-800">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="#A8A29E" strokeWidth="2" strokeLinecap="round" />
-            <circle cx="12" cy="7" r="4" stroke="#A8A29E" strokeWidth="2" />
-          </svg>
+          <UserIcon />
           <input
             type="text"
             value={nameInput}
@@ -76,12 +74,7 @@ export function ContactsStep({ onNext, onBack, data, onChange }: ContactsStepPro
           Topics
         </div>
         <div className="flex items-center rounded-xl py-3.5 px-4 gap-2.5 bg-[#F5F5F4] dark:bg-zinc-800">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="3" width="7" height="7" rx="1" stroke="#A8A29E" strokeWidth="2" />
-            <rect x="14" y="3" width="7" height="7" rx="1" stroke="#A8A29E" strokeWidth="2" />
-            <rect x="3" y="14" width="7" height="7" rx="1" stroke="#A8A29E" strokeWidth="2" />
-            <rect x="14" y="14" width="7" height="7" rx="1" stroke="#A8A29E" strokeWidth="2" />
-          </svg>
+          <CalendarGridIcon />
           <input
             type="text"
             value={topicInput}
@@ -104,10 +97,7 @@ export function ContactsStep({ onNext, onBack, data, onChange }: ContactsStepPro
                 <div className="text-[14px] leading-[18px] text-[#1C1917] dark:text-white font-['Red_Hat_Display',system-ui,sans-serif] font-medium">
                   {topic}
                 </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <line x1="18" y1="6" x2="6" y2="18" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                  <line x1="6" y1="6" x2="18" y2="18" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                </svg>
+                <CloseIcon size={14} />
               </button>
             ))}
           </div>

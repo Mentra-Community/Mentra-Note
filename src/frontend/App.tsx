@@ -17,6 +17,8 @@ import { Shell } from "./components/layout/Shell";
 import { NavigationStackProvider } from "./navigation/NavigationStack";
 import { useFeatureFlag, FLAGS } from "./services/posthog";
 import { SplashScreen } from "./components/shared/SplashScreen";
+import { DebugDrawer, DebugSkeletonGate } from "./components/DebugDrawer";
+import { CheckIcon, CloseIcon } from "./components/shared/custom-icons";
 import { useSynced } from "./hooks/useSynced";
 import type { SessionI } from "../shared/types";
 
@@ -174,37 +176,8 @@ export function App() {
           position="top-center"
           theme={theme}
           icons={{
-            success: (
-              <svg
-                aria-hidden
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            ),
-            error: (
-              <svg
-                aria-hidden
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            ),
+            success: <CheckIcon aria-hidden stroke="currentColor" strokeWidth={2.5} />,
+            error: <CloseIcon aria-hidden stroke="currentColor" strokeWidth={2.5} size={16} />,
           }}
           toastOptions={{
             classNames: {
@@ -216,7 +189,9 @@ export function App() {
         />
         <NavigationStackProvider>
           <Shell>
-            <Router />
+            <DebugSkeletonGate>
+              <Router />
+            </DebugSkeletonGate>
           </Shell>
         </NavigationStackProvider>
         <SplashScreen
@@ -225,6 +200,7 @@ export function App() {
           duration={1200}
           onDone={() => setPostOnboardingSplash(false)}
         />
+        <DebugDrawer />
       </div>
     </ThemeContext.Provider>
   );
