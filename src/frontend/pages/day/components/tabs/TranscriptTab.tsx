@@ -786,7 +786,11 @@ export function TranscriptTab({
       cancelled = true;
       clearInterval(poller);
     };
-  }, [targetSegId, dateString, isLoading]);
+    // Depending on `segments.length` is important: when isLoading flips false
+    // BEFORE the segments array has populated (e.g. slow R2 fetch arriving in
+    // a separate @synced push), the date-gate above bails. Without re-running
+    // when segments finally arrive, we'd silently give up and never scroll.
+  }, [targetSegId, dateString, isLoading, segments.length]);
 
   // Live-follow: only today's transcript auto-scrolls to the latest segment
   // and shows the "scroll to bottom" button. Past days are always user-driven.
