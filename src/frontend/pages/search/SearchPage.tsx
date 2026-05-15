@@ -86,6 +86,22 @@ type SentenceRow = {
   hourTitle?: string;
 };
 
+// Strip raw markdown artifacts (leading "## ", "**bold**", "Title:" prefix, etc.)
+// that the LLM sometimes leaks into hour-summary titles. Conservative — only
+// touches obvious markdown syntax.
+function stripMarkdown(s: string): string {
+  if (!s) return s;
+  return s
+    .replace(/^\s*#{1,6}\s+/, "")
+    .replace(/^\s*(?:title|summary)\s*:\s*/i, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/(^|\s)\*([^*\s][^*]*?)\*(\s|$|[.,!?;:])/g, "$1$2$3")
+    .replace(/(^|\s)_([^_\s][^_]*?)_(\s|$|[.,!?;:])/g, "$1$2$3")
+    .replace(/^\s*[-*+]\s+/, "")
+    .trim();
+}
+
 function stripHtml(html: string, maxWords = 30): string {
   if (!html) return "";
   const text = html
@@ -518,7 +534,7 @@ export function SearchPage() {
               >
                 <div className="flex flex-col grow shrink basis-0 gap-1 min-w-0">
                   <div className="text-[#1A1A1A] font-red-hat font-bold text-[15px] leading-[18px] truncate">
-                    {result.title || "Untitled"}
+                    {stripMarkdown(result.title) || "Untitled"}
                   </div>
                   <div className="text-[#6B655D] font-red-hat text-[13px] leading-[17px] line-clamp-2">
                     {stripHtml(result.summary || result.content || "")}
@@ -567,7 +583,7 @@ export function SearchPage() {
                       <div className="flex flex-col grow shrink basis-0 gap-1 min-w-0">
                         {row.hourTitle && (
                           <div className="text-[#1A1A1A] font-red-hat font-bold text-[15px] leading-[18px] truncate">
-                            {row.hourTitle}
+                            {stripMarkdown(row.hourTitle)}
                           </div>
                         )}
                         {row.before?.text && (

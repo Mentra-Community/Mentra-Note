@@ -245,9 +245,15 @@ export class FileManager extends SyncedManager {
       console.log(`[FileManager] Pre-set segment counts:`, files.slice(0, 10).map(f => `${f.date}=${f.transcriptSegmentCount}`).join(", "));
       this.files.set(files);
 
-      // Sync today's segment count from TranscriptManager (today's count is in-memory)
+      // Sync today's segment count from TranscriptManager (today's count is in-memory).
+      // Guard against `segments` holding a different date's data — TranscriptManager
+      // replaces `segments` whenever a historical day is opened, so we must check
+      // `loadedDate === today` before treating the in-memory length as today's count.
       const transcriptManager = (this._session as any)?.transcript;
-      if (transcriptManager?.segments?.length > 0) {
+      if (
+        transcriptManager?.loadedDate === today &&
+        transcriptManager?.segments?.length > 0
+      ) {
         this.files.mutate((list) => {
           const idx = list.findIndex((f) => f.date === today);
           if (idx >= 0) {
