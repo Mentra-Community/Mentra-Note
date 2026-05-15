@@ -127,12 +127,13 @@ export function TranscriptPage() {
 
   // Deep-link reveal gate: when the URL has #seg- or #hour-, we hold the page
   // behind a skeleton until the target is scrolled into view, so the user
-  // never sees the transcript jump around. Capped at 4s as a safety net.
+  // never sees the transcript jump around. Capped at 12s as a safety net so
+  // slow R2 fetches or hour-summary backfills don't leave the user stuck.
   const hasDeepLink = targetHour !== undefined || targetSegId !== undefined;
   const [deepLinkReady, setDeepLinkReady] = useState(!hasDeepLink);
   useEffect(() => {
     if (!hasDeepLink) return;
-    const t = setTimeout(() => setDeepLinkReady(true), 4000);
+    const t = setTimeout(() => setDeepLinkReady(true), 12000);
     return () => clearTimeout(t);
   }, [hasDeepLink]);
 
@@ -155,7 +156,6 @@ export function TranscriptPage() {
   const elapsedSeconds = useRecordingElapsed({
     isToday,
     isPaused: transcriptionPaused,
-    segments: allSegments,
   });
 
   const formatElapsed = (secs: number) => {
@@ -230,17 +230,22 @@ export function TranscriptPage() {
 
   const daySegments = useMemo(() => {
     if (isDataLoading) return [];
-    let filtered: typeof allSegments;
-    if (loadedDate === dateString) {
-      if (!isToday && historicalSegmentCountRef.current !== null) {
-        filtered = allSegments.slice(0, historicalSegmentCountRef.current);
-      } else if (isToday) {
-        filtered = allSegments.filter((s) => !s.timestamp || getSegmentDate(s.timestamp) === dateString);
-      } else {
-        filtered = allSegments;
-      }
-    } else {
-      filtered = allSegments.filter((s) => s.timestamp && getSegmentDate(s.timestamp) === dateString);
+    // Hard guard: until the server's loadedDate matches the route, treat the
+    // segments array as stale — it may still hold the previous day's payload
+    // from before we navigated.
+    if (loadedDate !== dateString) return [];
+
+    // Belt-and-suspenders: even when loadedDate matches, the client mirror of
+    // `segments` can lag behind for a render or two after a date switch (the
+    // server clears segments first, then streams the new day's via @synced —
+    // those arrive in separate frames). Filter by timestamp so stale segments
+    // from another day get dropped regardless of what the array still holds.
+    let filtered = allSegments.filter(
+      (s) => !s.timestamp || getSegmentDate(s.timestamp) === dateString,
+    );
+
+    if (!isToday && historicalSegmentCountRef.current !== null) {
+      filtered = filtered.slice(0, historicalSegmentCountRef.current);
     }
 
     // Dedupe by id. R2 transcript files from older sessions can contain
