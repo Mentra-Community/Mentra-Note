@@ -16,6 +16,7 @@ import {
 import type { TranscriptSegment } from "./TranscriptManager";
 import type { FileManager } from "./FileManager";
 import { TimeManager } from "./TimeManager";
+import { htmlToPlainText } from "../../../shared/htmlToPlainText";
 
 // =============================================================================
 // Types
@@ -53,6 +54,21 @@ export interface NoteData {
  * renders those as literal characters, so we normalize server-side before
  * persisting the note.
  */
+/**
+ * Cheap detector for note bodies that contain unrendered markdown — used to
+ * decide whether to lazy-clean an old note on hydrate. Designed for high
+ * precision: only flag patterns that don't legitimately appear in TipTap HTML.
+ */
+function hasMarkdownLeak(html: string): boolean {
+  if (!html) return false;
+  // Standalone **bold** or __bold__ pair on a single line.
+  if (/\*\*[^*\n]+\*\*/.test(html)) return true;
+  if (/(^|[^_])__[^_\n]+__([^_]|$)/.test(html)) return true;
+  // A line that starts with a markdown bullet or heading marker.
+  if (/(^|\n)\s*(?:[-*]\s+\S|#{1,6}\s+\S)/.test(html)) return true;
+  return false;
+}
+
 function normalizeToHtml(raw: string): string {
   if (!raw) return raw;
 
@@ -262,10 +278,24 @@ export class NotesManager extends SyncedManager {
             }
           }
 
+          // Lazy-fix old notes generated before normalizeToHtml existed:
+          // if the body contains stray markdown markers, clean it and write
+          // back to the DB so TipTap stops rendering literal `**` etc.
+          let content = n.content || n.summary || "";
+          if (content && hasMarkdownLeak(content)) {
+            const cleaned = normalizeToHtml(content);
+            if (cleaned !== content) {
+              content = cleaned;
+              if (n._id) {
+                updateNote(userId, n._id.toString(), { content }).catch(() => {});
+              }
+            }
+          }
+
           return {
             id: n._id?.toString() || `note_${Date.now()}`,
             title: title || "",
-            content: n.content || n.summary || "",
+            content,
             summary: n.summary,
             date: n.date || this.getTimeManager().toDateString(n.createdAt),
             isAIGenerated: n.isAIGenerated ?? false,
@@ -799,12 +829,10 @@ Rules:
     for (const id of noteIds) {
       const note = this.notes.find((n) => n.id === id);
       if (!note) continue;
-      const content = (note.content || "")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&nbsp;/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      parts.push(`# ${note.title || "Untitled Note"}\n${content}`);
+      const content = htmlToPlainText(note.content);
+      const title = note.title || "Untitled Note";
+      const firstLine = content.split("\n", 1)[0]?.trim();
+      parts.push(firstLine && firstLine === title.trim() ? content : `${title}\n\n${content}`);
     }
     return parts.join("\n\n---\n\n");
   }

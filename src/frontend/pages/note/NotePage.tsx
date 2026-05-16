@@ -22,6 +22,7 @@ import Image from "@tiptap/extension-image";
 import { Drawer } from "vaul";
 import { useSynced } from "../../hooks/useSynced";
 import type { SessionI, Note } from "../../../shared/types";
+import { htmlToPlainText } from "../../../shared/htmlToPlainText";
 import { NotePageSkeleton } from "../../components/shared/SkeletonLoader";
 import { EmailDrawer } from "../../components/shared/EmailDrawer";
 import { toast } from "../../components/shared/toast";
@@ -189,11 +190,13 @@ export function NotePage() {
     },
   });
 
-  // Initialize editor content when note loads
+  // Initialize editor content when note loads. Pass `false` for emitUpdate so
+  // TipTap doesn't fire onUpdate for this programmatic write — otherwise the
+  // auto-save effect treats hydration as a user edit and shows "Saved".
   useEffect(() => {
     if (note && editor) {
       setEditTitle(note.title || "");
-      editor.commands.setContent(buildEditorContent(note));
+      editor.commands.setContent(buildEditorContent(note), { emitUpdate: false });
     }
   }, [note?.id, editor, buildEditorContent]);
 
@@ -325,10 +328,13 @@ export function NotePage() {
       return;
     }
     const content = editor?.getHTML() || note.content || "";
-    const text = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const text = htmlToPlainText(content);
     const title = editTitle || note.title || "Untitled Note";
+    // If the body already starts with the title, don't repeat it.
+    const firstLine = text.split("\n", 1)[0]?.trim();
+    const payload = firstLine && firstLine === title.trim() ? text : `${title}\n\n${text}`;
     try {
-      await navigator.clipboard.writeText(`# ${title}\n\n${text}`);
+      await navigator.clipboard.writeText(payload);
       toast.success("Copied to clipboard");
     } catch {
       toast.error("Failed to copy");
