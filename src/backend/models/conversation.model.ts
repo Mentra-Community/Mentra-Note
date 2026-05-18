@@ -111,7 +111,11 @@ export async function createConversation(
 }
 
 /**
- * Get active or paused conversations for a user (for resumption check)
+ * Conversations a fresh chunk could potentially be a continuation of.
+ * Includes both PAUSED conversations (silence within the active window)
+ * and recently-ENDED conversations (silence already crossed the end
+ * threshold but speech resumed within the resumption window). The caller
+ * runs an LLM check to decide whether to actually resume vs start fresh.
  */
 export async function getResumableConversations(
   userId: string,
@@ -119,7 +123,7 @@ export async function getResumableConversations(
 ): Promise<ConversationI[]> {
   return Conversation.find({
     userId,
-    status: "paused",
+    status: { $in: ["paused", "ended"] },
     updatedAt: { $gte: since },
   }).sort({ updatedAt: -1 });
 }

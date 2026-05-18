@@ -490,9 +490,6 @@ ${transcript}
       const conv = await getConversationById(convId);
       if (!conv) return;
 
-      // Guard: if the conversation already has a note, don't double-generate.
-      if (conv.noteId) return;
-
       // Guard: no chunks = nothing to generate from.
       if (!conv.chunkIds || conv.chunkIds.length === 0) return;
 
@@ -515,15 +512,33 @@ ${transcript}
       const startTime = conv.startTime;
       const endTime = conv.endTime ?? new Date();
 
-      const note = await notesManager.generateNote(title, startTime, endTime);
+      // If the conversation already has a note (this is a reopen-and-reclose
+      // cycle), pass the existing noteId so NotesManager can regenerate in
+      // place — unless the user has edited it, in which case NotesManager
+      // falls back to creating a fresh note and we update the link below.
+      const existingNoteId = conv.noteId || null;
+      const action = existingNoteId ? "regenerate" : "generate";
+
+      const note = await notesManager.generateNote(
+        title,
+        startTime,
+        endTime,
+        existingNoteId,
+      );
 
       if (note?.id) {
-        await updateConversation(convId, { noteId: note.id });
-        this.conversations.mutate((list) => {
-          const idx = list.findIndex((c) => c.id === convId);
-          if (idx >= 0) list[idx].noteId = note.id;
-        });
-        console.log(`[ConvManager] Auto-note generated for ${convId}: "${note.title}"`);
+        // Always update the link in case the regeneration fell back to a
+        // fresh note (different id) due to user edits on the old note.
+        if (note.id !== existingNoteId) {
+          await updateConversation(convId, { noteId: note.id });
+          this.conversations.mutate((list) => {
+            const idx = list.findIndex((c) => c.id === convId);
+            if (idx >= 0) list[idx].noteId = note.id;
+          });
+        }
+        console.log(
+          `[ConvManager] Auto-note ${action} for ${convId}: "${note.title}" (noteId=${note.id})`,
+        );
       }
     } catch (err) {
       console.error(`[ConvManager] Auto-note generation failed for ${convId}:`, err);

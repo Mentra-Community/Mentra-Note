@@ -6,9 +6,13 @@
  * States: IDLE → PENDING → TRACKING → PAUSED → (back to TRACKING or END)
  *
  * On each meaningful chunk:
- * - IDLE: move to PENDING (buffer chunk, don't create DB conversation yet)
+ * - IDLE: move to PENDING (buffer chunk, don't create DB conversation yet),
+ *         or reopen a recently-PAUSED / recently-ENDED conversation if related
  * - PENDING: buffer chunks until MIN_CHUNKS_TO_CONFIRM reached, then promote to TRACKING
- * - TRACKING: classify as CONTINUATION / NEW_CONVERSATION / FILLER
+ * - TRACKING: classify as CONTINUATION / NEW_CONVERSATION / FILLER. A
+ *             NEW_CONVERSATION verdict only splits if there was at least
+ *             one filler chunk since the last meaningful one (continuous
+ *             speech with zero pause is always treated as CONTINUATION).
  * - PAUSED: resume if on-topic, or increment silence counter
  *
  * When silence reaches threshold → end conversation → trigger note generation.
@@ -32,10 +36,7 @@ import { createProviderFromEnv, type AgentProvider } from "../../services/llm";
 
 export type TrackerState = "IDLE" | "PENDING" | "TRACKING" | "PAUSED";
 
-export type TrackingDecision =
-  | "CONTINUATION"
-  | "NEW_CONVERSATION"
-  | "FILLER";
+export type TrackingDecision = "CONTINUATION" | "NEW_CONVERSATION" | "FILLER";
 
 export type ConversationEndCallback = (conversation: ConversationI) => void;
 export type ConversationUpdateCallback = (
@@ -173,9 +174,16 @@ export class ConversationTracker {
     );
 
     if (resumable.length > 0 && this.provider) {
-      // Ask LLM if this is a continuation of a paused conversation
+      // Ask LLM if this is a continuation of a recently paused or
+      // recently-ended conversation (both kinds are eligible).
       const mostRecent = resumable[0];
+      const gapMs = Date.now() - new Date(mostRecent.updatedAt).getTime();
+      const gapMin = Math.round(gapMs / 60_000);
       const isContinuation = await this.checkResumption(chunk, mostRecent);
+
+      console.log(
+        `[Tracker] Reopen check: convId=${mostRecent._id}, prevStatus=${mostRecent.status}, related=${isContinuation}, gap=${gapMin}m`,
+      );
 
       if (isContinuation) {
         await this.resumeConversation(mostRecent, chunk);
@@ -219,7 +227,12 @@ export class ConversationTracker {
   }
 
   /**
-   * TRACKING + meaningful chunk: Classify as continuation, new conversation, or filler.
+   * TRACKING + meaningful chunk: classify as CONTINUATION, NEW_CONVERSATION,
+   * or FILLER. NEW_CONVERSATION only splits the active conversation if
+   * there was at least one filler chunk since the last meaningful one —
+   * continuous speech with zero pause is always treated as CONTINUATION,
+   * which prevents mid-sentence fragmentation. A real topic switch with
+   * even a brief pause is honored as a split.
    */
   private async handleTrackingMeaningful(
     chunk: TranscriptChunkI,
@@ -227,6 +240,20 @@ export class ConversationTracker {
     if (!this.activeConversation) {
       // Shouldn't happen, but handle gracefully
       await this.startNewConversation(chunk);
+      return;
+    }
+
+    // Hard 2-hour cap: prevent runaway all-day mega-conversations.
+    // Force-end and route this chunk through IDLE so it starts (or
+    // resumes) a fresh conversation.
+    const startMs = new Date(this.activeConversation.startTime).getTime();
+    if (Date.now() - startMs >= AUTO_NOTES_CONFIG.MAX_CONVERSATION_DURATION_MS) {
+      const durationMin = Math.round((Date.now() - startMs) / 60_000);
+      console.log(
+        `[Tracker] Hard cap reached: convId=${this.activeConversation._id}, duration=${durationMin}m — force-ending`,
+      );
+      await this.endConversation();
+      await this.handleIdleMeaningful(chunk);
       return;
     }
 
@@ -242,15 +269,26 @@ export class ConversationTracker {
         break;
 
       case "NEW_CONVERSATION":
-        this.trackingFillerCount = 0;
-        // End current conversation, go to PENDING (requires confirmation like any new conversation)
-        await this.endConversation();
-        this.pendingChunks = [chunk];
-        this.pendingSilenceCount = 0;
-        this.state = "PENDING";
-        console.log(
-          `[Tracker] TRACKING → PENDING | new topic detected, buffering chunk (1/${AUTO_NOTES_CONFIG.MIN_CHUNKS_TO_CONFIRM})`,
-        );
+        // Smart guard: a topic shift only justifies a split if there was at
+        // least ONE filler/silent chunk since the last meaningful one.
+        // Continuous speech with zero silence = downgrade to CONTINUATION
+        // (kills the original mid-sentence-fragmentation bug). Any pause at
+        // all + clear topic shift = honor the split.
+        if (this.trackingFillerCount === 0) {
+          console.log(
+            `[Tracker] State: TRACKING | NEW_CONVERSATION downgraded to CONTINUATION (no silence since last meaningful chunk)`,
+          );
+          await this.addChunkToConversation(chunk);
+        } else {
+          console.log(
+            `[Tracker] State: TRACKING | NEW_CONVERSATION honored (had ${this.trackingFillerCount} filler chunks before this) — ending and starting fresh`,
+          );
+          this.trackingFillerCount = 0;
+          await this.endConversation();
+          this.pendingChunks = [chunk];
+          this.pendingSilenceCount = 0;
+          this.state = "PENDING";
+        }
         break;
 
       case "FILLER":
@@ -511,14 +549,18 @@ export class ConversationTracker {
     conversation: ConversationI,
     chunk: TranscriptChunkI,
   ): Promise<void> {
+    const wasEnded = conversation.status === "ended";
+
     await updateConversation(conversation._id!.toString(), {
       status: "active",
       pausedAt: null,
+      endTime: null,
       silenceCount: 0,
     });
 
     conversation.status = "active";
     conversation.pausedAt = null;
+    conversation.endTime = null;
     conversation.silenceCount = 0;
 
     this.activeConversation = conversation;
@@ -528,7 +570,7 @@ export class ConversationTracker {
     await this.addChunkToConversation(chunk);
 
     console.log(
-      `[Tracker] PAUSED → TRACKING | conversation ${conversation._id} resumed`,
+      `[Tracker] ${wasEnded ? "ENDED" : "PAUSED"} → TRACKING | conversation ${conversation._id} ${wasEnded ? "reopened" : "resumed"}`,
     );
 
     this._onConversationUpdate?.(conversation, "resumed");
@@ -776,7 +818,7 @@ Respond with a comma-separated list of numbers (e.g. "1,3") or "NONE" if none ar
 
     const domainContext = getDomainPromptContext(this.domainProfile);
 
-    const prompt = `You are a conversation tracker. You're monitoring an ongoing conversation and a new chunk of transcript has arrived.
+    const prompt = `You are a conversation tracker. A user is mid-conversation and a new chunk of transcript just arrived. Decide whether this chunk continues the active conversation, starts a clearly different one, or is filler.
 
 Domain context: ${domainContext}
 
@@ -786,10 +828,12 @@ Current conversation summary:
 New chunk:
 "${chunk.text}"
 
-Classify this new chunk as one of:
-- CONTINUATION: Same conversation topic, continue tracking
-- NEW_CONVERSATION: Clearly a different topic/conversation has started
-- FILLER: Background noise, small talk, or silence that interrupts the conversation
+Classify as:
+- CONTINUATION: Same conversation. Topic drift between RELATED ideas is still CONTINUATION (e.g. shifting from "Q3 roadmap" to "the export bug we should fix" — both are work). Default to CONTINUATION when in doubt.
+- NEW_CONVERSATION: A clearly UNRELATED subject has started. The new chunk has no meaningful connection to what was just being discussed — different people, different domain, different setting. Use this sparingly. Examples that qualify: switching from a work meeting to ordering food at a restaurant; finishing a story about a movie and starting to debug code; one podcast ends and a different podcast begins.
+- FILLER: Background noise, transcription artifacts, one-way audio (TV/podcast) with no user involvement, or near-empty acknowledgments ("yeah", "mmhmm") with nothing else.
+
+IMPORTANT: NEW_CONVERSATION is for SUBJECT CHANGES, not topic refinements within the same subject. If you can describe a plausible reason a single speaker would naturally bring up the new chunk in the same breath as the old summary, it's CONTINUATION.
 
 Respond with exactly one word: CONTINUATION, NEW_CONVERSATION, or FILLER`;
 

@@ -165,7 +165,7 @@ export interface NotesManagerI {
   generating: boolean;
 
   // RPCs
-  generateNote(title?: string, startTime?: Date, endTime?: Date): Promise<Note>;
+  generateNote(title?: string, startTime?: Date, endTime?: Date, existingNoteId?: string | null): Promise<Note>;
   createManualNote(title: string, content: string): Promise<Note>;
   updateNote(noteId: string, updates: Partial<Note>): Promise<Note>;
   deleteNote(noteId: string): Promise<void>;
