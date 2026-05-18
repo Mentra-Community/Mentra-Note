@@ -7,6 +7,7 @@
 
 import { useState, useCallback } from "react";
 import { Drawer } from "vaul";
+import { ClipboardPlusIcon, EmailEnvelopeIcon } from "./custom-icons";
 
 export interface ExportOptions {
   includeContent: boolean;
@@ -78,30 +79,21 @@ export function ExportDrawer({
 
           <div className="px-6 pb-10">
             {/* Header */}
-            <div className="flex items-center justify-between pb-1">
+            <div className="pb-1">
               <span className="text-xl leading-[26px] text-[#1C1917] font-red-hat font-extrabold tracking-[-0.02em]">
                 {title}
               </span>
-              <button onClick={onClose}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <line x1="18" y1="6" x2="6" y2="18" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                  <line x1="6" y1="6" x2="18" y2="18" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </button>
             </div>
 
             {/* Subtitle */}
-            <div className="pb-5 text-[13px] leading-[18px] text-[#A8A29E] font-red-hat">
+            <div className=" py-4 text-[18px] leading-[18px] text-[#A8A29E] font-red-hat">
               {itemLabel}
             </div>
 
-            {/* Section: Included in export */}
-            <div className="tracking-[0.08em] uppercase pb-2.5 text-[11px] leading-3.5 text-[#A8A29E] font-red-hat font-bold">
-              Included in export
-            </div>
+            
 
             {/* Content — always included (non-toggleable) */}
-            <div className="flex items-center justify-between py-3.5 border-b border-b-[#E7E5E4]">
+            {/* <div className="flex items-center justify-between py-3.5 border-b border-b-[#E7E5E4]">
               <div className="flex flex-col gap-0.5">
                 <span className="text-[15px] leading-5 text-[#1C1917] font-red-hat font-semibold">
                   {contentToggleLabel}
@@ -111,42 +103,10 @@ export function ExportDrawer({
                 </span>
               </div>
               <ToggleSwitch checked={true} onChange={() => {}} />
-            </div>
+            </div> */}
 
-            {/* Notes: Linked Conversation toggle → sub-toggle for Conversation Transcript */}
-            {itemType === "note" && (
-              <>
-                <div className="flex items-center justify-between py-3.5 border-b border-b-[#E7E5E4]">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[15px] leading-5 text-[#1C1917] font-red-hat font-semibold">
-                      Linked Conversation
-                    </span>
-                    <span className="text-xs leading-4 text-[#A8A29E] font-red-hat">
-                      Conversation summary from this note
-                    </span>
-                    {includeLinkedNote && missingNoteCount > 0 && (
-                      <span className="text-xs leading-4 text-[#DC2626] font-red-hat font-medium mt-0.5">
-                        {missingNoteCount} {missingNoteCount === 1 ? "note has" : "notes have"} no linked conversation
-                      </span>
-                    )}
-                  </div>
-                  <ToggleSwitch checked={includeLinkedNote} onChange={setIncludeLinkedNote} />
-                </div>
-                {includeLinkedNote && (
-                  <div className="flex items-center justify-between py-3.5 border-b border-b-[#E7E5E4]">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[15px] leading-5 text-[#1C1917] font-red-hat font-semibold">
-                        Conversation Transcript
-                      </span>
-                      <span className="text-xs leading-4 text-[#A8A29E] font-red-hat">
-                        Full conversation with speaker labels
-                      </span>
-                    </div>
-                    <ToggleSwitch checked={includeTranscript} onChange={setIncludeTranscript} />
-                  </div>
-                )}
-              </>
-            )}
+            {/* Notes: Linked Conversation + Transcript toggles hidden — the
+                conversations UI is dormant so there's nothing to link to. */}
 
             {/* Conversations: Linked Transcript toggle + Linked AI Note toggle */}
             {itemType === "conversation" && (
@@ -273,21 +233,9 @@ function DestinationCard({
 // ── Icons ──
 
 function ClipboardIcon({ selected }: { selected: boolean }) {
-  const color = selected ? "#1C1917" : "#78716C";
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="3" width="18" height="18" rx="2" stroke={color} strokeWidth="1.75" />
-      <path d="M8 12h8M12 8v8" stroke={color} strokeWidth="1.75" strokeLinecap="round" />
-    </svg>
-  );
+  return <ClipboardPlusIcon stroke={selected ? "#1C1917" : "#78716C"} />;
 }
 
 function EmailIcon({ selected }: { selected: boolean }) {
-  const color = selected ? "#1C1917" : "#78716C";
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <rect x="2" y="4" width="20" height="16" rx="2" stroke={color} strokeWidth="1.75" />
-      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  return <EmailEnvelopeIcon stroke={selected ? "#1C1917" : "#78716C"} />;
 }

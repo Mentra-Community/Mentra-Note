@@ -4,22 +4,33 @@
  */
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { useParams, useLocation } from "wouter";
+import { useParams } from "wouter";
+import { DeleteTranscriptDrawer } from "../../components/shared/DeleteTranscriptDrawer";
+import {
+  BackChevronIcon,
+  ExportIcon,
+  EmailIcon,
+  CopyIcon,
+  TrashIcon,
+  MicrophoneSolidIcon,
+  StopRecordingIcon,
+} from "../../components/shared/custom-icons";
+import { useNavigation } from "../../navigation/NavigationStack";
 import { useMentraAuth } from "@mentra/react";
 import { format, parse } from "date-fns";
-import { Upload, Mail, ClipboardCopy } from "lucide-react";
-import { WaveIndicator } from "../../components/shared/WaveIndicator";
+import { toast } from "../../components/shared/toast";
 import { useSynced } from "../../hooks/useSynced";
+import { useRecordingElapsed } from "../../hooks/useRecordingElapsed";
 import type { SessionI } from "../../../shared/types";
 import { TranscriptTab } from "../day/components/tabs/TranscriptTab";
-import { DropdownMenu } from "../../components/shared/DropdownMenu";
 import { EmailDrawer } from "../../components/shared/EmailDrawer";
+import { DropdownMenu } from "../../components/shared/DropdownMenu";
 import { DayPageSkeleton } from "../../components/shared/SkeletonLoader";
 import { StopTranscriptionDialog } from "../home/components/StopTranscriptionDialog";
 
 export function TranscriptPage() {
   const params = useParams<{ date: string }>();
-  const [, setLocation] = useLocation();
+  const { back } = useNavigation();
   const { userId } = useMentraAuth();
   const { session, isReconnecting } = useSynced<SessionI>(userId || "");
 
@@ -36,11 +47,45 @@ export function TranscriptPage() {
   const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   const isToday = dateString === todayString;
 
+  // Deep-link support:
+  //   /transcript/{date}#hour-N  — expand + scroll to that hour
+  //   /transcript/{date}#seg-<segId>  — expand the segment's hour, scroll to it,
+  //                                     yellow-flash it for ~1.5s
+  // Parsed once on mount; the TranscriptTab effect handles the actual scroll
+  // once segments are hydrated.
+  const { targetHour, targetSegId } = useMemo<{
+    targetHour: number | undefined;
+    targetSegId: string | undefined;
+  }>(() => {
+    if (typeof window === "undefined") return { targetHour: undefined, targetSegId: undefined };
+    const hash = window.location.hash || "";
+    console.log(`[TranscriptPage] URL: ${window.location.href} | hash: "${hash}"`);
+    const hourMatch = hash.match(/^#hour-(\d{1,2})$/);
+    if (hourMatch) {
+      const h = parseInt(hourMatch[1], 10);
+      if (Number.isFinite(h) && h >= 0 && h <= 23) {
+        console.log(`[TranscriptPage] Parsed targetHour=${h}`);
+        return { targetHour: h, targetSegId: undefined };
+      }
+    }
+    const segMatch = hash.match(/^#seg-(.+)$/);
+    if (segMatch) {
+      try {
+        const segId = decodeURIComponent(segMatch[1]);
+        console.log(`[TranscriptPage] Parsed targetSegId=${segId}`);
+        return { targetHour: undefined, targetSegId: segId };
+      } catch {
+        // fall through
+      }
+    }
+    console.log(`[TranscriptPage] No deep-link target in hash`);
+    return { targetHour: undefined, targetSegId: undefined };
+  }, []);
+
   // Session data
   const allSegments = session?.transcript?.segments ?? [];
   const hourSummaries = session?.summary?.hourSummaries ?? [];
   const interimText = session?.transcript?.interimText ?? "";
-  const isRecording = session?.transcript?.isRecording ?? false;
   const transcriptionPaused = session?.settings?.transcriptionPaused ?? false;
   const isSyncingPhoto = session?.transcript?.isSyncingPhoto ?? false;
   const loadedDate = session?.transcript?.loadedDate ?? "";
@@ -50,8 +95,13 @@ export function TranscriptPage() {
   const lastLoadedDateRef = useRef<string | null>(null);
   const historicalSegmentCountRef = useRef<number | null>(null);
   const isLoadingHistory = session?.transcript?.isLoadingHistory ?? false;
+  const isTranscriptHydrated = session?.transcript?.isHydrated ?? false;
   const dateMatchesServer = loadedDate === dateString;
-  const isDataLoading = isLoadingHistory || isLoadingTranscript || !dateMatchesServer;
+  const isDataLoading =
+    !isTranscriptHydrated ||
+    isLoadingHistory ||
+    isLoadingTranscript ||
+    !dateMatchesServer;
 
   // Compact mode
   const serverCompactMode = session?.settings?.superCollapsed ?? false;
@@ -75,6 +125,18 @@ export function TranscriptPage() {
     }, 300);
   }, [isCompactMode, session?.settings]);
 
+  // Deep-link reveal gate: when the URL has #seg- or #hour-, we hold the page
+  // behind a skeleton until the target is scrolled into view, so the user
+  // never sees the transcript jump around. Capped at 12s as a safety net so
+  // slow R2 fetches or hour-summary backfills don't leave the user stuck.
+  const hasDeepLink = targetHour !== undefined || targetSegId !== undefined;
+  const [deepLinkReady, setDeepLinkReady] = useState(!hasDeepLink);
+  useEffect(() => {
+    if (!hasDeepLink) return;
+    const t = setTimeout(() => setDeepLinkReady(true), 12000);
+    return () => clearTimeout(t);
+  }, [hasDeepLink]);
+
   // Stop transcription confirmation dialog
   const [showStopConfirm, setShowStopConfirm] = useState(false);
 
@@ -86,13 +148,15 @@ export function TranscriptPage() {
   // Email drawer
   const [showEmailDrawer, setShowEmailDrawer] = useState(false);
 
-  // Elapsed time for live recording
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  useEffect(() => {
-    if (!isToday || !isRecording) return;
-    const interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
-    return () => clearInterval(interval);
-  }, [isToday, isRecording]);
+  // Delete transcript confirmation drawer
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Elapsed time for live recording — persisted across mounts via localStorage.
+  // Ticks while unpaused, freezes (still visible) while paused, resets at midnight.
+  const elapsedSeconds = useRecordingElapsed({
+    isToday,
+    isPaused: transcriptionPaused,
+  });
 
   const formatElapsed = (secs: number) => {
     const h = Math.floor(secs / 3600);
@@ -114,10 +178,11 @@ export function TranscriptPage() {
     if (!session?.transcript?.loadDateTranscript) return;
     if (!dateString || isReconnecting) return;
     if (lastLoadedDateRef.current === dateString) return;
-    if (loadedDate === dateString) {
-      lastLoadedDateRef.current = dateString;
-      return;
-    }
+
+    // NOTE: we used to skip loading when `loadedDate === dateString` already,
+    // but TranscriptManager sets `loadedDate` optimistically before segments
+    // finish fetching — skipping caused the empty state to flash for today.
+    // Always trigger the load so `isLoadingTranscript` covers the real window.
 
     lastLoadedDateRef.current = dateString;
     setIsLoadingTranscript(true);
@@ -146,14 +211,6 @@ export function TranscriptPage() {
     historicalSegmentCountRef.current = null;
   }, [dateString]);
 
-  // Check if transcript was deleted for this date
-  const transcriptDeleted = useMemo(() => {
-    if (!dateString || isToday) return false;
-    const files = session?.file?.files ?? [];
-    const file = files.find((f) => f.date === dateString);
-    return file ? (file.isTrashed || !file.hasTranscript) : false;
-  }, [dateString, isToday, session?.file?.files]);
-
   // Timezone-aware segment date helper
   const timezone = session?.settings?.timezone ?? undefined;
   const getSegmentDate = useCallback((timestamp: Date | string): string => {
@@ -173,26 +230,75 @@ export function TranscriptPage() {
 
   const daySegments = useMemo(() => {
     if (isDataLoading) return [];
-    if (loadedDate === dateString) {
-      if (!isToday && historicalSegmentCountRef.current !== null) {
-        return allSegments.slice(0, historicalSegmentCountRef.current);
-      }
-      if (isToday) {
-        return allSegments.filter((s) => !s.timestamp || getSegmentDate(s.timestamp) === dateString);
-      }
-      return allSegments;
+    // Hard guard: until the server's loadedDate matches the route, treat the
+    // segments array as stale — it may still hold the previous day's payload
+    // from before we navigated.
+    if (loadedDate !== dateString) return [];
+
+    // Belt-and-suspenders: even when loadedDate matches, the client mirror of
+    // `segments` can lag behind for a render or two after a date switch (the
+    // server clears segments first, then streams the new day's via @synced —
+    // those arrive in separate frames). Filter by timestamp so stale segments
+    // from another day get dropped regardless of what the array still holds.
+    let filtered = allSegments.filter(
+      (s) => !s.timestamp || getSegmentDate(s.timestamp) === dateString,
+    );
+
+    if (!isToday && historicalSegmentCountRef.current !== null) {
+      filtered = filtered.slice(0, historicalSegmentCountRef.current);
     }
-    return allSegments.filter((s) => s.timestamp && getSegmentDate(s.timestamp) === dateString);
+
+    // Dedupe by id. R2 transcript files from older sessions can contain
+    // duplicate `seg.index` values (merge bugs in r2Upload.service), which
+    // gives multiple segments the same `seg_N` id. React warns about the
+    // collision AND the deep-link's querySelector can land on the wrong
+    // node. Keep the first occurrence of each id.
+    const seen = new Set<string>();
+    const deduped: typeof filtered = [];
+    for (const s of filtered) {
+      const id = s.id || "";
+      if (seen.has(id)) continue;
+      seen.add(id);
+      deduped.push(s);
+    }
+    return deduped;
   }, [allSegments, dateString, loadedDate, isDataLoading, isToday, getSegmentDate]);
 
-  const transcriptHourCount = useMemo(() => {
-    const hours = new Set(
-      daySegments
-        .filter((s) => s.isFinal && s.timestamp)
-        .map((s) => new Date(s.timestamp).getHours())
-    );
-    return hours.size;
-  }, [daySegments]);
+  const handleCopyTranscript = useCallback(async () => {
+    const finalSegments = daySegments.filter((s) => s.isFinal && s.type !== "photo");
+    if (finalSegments.length === 0) {
+      toast.error("No transcript to copy");
+      return;
+    }
+    const dateLabel = isToday ? "Today" : format(date, "MMMM d, yyyy");
+    const lines = finalSegments.map((s) => {
+      const time = new Date(s.timestamp).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      return `[${time}] ${s.text}`;
+    });
+    const text = `# Transcript — ${dateLabel}\n${lines.join("\n")}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Failed to copy");
+    }
+  }, [daySegments, isToday, date]);
+
+  const handleDeleteTranscript = useCallback(() => {
+    if (!session?.file || !session?.transcript) return;
+    setShowDeleteConfirm(true);
+  }, [session?.file, session?.transcript]);
+
+  const handleDeleteConfirmed = useCallback(async () => {
+    if (!session?.file || !session?.transcript) {
+      setShowDeleteConfirm(false);
+      return;
+    }
+    await session.file.trashFile(dateString);
+    await session.transcript.removeDates([dateString]);
+    setShowDeleteConfirm(false);
+    back();
+  }, [session?.file, session?.transcript, dateString, back]);
 
   const handleEmailSend = useCallback(async (to: string, cc: string) => {
     const finalSegments = daySegments
@@ -219,6 +325,7 @@ export function TranscriptPage() {
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || "Failed to send email");
+    toast.success(`Email sent to ${to}`);
   }, [daySegments, dateString, userId]);
 
   if (!session || isReconnecting) {
@@ -226,163 +333,145 @@ export function TranscriptPage() {
   }
 
   const currentHour = new Date().getHours();
-  const segmentCount = daySegments.filter((s) => s.isFinal).length;
 
-  // Header date label
+  // Header title + time range subtitle (Paper design)
   const headerLabel = isToday ? "Today" : format(date, "MMM d");
-  const headerSub = isToday && isRecording
-    ? `${segmentCount} segments · ${formatElapsed(elapsedSeconds)} elapsed`
-    : isToday
-      ? `${segmentCount} segments recorded`
-      : format(date, "MMMM d, yyyy");
+  const finalSegs = daySegments.filter((s) => s.isFinal && s.timestamp);
+  const firstSeg = finalSegs[0];
+  const lastSeg = finalSegs[finalSegs.length - 1];
+  const timeRangeLabel = (() => {
+    if (!firstSeg || !lastSeg) return format(date, "MMMM d, yyyy");
+    const start = new Date(firstSeg.timestamp);
+    const end = new Date(lastSeg.timestamp);
+    const startStr = start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    const endStr = end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    const mins = Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
+    const duration = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins} min`;
+    return `${startStr} – ${endStr} · ${duration}`;
+  })();
 
   return (
-    <div className="h-full flex flex-col bg-[#FAFAF9]">
-      {/* Header */}
-      <div className="shrink-0 pt-3 px-6">
-        <div className="text-[11px] tracking-widest leading-3.5 uppercase text-[#DC2626] font-red-hat font-bold mb-2">
-          Mentra Notes
+    <div className="relative h-full flex flex-col bg-[#FCFBFA]">
+      {/* Deep-link reveal gate — keeps the page invisible until the target
+          segment/hour has been scrolled into view (capped at 4s). */}
+      {!deepLinkReady && (
+        <div className="absolute inset-0 z-20 bg-[#FCFBFA]">
+          <DayPageSkeleton />
         </div>
-        <div className="flex items-end justify-between pb-5">
-          {/* Left: back + title */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setLocation("/?tab=transcripts")}
-              className="p-1 -ml-1 text-[#1C1917]"
-            >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M13 4L7 10L13 16" stroke="#1C1917" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            <div className="flex flex-col gap-0.5">
-              <div className="flex items-center gap-2">
-                <span className="text-[30px] tracking-[-0.03em] leading-[34px] font-red-hat font-extrabold text-[#1C1917]">
-                  {headerLabel}
-                </span>
-                {/* {isToday && isRecording && (
-                  <div className="flex items-center rounded-lg py-[3px] px-2 gap-[5px] bg-[#FEF2F2]">
-                    <div className="rounded-full bg-[#EF4444] size-1.5 animate-pulse" />
-                    <span className="text-[11px] tracking-[0.04em] font-red-hat font-bold text-[#EF4444] leading-3.5">
-                      LIVE
-                    </span>
-                  </div>
-                )} */}
-              </div>
-              {transcriptHourCount > 0 && (
-                <span className="text-[14px] leading-[18px] font-red-hat text-[#A8A29E]">
-                  Today · {transcriptHourCount} {transcriptHourCount === 1 ? "hour" : "hours"}
-                </span>
-              )}
+      )}
+      {/* Header */}
+      <div className="shrink-0 flex items-end justify-between pt-4 pb-4 px-6">
+        <div className="flex items-center grow gap-3">
+          <button
+            onClick={() => back()}
+            className="p-1 -ml-1 text-[#1A1A1A]"
+          >
+            <BackChevronIcon style={{ flexShrink: 0 }} />
+          </button>
+          <div className="flex flex-col gap-3">
+            <div className="text-[22px] leading-7 tracking-[-0.4px] text-[#1A1A1A] font-red-hat font-extrabold">
+              {headerLabel}
+            </div>
+            <div className="text-[13px] leading-4 text-[#9C958D] font-red-hat">
+              {timeRangeLabel}
             </div>
           </div>
-
-          {/* Right: actions */}
-          
+        </div>
+        <div className="flex pt-1 gap-3 -mb-1">
+          <DropdownMenu
+            align="right"
+            trigger={
+              <button className="p-1" aria-label="Share transcript">
+                <ExportIcon />
+              </button>
+            }
+            options={[
+              {
+                id: "email",
+                label: "Email transcript",
+                icon: <EmailIcon />,
+                onClick: () => setShowEmailDrawer(true),
+              },
+              {
+                id: "copy",
+                label: "Copy to clipboard",
+                icon: <CopyIcon />,
+                onClick: () => { handleCopyTranscript(); },
+              },
+            ]}
+          />
+          <button
+            onClick={handleDeleteTranscript}
+            className="p-1"
+            aria-label="Delete transcript"
+          >
+            <TrashIcon />
+          </button>
         </div>
       </div>
-
-      {/* Live transcribing banner */}
-      {/* {isToday && isRecording && (
-        <div className="mx-3 mb-2.5 flex items-center shrink-0 rounded-[14px] py-3 px-4 gap-2.5 bg-[#FEF7F5] border-[1.5px] border-[#F5C9BC]">
-          <div className="flex items-center grow gap-1.5">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M2 3C2 2.45 2.45 2 3 2h8C11.55 2 12 2.45 12 3v6c0 .55-.45 1-1 1H8L6 12V10H3c-.55 0-1-.45-1-1V3z" fill="#C9573A" />
-            </svg>
-            <div className="flex flex-col">
-              <span className="text-[13px] font-red-hat font-semibold text-[#C9573A] leading-4">
-                Transcribing now
-              </span>
-              <span className="text-[11px] font-red-hat text-[#A8A29E] leading-3.5">
-                {segmentCount} segments · will link to a conversation
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center justify-center rounded-full bg-white border border-[#E7E5E0] size-[30px] shrink-0">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <rect x="3" y="3" width="6" height="6" rx="1" fill="#1C1917" />
-            </svg>
-          </div>
-        </div>
-      )} */}
 
       {/* Transcript content */}
       <div className="flex-1 min-h-0 overflow-hidden px-6">
-        {transcriptDeleted ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 py-16">
-            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-[#FEF2F2]">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
-            </div>
-            <span className="text-[15px] leading-5 text-[#1C1917] font-red-hat font-semibold">Transcript deleted</span>
-            <span className="text-[13px] leading-4 text-[#A8A29E] font-red-hat text-center max-w-[240px]">
-              The transcript data for this day has been permanently deleted.
-            </span>
-          </div>
-        ) : (
-          <TranscriptTab
-            segments={daySegments}
-            hourSummaries={hourSummaries}
-            interimText={isToday ? interimText : ""}
-            currentHour={isToday ? currentHour : undefined}
-            dateString={dateString}
-            timezone={timezone}
-            onGenerateSummary={session?.summary?.generateHourSummary}
-            isCompactMode={isCompactMode}
-            isSyncingPhoto={isToday ? isSyncingPhoto : false}
-            isLoading={isDataLoading}
-          />
-        )}
+        <TranscriptTab
+          segments={daySegments}
+          hourSummaries={hourSummaries}
+          interimText={isToday ? interimText : ""}
+          currentHour={isToday ? currentHour : undefined}
+          dateString={dateString}
+          timezone={timezone}
+          onGenerateSummary={session?.summary?.generateHourSummary}
+          isCompactMode={isCompactMode}
+          isSyncingPhoto={isToday ? isSyncingPhoto : false}
+          isLoading={isDataLoading}
+          targetHour={targetHour}
+          targetSegId={targetSegId}
+          onDeepLinkScrolled={() => setDeepLinkReady(true)}
+        />
       </div>
 
-      {/* Bottom bar — shown when recording (active or paused) */}
+      {/* Bottom bar — transcribing status + stop/resume button (today only) */}
       {isToday && (
-        <div className="flex items-center shrink-0 pt-3.5 pb-5 gap-4 bg-white border-t border-[#F0EEE9] px-6">
-          <div className="grow flex flex-col gap-0.5">
-            <div className="flex items-center gap-1.5">
-              {transcriptionPaused ? (
-                <div className="w-2 h-2 rounded-full bg-[#A8A29E]" />
-              ) : (
-                <WaveIndicator />
-              )}
-              <span className="text-[13px] font-red-hat font-semibold text-[#1C1917] leading-4">
-                {transcriptionPaused ? "Paused" : "Transcribing"}
-              </span>
-            </div>
-            <span className="text-[12px] font-red-hat text-[#A8A29E] leading-4">
+        <div className="flex flex-col items-center shrink-0 pt-4 pb-10 gap-3 bg-white border-t border-[#E8E5E1] px-6">
+          <div className="flex items-center gap-1.5">
+            <div
+              className={`rounded-[3px] shrink-0 size-1.5 ${
+                transcriptionPaused ? "bg-[#A8A29E]" : "bg-[#D32F2F] animate-pulse"
+              }`}
+            />
+            <span className="text-[13px] leading-4 text-[#6B655D] font-red-hat font-medium">
               {transcriptionPaused
-                ? "Microphone is turned off"
-                : `${formatElapsed(elapsedSeconds)} elapsed`}
+                ? `Paused · ${formatElapsed(elapsedSeconds)}`
+                : `Transcribing · ${formatElapsed(elapsedSeconds)}`}
             </span>
           </div>
-          {transcriptionPaused ? (
-            <button
-              onClick={() => session?.settings?.updateSettings({ transcriptionPaused: false })}
-              className="w-13 h-13 flex items-center justify-center rounded-full bg-[#1C1917] shrink-0"
-            >
-              {/* Mic off */}
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="1" y1="1" x2="23" y2="23" />
-                <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
-                <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.13 1.49-.35 2.17" />
-                <line x1="12" y1="19" x2="12" y2="23" />
-              </svg>
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowStopConfirm(true)}
-              className="w-13 h-13 flex items-center justify-center rounded-full bg-[#DC2626] shrink-0"
-            >
-              {/* Mic on */}
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" fill="#FFFFFF" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
-                <line x1="12" y1="19" x2="12" y2="23" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            </button>
-          )}
+          <div className="flex items-center gap-6">
+            <div className="flex flex-col items-center gap-1">
+              {transcriptionPaused ? (
+                <button
+                  onClick={() => session?.settings?.updateSettings({ transcriptionPaused: false })}
+                  className="w-13 h-13 flex items-center justify-center rounded-[26px] bg-[#1C1917] shrink-0"
+                  aria-label="Resume transcription"
+                >
+                  <MicrophoneSolidIcon />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowStopConfirm(true)}
+                  className="w-13 h-13 flex items-center justify-center rounded-[26px] bg-[#D32F2F] shrink-0"
+                  aria-label="Stop transcription"
+                >
+                  <StopRecordingIcon />
+                </button>
+              )}
+              <span
+                className={`text-[11px] leading-3.5 font-red-hat font-semibold ${
+                  transcriptionPaused ? "text-[#1C1917]" : "text-[#D32F2F]"
+                }`}
+              >
+                {transcriptionPaused ? "Resume" : "Stop"}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -398,6 +487,14 @@ export function TranscriptPage() {
         onSend={handleEmailSend}
         defaultEmail={userId || ""}
         itemLabel="Transcript"
+      />
+
+      <DeleteTranscriptDrawer
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteConfirmed}
+        dates={[dateString]}
+        conversations={session?.conversation?.conversations ?? []}
       />
     </div>
   );

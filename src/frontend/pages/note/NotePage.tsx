@@ -11,80 +11,36 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useParams, useLocation } from "wouter";
+import { useParams } from "wouter";
+import { useNavigation } from "../../navigation/NavigationStack";
 import { useMentraAuth } from "@mentra/react";
-import { format, isToday, isYesterday } from "date-fns";
+import { isToday, isYesterday, format } from "date-fns";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Image from "@tiptap/extension-image";
+import { Drawer } from "vaul";
 import { useSynced } from "../../hooks/useSynced";
-import type { SessionI, Note, FolderColor } from "../../../shared/types";
-import { FolderPicker } from "./FolderPicker";
-import {
-  DropdownMenu,
-  type DropdownMenuOption,
-} from "../../components/shared/DropdownMenu";
-
-const FOLDER_COLOR_MAP: Record<FolderColor, string> = {
-  red: "#DC2626",
-  gray: "#78716C",
-  blue: "#2563EB",
-};
+import type { SessionI, Note } from "../../../shared/types";
+import { htmlToPlainText } from "../../../shared/htmlToPlainText";
 import { NotePageSkeleton } from "../../components/shared/SkeletonLoader";
 import { EmailDrawer } from "../../components/shared/EmailDrawer";
+import { toast } from "../../components/shared/toast";
+import { ExportDrawer, type ExportOptions } from "../../components/shared/ExportDrawer";
+import { useTabBar } from "../../components/layout/Shell";
+import {
+  BackChevronIcon,
+  ExportIcon,
+  TrashIcon,
+  ConversationIcon,
+  BoldIcon,
+  ItalicIcon,
+  HeadingIcon,
+  BulletListIcon,
+  LinkIcon,
+} from "../../components/shared/custom-icons";
+import { isDevelopmentMode } from "../../lib/devMode";
 import { rewriteR2Urls } from "../../../shared/constants";
-
-// =============================================================================
-// Content parser — extracts structured sections from note content
-// =============================================================================
-
-interface ParsedNote {
-  summary: string;
-}
-
-function parseNoteContent(content: string, summary?: string): ParsedNote {
-  const result: ParsedNote = {
-    summary: "",
-  };
-
-  if (summary) {
-    result.summary = summary;
-    return result;
-  }
-
-  if (!content) return result;
-
-  // Strip HTML tags to extract a plain-text summary
-  const text = content
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n")
-    .replace(/<\/li>/gi, "\n")
-    .replace(/<\/h[1-6]>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .trim();
-
-  const lines = text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  for (const line of lines) {
-    const bulletText = line
-      .replace(/^[-•*]\s*/, "")
-      .replace(/^\d+\.\s*/, "")
-      .trim();
-    if (!bulletText) continue;
-    result.summary += (result.summary ? " " : "") + bulletText;
-    if (result.summary.length > 200) break;
-  }
-
-  return result;
-}
 
 // =============================================================================
 // Component
@@ -92,16 +48,31 @@ function parseNoteContent(content: string, summary?: string): ParsedNote {
 
 export function NotePage() {
   const params = useParams<{ id: string }>();
-  const [, setLocation] = useLocation();
+  const { push, back } = useNavigation();
   const { userId } = useMentraAuth();
   const { session } = useSynced<SessionI>(userId || "");
 
   const [editTitle, setEditTitle] = useState("");
   const [showEmailDrawer, setShowEmailDrawer] = useState(false);
+  const [showExportDrawer, setShowExportDrawer] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const titleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Pending title value captured when the debounce timer was set. Used by
+  // flushTitle() so we write the exact value that was queued, independent of
+  // whether editTitle has since changed.
+  const pendingTitleRef = useRef<string | null>(null);
+  const titleInputFocusedRef = useRef(false);
+
+  // Hide the bottom tab bar while on this route (spec: detail page is full-bleed)
+  const tabBar = useTabBar();
+  useEffect(() => {
+    tabBar.setHidden(true);
+    return () => tabBar.setHidden(false);
+  }, [tabBar]);
 
   const noteId = params.id || "";
   const allNotes = session?.notes?.notes ?? [];
@@ -114,23 +85,24 @@ export function NotePage() {
     return conversations.find((c) => c.noteId === note.id) ?? null;
   }, [note, conversations]);
 
-  // Parse structured content
-  const parsed = useMemo(() => {
-    if (!note) return null;
-    return parseNoteContent(note.content, note.summary);
-  }, [note?.content, note?.summary]);
+  // Format the meta line: "Today, 2:10 PM" / "Yesterday, 2:10 PM" / "Mar 12, 2:10 PM"
+  // Uses createdAt so a note created at 11:58 PM stays in its real day.
+  const metaLabel = useMemo(() => {
+    const created = note?.createdAt ? new Date(note.createdAt) : null;
+    if (!created) return "";
+    let dayLabel: string;
+    if (isToday(created)) dayLabel = "Today";
+    else if (isYesterday(created)) dayLabel = "Yesterday";
+    else {
+      const sameYear = created.getFullYear() === new Date().getFullYear();
+      dayLabel = sameYear ? format(created, "MMM d") : format(created, "MMM d, yyyy");
+    }
+    const time = created.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    return `${dayLabel}, ${time}`;
+  }, [note?.createdAt]);
 
-  // Format date
-  const dateLabel = useMemo(() => {
-    if (!note?.date) return "";
-    const [year, month, day] = note.date.split("-").map(Number);
-    const dateObj = new Date(year, month - 1, day);
-    if (isToday(dateObj)) return "Today";
-    if (isYesterday(dateObj)) return "Yesterday";
-    return format(dateObj, "MMM d, yyyy");
-  }, [note?.date]);
-
-  // Source label
+  // Dev-only "From: …" source label — conversations UI is deprecated but we
+  // still want the link in dev so engineers can jump into the source.
   const sourceLabel = useMemo(() => {
     if (!note?.isAIGenerated || !sourceConversation) return null;
     const duration = sourceConversation.endTime
@@ -142,6 +114,7 @@ export function NotePage() {
       : null;
     return `From: ${sourceConversation.title}${duration ? ` · ${duration} min` : ""}`;
   }, [note, sourceConversation]);
+
 
   // Parse markdown to HTML
   const parseContentToHtml = useCallback((content: string): string => {
@@ -217,20 +190,37 @@ export function NotePage() {
     },
   });
 
-  // Initialize editor content when note loads
+  // Initialize editor content when note loads. Pass `false` for emitUpdate so
+  // TipTap doesn't fire onUpdate for this programmatic write — otherwise the
+  // auto-save effect treats hydration as a user edit and shows "Saved".
   useEffect(() => {
     if (note && editor) {
       setEditTitle(note.title || "");
-      editor.commands.setContent(buildEditorContent(note));
+      editor.commands.setContent(buildEditorContent(note), { emitUpdate: false });
     }
   }, [note?.id, editor, buildEditorContent]);
 
-  // Auto-save content
+  // Resync editTitle when the note's title changes server-side (e.g. AI
+  // populates it async after the page was opened). Skipped while the user is
+  // actively editing the title — we don't want to clobber their in-progress
+  // edit — and skipped if a local title save is queued for flushing.
+  useEffect(() => {
+    if (!note) return;
+    if (titleInputFocusedRef.current) return;
+    if (titleTimeoutRef.current !== null) return;
+    const serverTitle = note.title || "";
+    if (serverTitle !== editTitle) setEditTitle(serverTitle);
+  }, [note?.title]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-save content. Title is intentionally NOT written here — it has its
+  // own debounce effect below. Including title in this patch caused a silent
+  // title-wipe: if `editTitle` was a stale "" (e.g. note's title was generated
+  // server-side after mount), any content save would clobber the real title.
   const handleAutoSave = async (content: string) => {
     if (!session?.notes?.updateNote || !note) return;
     setIsSaving(true);
     try {
-      await session.notes.updateNote(noteId, { title: editTitle, content });
+      await session.notes.updateNote(noteId, { content });
       setShowSaved(true);
       if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
       savedTimeoutRef.current = setTimeout(() => setShowSaved(false), 2000);
@@ -241,27 +231,67 @@ export function NotePage() {
     }
   };
 
-  // Save on title change (debounced)
+  // Persist whatever title is queued right now (or the current editTitle if
+  // no timer is pending but the input diverges from the store). No-op if
+  // nothing is pending and the title already matches the store.
+  const flushTitle = useCallback(() => {
+    if (!session?.notes?.updateNote || !note) return;
+    // Only trust pendingTitleRef when a debounce timer is actually active.
+    // Without this guard, a stale pending value from a previous debounce
+    // cycle (one that was superseded by a resync) can clobber the current
+    // title when handleBack calls flushTitle.
+    const hasActiveTimer = titleTimeoutRef.current !== null;
+    const value = hasActiveTimer && pendingTitleRef.current !== null
+      ? pendingTitleRef.current
+      : editTitle;
+    if (value === note.title) {
+      if (titleTimeoutRef.current) clearTimeout(titleTimeoutRef.current);
+      titleTimeoutRef.current = null;
+      pendingTitleRef.current = null;
+      return;
+    }
+    if (titleTimeoutRef.current) clearTimeout(titleTimeoutRef.current);
+    titleTimeoutRef.current = null;
+    pendingTitleRef.current = null;
+    session.notes.updateNote(noteId, { title: value })
+      .then(() => {
+        setShowSaved(true);
+        if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+        savedTimeoutRef.current = setTimeout(() => setShowSaved(false), 2000);
+      })
+      .catch(() => {});
+  }, [session?.notes, note, editTitle, noteId]);
+
+  // Save on title change (debounced, 1000ms). Queue the pending value in a ref
+  // so flushTitle() from handleBack can fire it synchronously if the user
+  // navigates before the timer lands.
   useEffect(() => {
-    if (!note || editTitle === note.title) return;
-    const timeout = setTimeout(() => {
-      session?.notes
-        ?.updateNote(noteId, { title: editTitle })
-        .then(() => {
-          setShowSaved(true);
-          if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
-          savedTimeoutRef.current = setTimeout(() => setShowSaved(false), 2000);
-        })
-        .catch(() => {});
+    if (!note) return;
+    if (editTitle === note.title) {
+      // Nothing to queue — clear any stale pending from a prior divergent
+      // state (e.g. initial editTitle="" before the resync caught up).
+      if (titleTimeoutRef.current) clearTimeout(titleTimeoutRef.current);
+      titleTimeoutRef.current = null;
+      pendingTitleRef.current = null;
+      return;
+    }
+    pendingTitleRef.current = editTitle;
+    if (titleTimeoutRef.current) clearTimeout(titleTimeoutRef.current);
+    titleTimeoutRef.current = setTimeout(() => {
+      flushTitle();
     }, 1000);
-    return () => clearTimeout(timeout);
-  }, [editTitle, note?.title, noteId, session?.notes]);
+    return () => {
+      if (titleTimeoutRef.current) clearTimeout(titleTimeoutRef.current);
+      titleTimeoutRef.current = null;
+    };
+  }, [editTitle, note?.title, flushTitle]);
 
   // Cleanup
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+      if (titleTimeoutRef.current) clearTimeout(titleTimeoutRef.current);
     };
   }, []);
 
@@ -274,7 +304,7 @@ export function NotePage() {
           Note not found
         </div>
         <button
-          onClick={() => setLocation("/notes")}
+          onClick={() => back()}
           className={`mt-4 text-[14px] text-[#78716C] underline font-red-hat`}
         >
           Go back
@@ -284,10 +314,42 @@ export function NotePage() {
   }
 
   const handleBack = () => {
-    // Save pending changes before leaving
+    // Flush both pending saves before leaving. Title first so the content
+    // save doesn't race with a stale editTitle closure.
+    flushTitle();
     if (editor) handleAutoSave(editor.getHTML());
-    setLocation("/notes");
+    back();
   };
+
+  const handleExport = useCallback(async (options: ExportOptions) => {
+    if (!note) return;
+    if (options.destination === "email") {
+      setShowEmailDrawer(true);
+      return;
+    }
+    const content = editor?.getHTML() || note.content || "";
+    const text = htmlToPlainText(content);
+    const title = editTitle || note.title || "Untitled Note";
+    // If the body already starts with the title, don't repeat it.
+    const firstLine = text.split("\n", 1)[0]?.trim();
+    const payload = firstLine && firstLine === title.trim() ? text : `${title}\n\n${text}`;
+    try {
+      await navigator.clipboard.writeText(payload);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Failed to copy");
+    }
+  }, [note, editor, editTitle]);
+
+  const handleDeleteConfirmed = useCallback(async () => {
+    if (!session?.notes?.permanentlyDeleteNote || !note) {
+      setShowDeleteConfirm(false);
+      return;
+    }
+    await session.notes.permanentlyDeleteNote(note.id);
+    setShowDeleteConfirm(false);
+    back();
+  }, [session, note, back]);
 
   const handleEmailSend = async (to: string, cc: string) => {
     if (!note) return;
@@ -343,285 +405,82 @@ export function NotePage() {
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || "Failed to send email");
+    toast.success(`Email sent to ${to}`);
   };
 
   return (
-    <div className="flex h-full flex-col bg-[#FAFAF9] overflow-hidden">
-      {/* Header bar */}
-      <div className="flex items-center justify-between pt-3 px-6 shrink-0">
-        <button onClick={handleBack} className="flex items-center gap-3.5">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <polyline
-              points="15,18 9,12 15,6"
-              stroke="#1C1917"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span
-            className={`text-[16px] leading-5 text-[#1C1917] font-red-hat font-semibold`}
-          >
+    <div className="[font-synthesis:none] flex h-full flex-col bg-[#FCFBFA] overflow-hidden antialiased">
+      {/* Header bar — back chevron + "Note" label */}
+      <div className="flex items-center justify-between py-3 px-6 shrink-0">
+        <button onClick={handleBack} className="flex items-center gap-2">
+          <BackChevronIcon />
+          <span className="text-[18px] leading-[22px] text-[#1A1A1A] font-red-hat font-bold">
             Note
           </span>
         </button>
-
+        {/* Save status — kept but muted, so auto-save is still visible */}
+        <span className="text-[11px] text-[#A8A29E] font-red-hat mr-20">
+          {isSaving ? "Saving..." : showSaved ? "Saved" : ""}
+        </span>
       </div>
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
-        {/* Meta section */}
-        <div className="flex flex-col pt-5 gap-3 px-6">
-          {/* Badges row */}
-          <div className="flex items-center gap-2 flex flex-row">
-            {note.isAIGenerated ? (
-              <div className="flex items-center rounded-sm py-0.5 px-2 bg-[#FEE2E2]">
-                <span
-                  className={`text-[10px] leading-3.5 text-[#DC2626] font-red-hat font-bold`}
-                >
-                  AI
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center rounded-sm py-0.5 px-2 bg-[#DBEAFE]">
-                <span
-                  className={`text-[10px] leading-3.5 text-[#2563EB] font-red-hat font-semibold`}
-                >
-                  Manual
-                </span>
-              </div>
-            )}
-            {(() => {
-              const folders = session?.folders?.folders ?? [];
-              const noteFolder = folders.find((f) => f.id === note.folderId);
-              if (!noteFolder) return null;
-              const color = FOLDER_COLOR_MAP[noteFolder.color];
-              return (
-                <div className="flex items-center rounded-sm py-0.5 px-2 gap-1 bg-[#F5F5F4]">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                      stroke={color}
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                    />
-                  </svg>
-                  <span className="text-[10px] leading-3.5 text-[#78716C] font-red-hat font-semibold">
-                    {noteFolder.name}
-                  </span>
-                </div>
-              );
-            })()}
-            <span
-              className={`text-[12px] leading-4 text-[#A8A29E] font-red-hat`}
-            >
-              {dateLabel}
-            </span>
-            <div className="flex items-center gap-4 ml-auto">
-              {/* Save status */}
-              <span className={`text-[11px] text-[#A8A29E] font-red-hat`}>
-                {isSaving ? "Saving..." : showSaved ? "Saved" : ""}
-              </span>
-              {/* Export button */}
-              {/* <button onClick={() => setShowEmailDrawer(true)} className="p-1">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"
-                    stroke="#52525B"
-                    strokeWidth="1.75"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <polyline
-                    points="16,6 12,2 8,6"
-                    stroke="#52525B"
-                    strokeWidth="1.75"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <line
-                    x1="12"
-                    y1="2"
-                    x2="12"
-                    y2="15"
-                    stroke="#52525B"
-                    strokeWidth="1.75"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button> */}
-              {/* More menu */}
-              <DropdownMenu
-                options={(() => {
-                  const isFav = note?.isFavourite ?? false;
-                  const isArchived = note?.isArchived ?? false;
-                  const isTrashed = note?.isTrashed ?? false;
-
-                  const items: DropdownMenuOption[] = [
-                    {
-                      id: "favourite",
-                      label: isFav ? "Unfavourite" : "Favourite",
-                      icon: (
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill={isFav ? "#DC2626" : "none"}
-                          stroke={isFav ? "#DC2626" : "#78716C"}
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                        </svg>
-                      ),
-                      onClick: async () => {
-                        if (!session?.notes || !note) return;
-                        if (isFav) {
-                          await session.notes.unfavouriteNote(note.id);
-                        } else {
-                          await session.notes.favouriteNote(note.id);
-                        }
-                      },
-                    },
-                    {
-                      id: "archive",
-                      label: isArchived ? "Unarchive" : "Archive",
-                      icon: (
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#78716C"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M21 8v13H3V8" />
-                          <rect x="1" y="3" width="22" height="5" rx="1" />
-                          <line x1="10" y1="12" x2="14" y2="12" />
-                        </svg>
-                      ),
-                      onClick: async () => {
-                        if (!session?.notes || !note) return;
-                        if (isArchived) {
-                          await session.notes.unarchiveNote(note.id);
-                        } else {
-                          await session.notes.archiveNote(note.id);
-                        }
-                      },
-                    },
-                    { type: "divider" },
-                    {
-                      id: "trash",
-                      label: isTrashed ? "Untrash" : "Trash",
-                      danger: !isTrashed,
-                      icon: (
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke={isTrashed ? "#78716C" : "#DC2626"}
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M3 6h18" />
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
-                      ),
-                      onClick: async () => {
-                        if (!session?.notes || !note) return;
-                        if (isTrashed) {
-                          await session.notes.untrashNote(note.id);
-                        } else {
-                          await session.notes.trashNote(note.id);
-                          setLocation("/notes");
-                        }
-                      },
-                    },
-                  ];
-                  return items;
-                })()}
-              />
+        {/* Title row — extrabold title + export + delete action icons */}
+        <div className="flex flex-col pb-3.5 gap-1.5 pt-2 px-6">
+          <div className="flex items-center gap-1.5 justify-center">
+            <textarea
+              value={editTitle}
+              onChange={(e) => {
+                setEditTitle(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = e.target.scrollHeight + "px";
+              }}
+              onFocus={() => {
+                titleInputFocusedRef.current = true;
+              }}
+              onBlur={() => {
+                titleInputFocusedRef.current = false;
+                // On blur, flush immediately so tapping outside the title then
+                // navigating can't drop the edit.
+                flushTitle();
+              }}
+              ref={(el) => {
+                if (el) {
+                  el.style.height = "auto";
+                  el.style.height = el.scrollHeight + "px";
+                }
+              }}
+              placeholder="Untitled Note"
+              rows={1}
+              className="flex-1 tracking-[-0.5px] text-[#1A1A1A] font-red-hat font-extrabold text-[26px] leading-8 bg-transparent border-none focus:outline-none placeholder-[#D6D3D1] resize-none overflow-hidden break-words pr-6"
+            />
+            <div className="flex gap-3 w-fit shrink-0 pt-1">
+              <button onClick={() => setShowExportDrawer(true)} aria-label="Export note">
+                <ExportIcon />
+              </button>
+              <button onClick={() => setShowDeleteConfirm(true)} aria-label="Delete note">
+                <TrashIcon />
+              </button>
             </div>
           </div>
-
-          {/* Title (editable, auto-wrapping) */}
-          <textarea
-            value={editTitle}
-            onChange={(e) => {
-              setEditTitle(e.target.value);
-              e.target.style.height = "auto";
-              e.target.style.height = e.target.scrollHeight + "px";
-            }}
-            ref={(el) => {
-              if (el) {
-                el.style.height = "auto";
-                el.style.height = el.scrollHeight + "px";
-              }
-            }}
-            placeholder="Untitled Note"
-            rows={1}
-            className={`w-full text-[24px] leading-[30px] text-[#1C1917] font-red-hat font-extrabold bg-transparent border-none focus:outline-none placeholder-[#D6D3D1] resize-none overflow-hidden break-words p-0`}
-          />
-
-          {/* Source conversation */}
-          {sourceLabel && sourceConversation && (
-            <button className="flex items-center gap-2 active:opacity-70 transition-opacity">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                  stroke="#A8A29E"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span
-                onClick={() =>
-                  setLocation(`/conversation/${sourceConversation.id}`)
-                }
-                className={`text-[13px] leading-[18px] text-[#78716C] font-red-hat font-medium underline underline-offset-2 decoration-[#D6D3D1]`}
-              >
+          {/* Timestamp line — "Today, 2:10 PM" */}
+          <div className="text-[#9C958D] font-red-hat text-[13px] leading-4">
+            {metaLabel}
+          </div>
+          {/* Dev-only "From: …" conversation link */}
+          {isDevelopmentMode && sourceLabel && sourceConversation && (
+            <button
+              onClick={() => push(`/conversation/${sourceConversation.id}`)}
+              className="flex items-center gap-2 active:opacity-70 transition-opacity self-start"
+            >
+              <ConversationIcon />
+              <span className="text-[13px] leading-[18px] text-[#78716C] font-red-hat font-medium underline underline-offset-2 decoration-[#D6D3D1]">
                 {sourceLabel}
               </span>
             </button>
           )}
         </div>
-
-        {/* Folder picker */}
-        <div className="pt-4">
-          <FolderPicker
-            folders={session?.folders?.folders ?? []}
-            currentFolderId={note?.folderId}
-            onSelect={async (folderId) => {
-              if (!session?.notes?.updateNote || !note) return;
-              await session.notes.updateNote(note.id, { folderId });
-            }}
-          />
-        </div>
-
-        {/* Divider */}
-        <div className="h-px mt-1 mb-5 bg-[#E7E5E4] mx-6" />
-
-        {/* Summary section (AI-generated notes only) */}
-        {note.isAIGenerated && parsed?.summary && (
-          <div className="flex flex-col gap-2.5 px-6">
-            <div className="flex items-center gap-2">
-              <span
-                className={`text-[11px] tracking-[0.08em] uppercase leading-3.5 text-[#A8A29E] font-red-hat font-bold`}
-              >
-                Summary
-              </span>
-            </div>
-          </div>
-        )}
 
         {/* Inline TipTap editor — always visible, always editable */}
         <div className="px-6 pt-0 pb-32">
@@ -648,7 +507,8 @@ export function NotePage() {
         </div>
       </div>
 
-      {/* Bottom formatting toolbar */}
+      {/* Bottom formatting toolbar — commented out for read-only/minimal detail page */}
+      {false && (
       <div className="flex items-center justify-center pt-3 pb-3 gap-1 border-t border-[#F4F4F5] bg-[#FAFAF9] shrink-0">
         {editor && (
           <>
@@ -659,19 +519,7 @@ export function NotePage() {
                 editor.isActive("bold") ? "bg-[#F5F5F4]" : ""
               }`}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={editor.isActive("bold") ? "#1C1917" : "#71717A"}
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
-                <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
-              </svg>
+              <BoldIcon stroke={editor.isActive("bold") ? "#1C1917" : "#71717A"} />
             </button>
             {/* Italic */}
             <button
@@ -680,20 +528,7 @@ export function NotePage() {
                 editor.isActive("italic") ? "bg-[#F5F5F4]" : ""
               }`}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={editor.isActive("italic") ? "#1C1917" : "#71717A"}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="19" y1="4" x2="10" y2="4" />
-                <line x1="14" y1="20" x2="5" y2="20" />
-                <line x1="15" y1="4" x2="9" y2="20" />
-              </svg>
+              <ItalicIcon stroke={editor.isActive("italic") ? "#1C1917" : "#71717A"} />
             </button>
             {/* Heading */}
             <button
@@ -704,25 +539,7 @@ export function NotePage() {
                 editor.isActive("heading", { level: 2 }) ? "bg-[#F5F5F4]" : ""
               }`}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={
-                  editor.isActive("heading", { level: 2 })
-                    ? "#1C1917"
-                    : "#71717A"
-                }
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M4 12h8" />
-                <path d="M4 18V6" />
-                <path d="M12 18V6" />
-                <path d="M17 12a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v1a2 2 0 0 1-.6 1.4L17 18h4" />
-              </svg>
+              <HeadingIcon stroke={editor.isActive("heading", { level: 2 }) ? "#1C1917" : "#71717A"} />
             </button>
             {/* Bullet list */}
             <button
@@ -731,23 +548,7 @@ export function NotePage() {
                 editor.isActive("bulletList") ? "bg-[#F5F5F4]" : ""
               }`}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={editor.isActive("bulletList") ? "#1C1917" : "#71717A"}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="8" y1="6" x2="21" y2="6" />
-                <line x1="8" y1="12" x2="21" y2="12" />
-                <line x1="8" y1="18" x2="21" y2="18" />
-                <line x1="3" y1="6" x2="3.01" y2="6" />
-                <line x1="3" y1="12" x2="3.01" y2="12" />
-                <line x1="3" y1="18" x2="3.01" y2="18" />
-              </svg>
+              <BulletListIcon stroke={editor.isActive("bulletList") ? "#1C1917" : "#71717A"} />
             </button>
             {/* Link (placeholder) */}
             {/* <button className="flex items-center justify-center rounded-[10px] shrink-0 size-10">
@@ -768,8 +569,19 @@ export function NotePage() {
           </>
         )}
       </div>
+      )}
 
-      {/* Email Drawer */}
+      {/* Export Drawer (clipboard / email) */}
+      <ExportDrawer
+        isOpen={showExportDrawer}
+        onClose={() => setShowExportDrawer(false)}
+        itemType="note"
+        itemLabel={editTitle || note.title || "Untitled Note"}
+        count={1}
+        onExport={handleExport}
+      />
+
+      {/* Email Drawer (opened by ExportDrawer when destination=email) */}
       <EmailDrawer
         isOpen={showEmailDrawer}
         onClose={() => setShowEmailDrawer(false)}
@@ -777,6 +589,47 @@ export function NotePage() {
         defaultEmail={userId || ""}
         itemLabel="Note"
       />
+
+      {/* Delete confirmation — permanent */}
+      <Drawer.Root open={showDeleteConfirm} onOpenChange={(open) => !open && setShowDeleteConfirm(false)}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/30 backdrop-blur-[6px] z-50" />
+          <Drawer.Content className="flex flex-col rounded-t-[20px] fixed bottom-0 left-0 right-0 z-50 bg-[#FAFAF9] outline-none">
+            <div className="flex justify-center pt-3 pb-4">
+              <div className="w-9 h-1 rounded-xs bg-[#D6D3D1] shrink-0" />
+            </div>
+            <Drawer.Title className="sr-only">Delete Note</Drawer.Title>
+            <Drawer.Description className="sr-only">Confirm permanent note deletion</Drawer.Description>
+            <div className="px-6 pb-10">
+              <div className="pb-1">
+                <span className="text-xl leading-[26px] text-[#1C1917] font-red-hat font-extrabold tracking-[-0.02em]">
+                  Delete Note?
+                </span>
+              </div>
+              <p className="text-[14px] leading-5 text-[#78716C] font-red-hat pb-6">
+                This will permanently delete this note. This cannot be undone.
+              </p>
+              <button
+                onClick={handleDeleteConfirmed}
+                className="flex items-center justify-center w-full rounded-xl bg-[#DC2626] p-3.5 mb-3"
+              >
+                <span className="text-[16px] leading-5 text-white font-red-hat font-bold">
+                  Delete Note
+                </span>
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex items-center justify-center w-full rounded-xl border border-[#E7E5E4] p-3.5"
+              >
+                <span className="text-[16px] leading-5 text-[#1C1917] font-red-hat font-bold">
+                  Cancel
+                </span>
+              </button>
+            </div>
+            <div className="h-safe-area-bottom" />
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
     </div>
   );
 }

@@ -20,6 +20,8 @@ import {
   deleteNotesByDate,
   deleteChatHistory,
   HourSummary,
+  deleteHourSummariesForDate,
+  deleteSearchSegmentsForDate,
   type FileI,
 } from "../../models";
 import { deleteFromR2 } from "../../services/r2Upload.service";
@@ -243,9 +245,15 @@ export class FileManager extends SyncedManager {
       console.log(`[FileManager] Pre-set segment counts:`, files.slice(0, 10).map(f => `${f.date}=${f.transcriptSegmentCount}`).join(", "));
       this.files.set(files);
 
-      // Sync today's segment count from TranscriptManager (today's count is in-memory)
+      // Sync today's segment count from TranscriptManager (today's count is in-memory).
+      // Guard against `segments` holding a different date's data — TranscriptManager
+      // replaces `segments` whenever a historical day is opened, so we must check
+      // `loadedDate === today` before treating the in-memory length as today's count.
       const transcriptManager = (this._session as any)?.transcript;
-      if (transcriptManager?.segments?.length > 0) {
+      if (
+        transcriptManager?.loadedDate === today &&
+        transcriptManager?.segments?.length > 0
+      ) {
         this.files.mutate((list) => {
           const idx = list.findIndex((f) => f.date === today);
           if (idx >= 0) {
@@ -485,13 +493,19 @@ export class FileManager extends SyncedManager {
     const userId = this._session?.userId;
     if (!userId) return;
 
-    await getOrCreateFile(userId, date, { hasTranscript: true });
+    // Un-trash the file if it was previously deleted — the user is recording
+    // again so we need to revive the day's entry.
+    await updateFile(userId, date, {
+      hasTranscript: true,
+      isTrashed: false,
+    });
 
     // Update local state
     this.files.mutate((files) => {
       const idx = files.findIndex((f) => f.date === date);
       if (idx >= 0) {
         files[idx].hasTranscript = true;
+        files[idx].isTrashed = false;
       } else {
         this.refreshFile(date);
       }
@@ -754,6 +768,11 @@ export class FileManager extends SyncedManager {
       await deleteDailyTranscript(userId, date);
       console.log(`[FileManager] Deleted MongoDB transcript for ${date}`);
 
+      // Delete persisted hour summaries for this date so the hour titles
+      // ("10 AM — Product Launch Sync", etc.) don't reappear after delete
+      const deletedSummaries = await deleteHourSummariesForDate(userId, date);
+      console.log(`[FileManager] Deleted ${deletedSummaries} hour summaries for ${date}`);
+
       // Mark file as trashed (clear favourite/archive)
       const file = await updateFile(userId, date, {
         isTrashed: true,
@@ -766,6 +785,20 @@ export class FileManager extends SyncedManager {
       if (!file) return null;
 
       console.log(`[FileManager] Trashed file ${date}, transcript data deleted`);
+
+      // If we just trashed today, also wipe TranscriptManager's in-memory segments.
+      // Otherwise loadTodayTranscript() short-circuits on loadedDate === today and
+      // serves stale segments to the frontend.
+      if (date === this.today()) {
+        const transcriptManager = (this._session as any)?.transcript;
+        if (transcriptManager?.clear) {
+          await transcriptManager.clear();
+          // Reset loadedDate so the next loadTodayTranscript() re-hydrates from
+          // MongoDB instead of short-circuiting on stale state
+          transcriptManager.loadedDate = "";
+          console.log(`[FileManager] Cleared TranscriptManager in-memory state for today`);
+        }
+      }
 
       // Refresh the list based on current filter
       const files = await this.getFilesRpc(this.activeFilter);
@@ -927,6 +960,10 @@ export class FileManager extends SyncedManager {
     const deletedTranscript = await deleteDailyTranscript(userId, date);
     console.log(`[FileManager] DailyTranscript deleted: ${deletedTranscript}`);
 
+    // Delete phrase-search index rows for this date
+    const deletedSearch = await deleteSearchSegmentsForDate(userId, date);
+    console.log(`[FileManager] Deleted ${deletedSearch} search-index rows for ${date}`);
+
     // Delete File record
     const deletedFile = await deleteFileFromDb(userId, date, true);
     console.log(`[FileManager] File deleted: ${deletedFile}`);
@@ -987,6 +1024,10 @@ export class FileManager extends SyncedManager {
         // 4. Delete DailyTranscript
         await deleteDailyTranscript(userId, date);
         console.log(`[FileManager] Deleted DailyTranscript for ${date}`);
+
+        // 4a. Delete phrase-search index rows for this date
+        const deletedSearch = await deleteSearchSegmentsForDate(userId, date);
+        console.log(`[FileManager] Deleted ${deletedSearch} search-index rows for ${date}`);
 
         // 5. Delete File record
         await deleteFileFromDb(userId, date, true);

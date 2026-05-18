@@ -10,7 +10,8 @@
  */
 
 import { useMemo, useState, useEffect, useRef } from "react";
-import { useLocation, useParams } from "wouter";
+import { useParams } from "wouter";
+import { useNavigation } from "../../navigation/NavigationStack";
 import { useMentraAuth } from "@mentra/react";
 import { format } from "date-fns";
 import { useSynced } from "../../hooks/useSynced";
@@ -18,6 +19,17 @@ import { WaveIndicator } from "../../components/shared/WaveIndicator";
 import type { SessionI, Conversation, ConversationChunk, ConversationSegment, TranscriptSegment } from "../../../shared/types";
 import { DropdownMenu, type DropdownMenuOption } from "../../components/shared/DropdownMenu";
 import { LoadingState } from "../../components/shared/LoadingState";
+import {
+  BackChevronIcon,
+  CircularSpinnerIcon,
+  FavoriteStarIcon,
+  ArchiveIcon,
+  TrashIcon,
+  DocumentPageIcon,
+  ChevronRightIcon,
+  ChevronDownIcon,
+  XCircleIcon,
+} from "../../components/shared/custom-icons";
 
 /** Stable speakerId string → sequential color index (first seen = 0, second = 1, …) */
 function buildSpeakerMap(segments: (TranscriptSegment | ConversationSegment)[]): Map<string, number> {
@@ -67,7 +79,7 @@ export function ConversationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { userId } = useMentraAuth();
   const { session } = useSynced<SessionI>(userId || "");
-  const [, setLocation] = useLocation();
+  const { push, back } = useNavigation();
   const [showFullTranscript, setShowFullTranscript] = useState(false);
   const transcriptBottomRef = useRef<HTMLDivElement>(null);
 
@@ -155,11 +167,11 @@ export function ConversationDetailPage() {
   }, [convDate, isActive, session?.file?.files]);
 
   const handleBack = () => {
-    setLocation("/");
+    back();
   };
 
   const handleGenerateNote = () => {
-    setLocation(`/conversation/${conversation.id}/generating`);
+    push(`/conversation/${conversation.id}/generating`);
   };
 
   return (
@@ -167,9 +179,7 @@ export function ConversationDetailPage() {
       {/* Header */}
       <div className="flex items-start pt-3 pb-4 gap-3 px-6 shrink-0">
         <button onClick={handleBack} className="shrink-0 mt-1 -ml-2 p-1">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="m15 18-6-6 6-6" stroke="#1C1917" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <BackChevronIcon stroke="#1C1917" />
         </button>
         <div className="flex flex-col grow shrink basis-0 gap-1 min-w-0">
           {conversation.title ? (
@@ -178,10 +188,7 @@ export function ConversationDetailPage() {
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <svg className="animate-spin shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="#D6D3D1" strokeWidth="3" />
-                <path d="M12 2a10 10 0 0 1 10 10" stroke="#A8A29E" strokeWidth="3" strokeLinecap="round" />
-              </svg>
+              <CircularSpinnerIcon className="animate-spin shrink-0" />
               <span className="text-[16px] leading-5 text-[#A8A29E] font-red-hat font-medium">
                 Generating title...
               </span>
@@ -214,9 +221,7 @@ export function ConversationDetailPage() {
                   id: "favourite",
                   label: isFav ? "Unfavourite" : "Favourite",
                   icon: (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill={isFav ? "#DC2626" : "none"} stroke={isFav ? "#DC2626" : "#78716C"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
+                    <FavoriteStarIcon size={16} stroke={isFav ? "#DC2626" : "#78716C"} fill={isFav ? "#DC2626" : "none"} />
                   ),
                   onClick: async () => {
                     if (!convManager) return;
@@ -231,11 +236,7 @@ export function ConversationDetailPage() {
                   id: "archive",
                   label: isArchived ? "Unarchive" : "Archive",
                   icon: (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#78716C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 8v13H3V8" />
-                      <rect x="1" y="3" width="22" height="5" rx="1" />
-                      <line x1="10" y1="12" x2="14" y2="12" />
-                    </svg>
+                    <ArchiveIcon size={16} stroke="#78716C" />
                   ),
                   onClick: async () => {
                     if (!convManager) return;
@@ -252,11 +253,7 @@ export function ConversationDetailPage() {
                   label: isTrashed ? "Untrash" : "Trash",
                   danger: !isTrashed,
                   icon: (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isTrashed ? "#78716C" : "#DC2626"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 6h18" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
+                    <TrashIcon size={16} stroke={isTrashed ? "#78716C" : "#DC2626"} strokeWidth={2} />
                   ),
                   onClick: async () => {
                     if (!convManager) return;
@@ -264,7 +261,7 @@ export function ConversationDetailPage() {
                       await convManager.untrashConversation(conversation.id);
                     } else {
                       await convManager.trashConversation(conversation.id);
-                      setLocation("/");
+                      back();
                     }
                   },
                 },
@@ -321,15 +318,12 @@ export function ConversationDetailPage() {
           {!isActive && (
             conversation.noteId && linkedNote ? (
               <button
-                onClick={() => setLocation(`/note/${conversation.noteId}`)}
+                onClick={() => push(`/note/${conversation.noteId}`)}
                 className="flex items-center justify-between w-full rounded-xl py-3.5 px-4 bg-[#F5F5F4] active:scale-[0.98] transition-transform mt-4"
               >
                 <div className="flex items-center gap-2.5">
                   <div className="flex items-center justify-center shrink-0 rounded-lg bg-[#FEE2E2] size-8">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                    </svg>
+                    <DocumentPageIcon size={16} stroke="#DC2626" />
                   </div>
                   <div className="flex flex-col gap-0.5">
                     <div className="flex items-center gap-1.5">
@@ -343,9 +337,7 @@ export function ConversationDetailPage() {
                     </span>
                   </div>
                 </div>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
+                <ChevronRightIcon stroke="#A8A29E" />
               </button>
             ) : (
               <button
@@ -402,15 +394,13 @@ export function ConversationDetailPage() {
               )}
               {/* View transcript link — always shown when active */}
               <button
-                onClick={() => setLocation(`/conversation/${id}/transcript`)}
+                onClick={() => push(`/conversation/${id}/transcript`)}
                 className="flex items-center gap-1.5 pt-1"
               >
                 <span className="text-[13px] leading-4 text-[#71717A] font-red-hat font-medium">
                   View transcript
                 </span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#71717A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
+                <ChevronRightIcon size={14} stroke="#71717A" />
               </button>
             </div>
           ) : endedSegments.length > 0 ? (
@@ -445,9 +435,7 @@ export function ConversationDetailPage() {
                   <span className={`text-[13px] leading-4 text-[#71717A] font-red-hat font-medium`}>
                     {showFullTranscript ? "Show less" : `View full transcript (${endedSegments.length} segments)`}
                   </span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#71717A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${showFullTranscript ? "rotate-180" : ""}`}>
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
+                  <ChevronDownIcon stroke="#71717A" className={`transition-transform ${showFullTranscript ? "rotate-180" : ""}`} />
                 </button>
               )}
             </>
@@ -457,11 +445,7 @@ export function ConversationDetailPage() {
             </div>
           ) : transcriptDeleted ? (
             <div className="flex items-center gap-2 py-3 px-4 rounded-xl bg-[#FEF2F2] border border-[#FEE2E2]">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
+              <XCircleIcon />
               <span className="text-[13px] leading-4 text-[#DC2626] font-red-hat font-medium">
                 Transcript deleted
               </span>

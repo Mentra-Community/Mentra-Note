@@ -10,11 +10,15 @@ import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { useMentraAuth } from "@mentra/react";
 import { Toaster } from "sonner";
+import { toast } from "./components/shared/toast";
 import { clsx } from "clsx";
 import { Router } from "./router";
 import { Shell } from "./components/layout/Shell";
+import { NavigationStackProvider } from "./navigation/NavigationStack";
 import { useFeatureFlag, FLAGS } from "./services/posthog";
 import { SplashScreen } from "./components/shared/SplashScreen";
+import { DebugDrawer, DebugSkeletonGate } from "./components/DebugDrawer";
+import { CheckIcon, CloseIcon } from "./components/shared/custom-icons";
 import { useSynced } from "./hooks/useSynced";
 import type { SessionI } from "../shared/types";
 
@@ -74,6 +78,17 @@ export function App() {
     }
   });
 
+
+  // Auto-note error toast — reacts when the backend bumps lastAutoNoteErrorSeq
+  const autoNoteErrorSeq = session?.conversation?.lastAutoNoteErrorSeq ?? 0;
+  const autoNoteErrorMessage = session?.conversation?.lastAutoNoteErrorMessage;
+  const lastSeenErrorSeqRef = useRef(0);
+  useEffect(() => {
+    if (autoNoteErrorSeq > lastSeenErrorSeqRef.current) {
+      lastSeenErrorSeqRef.current = autoNoteErrorSeq;
+      if (autoNoteErrorMessage) toast.error(autoNoteErrorMessage);
+    }
+  }, [autoNoteErrorSeq, autoNoteErrorMessage]);
 
   // Theme state — forced to light mode (dark mode disabled)
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -157,16 +172,35 @@ export function App() {
           theme,
         )}
       >
-        <Toaster position="top-center" theme={theme} />
-        <Shell>
-          <Router />
-        </Shell>
+        <Toaster
+          position="top-center"
+          theme={theme}
+          icons={{
+            success: <CheckIcon aria-hidden stroke="currentColor" strokeWidth={2.5} />,
+            error: <CloseIcon aria-hidden stroke="currentColor" strokeWidth={2.5} size={16} />,
+          }}
+          toastOptions={{
+            classNames: {
+              toast: "!font-red-hat !rounded-xl !shadow-[0px_4px_16px_rgba(0,0,0,0.08)]",
+              success: "!bg-[#FAFAF9] !text-[#1C1917] !border !border-[#E7E5E4]",
+              error: "!bg-[#1C1917] !text-[#FAFAF9] !border !border-[#1C1917]",
+            },
+          }}
+        />
+        <NavigationStackProvider>
+          <Shell>
+            <DebugSkeletonGate>
+              <Router />
+            </DebugSkeletonGate>
+          </Shell>
+        </NavigationStackProvider>
         <SplashScreen
           visible={postOnboardingSplash}
           message="Getting you set up"
           duration={1200}
           onDone={() => setPostOnboardingSplash(false)}
         />
+        <DebugDrawer />
       </div>
     </ThemeContext.Provider>
   );

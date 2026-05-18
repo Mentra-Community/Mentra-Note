@@ -9,7 +9,8 @@
  */
 
 import { Drawer } from "vaul";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { useNavigation } from "../../navigation/NavigationStack";
 
 interface BottomDrawerProps {
   isOpen: boolean;
@@ -25,6 +26,14 @@ export function BottomDrawer({
   children,
   snapPoints,
 }: BottomDrawerProps) {
+  const { registerDrawer } = useNavigation();
+
+  // While open, claim back() so browser/OS back closes the drawer before popping the route.
+  useEffect(() => {
+    if (!isOpen) return;
+    return registerDrawer(onClose);
+  }, [isOpen, onClose, registerDrawer]);
+
   return (
     <Drawer.Root
       open={isOpen}
@@ -44,7 +53,7 @@ export function BottomDrawer({
           <Drawer.Description className="sr-only">Drawer menu</Drawer.Description>
 
           {/* Content */}
-          <div className="px-6 pt-4 pb-8">
+          <div className="px-6 pt-4 pb-8 ">
             {children}
           </div>
 

@@ -10,7 +10,9 @@ import {
   getOrCreateDailyTranscript,
   getAvailableDates,
   appendTranscriptSegments,
+  bulkUpsertSearchSegments,
   type TranscriptSegmentI,
+  type UpsertSegmentInput,
 } from "../../models";
 import type { R2TranscriptSegment } from "../../services/r2Upload.service";
 import { TimeManager } from "./TimeManager";
@@ -59,6 +61,7 @@ export class TranscriptManager extends SyncedManager {
   @synced availableDates = synced<string[]>([]);
   @synced isLoadingHistory = false;
   @synced isSyncingPhoto = false;
+  @synced isHydrated = false;
 
   private segmentIndex = 0;
   private pendingSegments: TranscriptSegmentI[] = [];
@@ -112,6 +115,10 @@ export class TranscriptManager extends SyncedManager {
   async hydrate(): Promise<void> {
     const userId = this._session?.userId;
     if (!userId) return;
+
+    // Reset the hydrated flag so clients show a loading state during re-hydrate
+    // (e.g. when navigating back to today from a historical date).
+    this.isHydrated = false;
 
     try {
       const today = this.getTimeManager().today();
@@ -203,6 +210,8 @@ export class TranscriptManager extends SyncedManager {
 
     } catch (error) {
       console.error("[TranscriptManager] Failed to hydrate:", error);
+    } finally {
+      this.isHydrated = true;
     }
   }
 
@@ -235,10 +244,54 @@ export class TranscriptManager extends SyncedManager {
         console.log(
           `[TranscriptManager] Persisted ${segments.length} segments for ${userId} on ${date}`,
         );
+
+        // Mirror final text-only segments into the phrase-search collection.
+        // Skip photo segments entirely (decision locked in issue #26).
+        const searchInputs: UpsertSegmentInput[] = segments
+          .filter((s) => s.type !== "photo" && s.isFinal && s.text?.trim())
+          .map((s) => {
+            const ts = s.timestamp instanceof Date ? s.timestamp : new Date(s.timestamp);
+            return {
+              userId,
+              date,
+              hour: this.getHourInTimezone(ts, timeManager.getTimezone()),
+              segIndex: s.index,
+              text: s.text,
+              timestamp: ts,
+              speakerId: s.speakerId,
+            };
+          });
+        if (searchInputs.length > 0) {
+          try {
+            await bulkUpsertSearchSegments(searchInputs);
+          } catch (err) {
+            console.error(
+              `[TranscriptManager] Failed to mirror ${searchInputs.length} segments to search index:`,
+              err,
+            );
+          }
+        }
       }
     } catch (error) {
       console.error("[TranscriptManager] Failed to persist:", error);
     }
+  }
+
+  /**
+   * Hour (0-23) in the user's timezone. Mirrors TranscriptTab's grouping so
+   * segIndex → hour stays consistent between the DB, the search results,
+   * and the rendered transcript page.
+   */
+  private getHourInTimezone(timestamp: Date, timezone: string | undefined): number {
+    if (timezone) {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        hour: "2-digit",
+        hour12: false,
+        timeZone: timezone,
+      }).formatToParts(timestamp);
+      return parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
+    }
+    return timestamp.getHours();
   }
 
   destroy(): void {
@@ -360,14 +413,20 @@ export class TranscriptManager extends SyncedManager {
     const today = this.getTimeManager().today();
     const fileManager = this.getFileManager();
     if (fileManager) {
-      if (!wasRecording) {
+      // Call on recording-start AND when today's file is missing/trashed so
+      // we self-heal if the user deleted today mid-recording.
+      const todayFile = fileManager.files.find((f: any) => f.date === today);
+      if (!wasRecording || !todayFile || todayFile.isTrashed) {
         fileManager.onTranscriptStarted(today);
       }
       fileManager.onSegmentAdded(today, this.segments.length);
     }
 
-    // Ensure today appears in availableDates for the Transcripts tab
-    if (!wasRecording && !this.availableDates.includes(today)) {
+    // Ensure today appears in availableDates for the Transcripts tab.
+    // Run this on every segment (not just the first) so it self-heals if the
+    // user deletes today's transcript while recording — the next segment
+    // restores today to the list.
+    if (!this.availableDates.includes(today)) {
       this.availableDates.mutate((dates) => {
         if (!dates.includes(today)) {
           dates.unshift(today);
@@ -519,15 +578,34 @@ export class TranscriptManager extends SyncedManager {
             }),
           );
 
-          // Delegate summary loading to SummaryManager
-          const summaryManager = this.getSummaryManager();
-          const loadedSummaries = summaryManager
-            ? await summaryManager.loadSummariesForDate(date)
-            : [];
-
+          // Set segments + loadedDate FIRST so backfill's generateHourSummary
+          // sees the right state when it runs
           this.segments.set(loadedSegments);
           this.loadedDate = date;
           this.isLoadingHistory = false;
+
+          // Delegate summary loading to SummaryManager
+          const summaryManager = this.getSummaryManager();
+          let loadedSummaries = summaryManager
+            ? await summaryManager.loadSummariesForDate(date)
+            : [];
+
+          // Backfill any hours that have segments but no saved summary, so
+          // historical days get titles the first time they're opened. Fire and
+          // forget — frontend will see new summaries stream in via @synced.
+          if (summaryManager) {
+            summaryManager
+              .backfillMissingHourSummaries(date)
+              .then(() => {
+                // Re-read after backfill so the return value below isn't stale
+                // for the *initial* response — note: the synced state will already
+                // have streamed any new summaries to the client by this point.
+                loadedSummaries = [...summaryManager.hourSummaries];
+              })
+              .catch((err) =>
+                console.error(`[TranscriptManager] Backfill error for ${date}:`, err),
+              );
+          }
 
           console.log(
             `[TranscriptManager] ✓ R2 fetch successful: ${loadedSegments.length} segments for ${date}`,
@@ -567,7 +645,21 @@ export class TranscriptManager extends SyncedManager {
           this.loadedDate = date;
           this.isLoadingHistory = false;
           console.log(`[TranscriptManager] ✓ MongoDB fallback: ${loadedSegments.length} segments for ${date}`);
-          return { segments: loadedSegments, hourSummaries: [] };
+
+          const summaryManager = this.getSummaryManager();
+          const loadedSummaries = summaryManager
+            ? await summaryManager.loadSummariesForDate(date)
+            : [];
+
+          if (summaryManager) {
+            summaryManager
+              .backfillMissingHourSummaries(date)
+              .catch((err) =>
+                console.error(`[TranscriptManager] Backfill error for ${date}:`, err),
+              );
+          }
+
+          return { segments: loadedSegments, hourSummaries: loadedSummaries };
         }
       }
 

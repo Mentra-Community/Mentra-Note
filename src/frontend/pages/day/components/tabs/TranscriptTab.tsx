@@ -12,7 +12,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect, memo } from "react";
 import { clsx } from "clsx";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowDown, ChevronDown, Loader2 } from "lucide-react";
+import { ArrowDown, ChevronDown, Loader2, MessagesSquare } from "lucide-react";
 import { DotsSpinner } from "../../../../components/shared/DotsSpinner";
 import { WaveIndicator } from "../../../../components/shared/WaveIndicator";
 import type {
@@ -23,12 +23,14 @@ import type {
 // Memoized segment row to prevent re-renders when siblings update
 const SegmentRow = memo(function SegmentRow({
   segment,
+  segId,
   formatTime,
   getPhotoSrc,
   onImageLoad,
   isLive,
 }: {
   segment: TranscriptSegment;
+  segId?: string;
   formatTime: (timestamp: Date | string) => string;
   getPhotoSrc: (url: string) => string;
   onImageLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
@@ -36,7 +38,7 @@ const SegmentRow = memo(function SegmentRow({
 }) {
   if (segment.type === "photo" && segment.photoUrl) {
     return (
-      <div className="rounded-[10px] overflow-hidden bg-white">
+      <div data-seg-id={segId} className="rounded-[10px] overflow-hidden bg-white">
         <img
           src={getPhotoSrc(segment.photoUrl)}
           alt="Photo capture"
@@ -52,10 +54,13 @@ const SegmentRow = memo(function SegmentRow({
   const timeLabel = segment.timestamp ? formatTime(segment.timestamp) : "";
 
   return (
-    <div className={clsx(
-      "flex flex-col rounded-[10px] py-2.5 px-3 gap-[3px] bg-white",
-      isLive && "border-[1.5px] border-[#F5C9BC]",
-    )}>
+    <div
+      data-seg-id={segId}
+      className={clsx(
+        "flex flex-col rounded-[10px] py-2.5 px-3 gap-[3px] bg-white transition-colors duration-700",
+        isLive && "border-[1.5px] border-[#F5C9BC]",
+      )}
+    >
       <div className="flex items-center justify-between">
         <span className={clsx(
           "text-[11px] font-red-hat font-semibold leading-3.5",
@@ -68,13 +73,6 @@ const SegmentRow = memo(function SegmentRow({
       <p className="text-[13px] leading-[1.5] font-red-hat text-[#1C1917]">
         {segment.text}
       </p>
-      {/* {isLive && (
-        <div className="flex items-center mt-0.5 gap-1">
-          <div className="rounded-full bg-[#A8A29E] size-1" />
-          <div className="rounded-full bg-[#A8A29E] size-1" />
-          <div className="rounded-full bg-[#A8A29E] size-1" />
-        </div>
-      )} */}
     </div>
   );
 });
@@ -90,6 +88,12 @@ interface TranscriptTabProps {
   isCompactMode?: boolean; // When true, all hours show in minimal/compact view
   isSyncingPhoto?: boolean; // When true, a photo is being uploaded/analyzed
   isLoading?: boolean; // When true, show skeleton loading state
+  /** Hour (0-23) to auto-expand + scroll to on mount (e.g. from #hour-N deep-link) */
+  targetHour?: number;
+  /** Segment id (`${date}-${segIndex}`) to expand + scroll + yellow-flash (from #seg-<id>) */
+  targetSegId?: string;
+  /** Fired once after the deep-link target (hour or segment) has been scrolled into view. */
+  onDeepLinkScrolled?: () => void;
 }
 
 interface GroupedSegments {
@@ -108,6 +112,18 @@ function getPhotoSrc(url: string): string {
 // Hour display states: veryCollapsed (minimal) → collapsed (banner) → expanded (segments)
 type HourState = "veryCollapsed" | "collapsed" | "expanded";
 
+/**
+ * Build the stable segId used by the deep-link (#seg-<id>) and by the backend
+ * phrase-search collection. Derived from the segment's local id "seg_N" so
+ * the frontend doesn't need a parallel id field.
+ */
+function toSegId(dateString: string, segmentId: string | undefined): string | undefined {
+  if (!segmentId) return undefined;
+  const m = segmentId.match(/^seg_(\d+)$/);
+  if (!m) return undefined;
+  return `${dateString}-${m[1]}`;
+}
+
 export function TranscriptTab({
   segments,
   hourSummaries = [],
@@ -119,6 +135,9 @@ export function TranscriptTab({
   isCompactMode = false,
   isSyncingPhoto = false,
   isLoading = false,
+  targetHour,
+  targetSegId,
+  onDeepLinkScrolled,
 }: TranscriptTabProps) {
   // Track expanded state for each hour (only used when not in compact mode)
   const [expandedHours, setExpandedHours] = useState<Set<string>>(new Set());
@@ -239,6 +258,21 @@ export function TranscriptTab({
     return hourSummaries.find((s) => s.date === dateString && s.hour === hour);
   };
 
+  // Strip raw markdown artifacts the LLM sometimes leaks into summary text:
+  // leading "## "/"# ", surrounding bold/italic markers, leading "Title:" prefix,
+  // and stray underscores. Conservative — only touches obvious markdown syntax.
+  const stripMarkdown = (s: string): string => {
+    return s
+      .replace(/^\s*#{1,6}\s+/, "")            // leading "# ", "## ", etc.
+      .replace(/^\s*(?:title|summary)\s*:\s*/i, "") // leading "Title:" / "Summary:"
+      .replace(/\*\*([^*]+)\*\*/g, "$1")        // **bold** → bold
+      .replace(/__([^_]+)__/g, "$1")            // __bold__ → bold
+      .replace(/(^|\s)\*([^*\s][^*]*?)\*(\s|$|[.,!?;:])/g, "$1$2$3") // *italic* → italic
+      .replace(/(^|\s)_([^_\s][^_]*?)_(\s|$|[.,!?;:])/g, "$1$2$3")   // _italic_ → italic
+      .replace(/^\s*[-*+]\s+/, "")              // leading bullet "- " / "* "
+      .trim();
+  };
+
   /**
    * Parse summary into title and body (split by newline)
    */
@@ -252,13 +286,13 @@ export function TranscriptTab({
 
     if (lines.length === 1) {
       // Single line - treat as title only
-      return { title: lines[0].trim(), body: "" };
+      return { title: stripMarkdown(lines[0]), body: "" };
     }
 
     // First line is title, rest is body
     return {
-      title: lines[0].trim(),
-      body: lines.slice(1).join(" ").trim(),
+      title: stripMarkdown(lines[0]),
+      body: stripMarkdown(lines.slice(1).join(" ")),
     };
   };
 
@@ -305,63 +339,11 @@ export function TranscriptTab({
   };
 
 
-  // Tracks which hour we last expanded — images loading in this section will re-trigger scroll
-  const activeScrollHourRef = useRef<string | null>(null);
-
-  // Scroll so the last segment of a given hour section is at the bottom of the viewport
-  const scrollToEndOfHour = useCallback((hourKey: string) => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const section = container.querySelector(`[data-hour-section="${hourKey}"]`) as HTMLElement;
-    if (!section) return;
-
-    const containerRect = container.getBoundingClientRect();
-    const sectionRect = section.getBoundingClientRect();
-    const sectionBottom = sectionRect.bottom - containerRect.top + container.scrollTop;
-    const targetScroll = sectionBottom - containerRect.height;
-
-    container.scrollTo({
-      top: Math.max(0, targetScroll),
-      behavior: "instant",
-    });
-  }, []);
-
   // Called when any image inside an expanded section finishes loading
-  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>, hourKey: string) => {
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     (e.target as HTMLImageElement).classList.remove("min-h-24");
-    // If this image belongs to the hour we just scrolled to, re-scroll to end of that hour
-    if (activeScrollHourRef.current === hourKey) {
-      scrollToEndOfHour(hourKey);
-    }
-    // Also scroll to absolute bottom so newly loaded photos are always visible
-    const container = scrollContainerRef.current;
-    if (container) {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      // Only if user was already near the bottom (within 300px)
-      if (scrollHeight - scrollTop - clientHeight < 300) {
-        container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
-      }
-    }
-  }, [scrollToEndOfHour]);
-
-  // Called when content mounts after spinner — immediately scroll to bottom of that hour
-  const handleContentReady = useCallback((hourKey: string) => {
-    // Stop the pin loop now that content is laid out
-    pinningHourRef.current = null;
-
-    activeScrollHourRef.current = hourKey;
-    // Use rAF to ensure DOM has painted the content before measuring
-    requestAnimationFrame(() => {
-      scrollToEndOfHour(hourKey);
-      // Stop re-scrolling on image loads after a generous timeout
-      setTimeout(() => {
-        if (activeScrollHourRef.current === hourKey) {
-          activeScrollHourRef.current = null;
-        }
-      }, 3000);
-    });
-  }, [scrollToEndOfHour]);
+    // No auto-scroll on image load — let images settle in place.
+  }, []);
 
   // Scroll a header to the top of the scroll container
   const scrollHeaderToTop = useCallback((hourKey: string, behavior: ScrollBehavior = "smooth") => {
@@ -378,6 +360,17 @@ export function TranscriptTab({
       behavior,
     });
   }, []);
+
+  // Called when content mounts after spinner — keep the header pinned at the top
+  // so the user lands at the beginning of the hour they just expanded.
+  const handleContentReady = useCallback((hourKey: string) => {
+    // Stop the pin loop now that content is laid out
+    pinningHourRef.current = null;
+    // Use rAF to ensure DOM has painted the content before measuring
+    requestAnimationFrame(() => {
+      scrollHeaderToTop(hourKey, "instant");
+    });
+  }, [scrollHeaderToTop]);
 
   // rAF loop that continuously pins a header to the top during content animation
   const pinningHourRef = useRef<string | null>(null);
@@ -398,9 +391,8 @@ export function TranscriptTab({
     const wasExpanded = expandedHours.has(hourKey);
 
     if (wasExpanded) {
-      // Collapsing — clear all tracking: pin loop, auto-scroll suppression, active scroll
+      // Collapsing — clear pin loop
       pinningHourRef.current = null;
-      activeScrollHourRef.current = null;
         setLoadingHours((prev) => {
         const newSet = new Set(prev);
         newSet.delete(hourKey);
@@ -463,23 +455,347 @@ export function TranscriptTab({
   const isLive = currentHour !== undefined;
   const [showScrollButton, setShowScrollButton] = useState(false);
   const lockedRef = useRef(true);
-  // Initial scroll to bottom on first load only
+  // Initial mount behavior — only for today's live transcript:
+  //   1. auto-expand the current hour so the live section is open
+  //   2. scroll to bottom so the latest segment is visible
+  // Past days mount collapsed with scroll at the top.
   const initialScrollDone = useRef(false);
   useEffect(() => {
     if (isLoading || initialScrollDone.current) return;
+    if (currentHour === undefined) {
+      initialScrollDone.current = true;
+      lockedRef.current = false;
+      return;
+    }
     const container = scrollContainerRef.current;
     if (!container) return;
     initialScrollDone.current = true;
     lockedRef.current = true;
-    container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
-  }, [isLoading]);
+    const currentHourKey = createHourKey(currentHour);
+    setExpandedHours((prev) => {
+      if (prev.has(currentHourKey)) return prev;
+      const next = new Set(prev);
+      next.add(currentHourKey);
+      return next;
+    });
+    // Snap to bottom across multiple frames + a short tail timeout. The expanded
+    // content can take a few paint cycles to fully lay out (images, summary
+    // banners, etc.), so a single rAF often measures the pre-expansion height.
+    const snap = () => {
+      container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
+    };
+    requestAnimationFrame(() => {
+      snap();
+      requestAnimationFrame(() => {
+        snap();
+        setTimeout(snap, 200);
+      });
+    });
+  }, [isLoading, currentHour]);
 
   // Reset initial scroll flag when date changes
   useEffect(() => {
     initialScrollDone.current = false;
   }, [dateString]);
 
+  // Deep-link: when `targetHour` is provided (e.g. from /transcript/{date}#hour-N),
+  // expand that hour and scroll its header to the top after segments have loaded.
+  // Runs once per (date, targetHour) combo.
+  const lastTargetHourRef = useRef<string | null>(null);
   useEffect(() => {
+    if (targetHour === undefined || targetHour < 0) return;
+    if (isLoading) return;
+    const key = `${dateString}-${targetHour}`;
+    if (lastTargetHourRef.current === key) return;
+
+    const hourKey = createHourKey(targetHour);
+    // Bail if that hour has no segments yet (wrong day, or still hydrating)
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const section = container.querySelector(`[data-hour-section="${hourKey}"]`);
+    if (!section) return;
+
+    lastTargetHourRef.current = key;
+    // Expand + pin: same flow as tapping the hour's expand button
+    setExpandedHours((prev) => {
+      if (prev.has(hourKey)) return prev;
+      const next = new Set(prev);
+      next.add(hourKey);
+      return next;
+    });
+    // Give React a frame to mount the expanded content, then jump instantly
+    requestAnimationFrame(() => {
+      scrollHeaderToTop(hourKey, "instant");
+      onDeepLinkScrolled?.();
+    });
+  }, [targetHour, dateString, isLoading, scrollHeaderToTop, onDeepLinkScrolled]);
+
+  // Deep-link: when `targetSegId` is provided (e.g. /transcript/{date}#seg-<id>),
+  // find that segment, expand its hour, scroll it into view, and briefly
+  // flash it yellow. Runs once per (date, segId) pair so repeat visits re-fire.
+  //
+  // Robust against R2 race: when the user deep-links into a historical day,
+  // `isLoading` flips false but `segments` can still arrive over several
+  // @synced updates. The effect keeps a cancelable poller that retries for
+  // up to 6s waiting for both segments to populate AND the hour DOM to mount.
+  const lastTargetSegRef = useRef<string | null>(null);
+  const segmentsRef = useRef(segments);
+  segmentsRef.current = segments;
+
+  // Reset the deep-link lock whenever we start loading a new date, so a
+  // successful "find" in the PREVIOUS date's still-resident segments can't
+  // claim the lock before the new date's data arrives. Without this reset,
+  // the effect correctly re-fires when segments hydrate but then skips
+  // because the key matches a lock set against stale data.
+  useEffect(() => {
+    if (isLoading) {
+      lastTargetSegRef.current = null;
+    }
+  }, [isLoading, dateString]);
+
+  useEffect(() => {
+    console.log(
+      `[TranscriptTab] deep-link effect fired: targetSegId=${targetSegId} isLoading=${isLoading} dateString=${dateString} segments=${segments.length} lastKey=${lastTargetSegRef.current}`,
+    );
+    if (!targetSegId) return;
+    if (isLoading) return;
+    const key = `${dateString}|${targetSegId}`;
+    if (lastTargetSegRef.current === key) {
+      console.log(`[TranscriptTab] skipping — same key as last run`);
+      return;
+    }
+
+    // Guard against the stale-segments race: only proceed if the segments
+    // actually belong to the target date. R2 historical loads go through
+    // three states — (A) initial render with prior date's segments still
+    // resident, (B) segments.set([]) + isLoading=true, (C) new data arrives.
+    // If we hit (A) and the target was in the previous date, we'd mark the
+    // lock prematurely. Check the target segment's matching date prefix.
+    const match = targetSegId.match(/^(\d{4}-\d{2}-\d{2})-(\d+)$/);
+    if (!match) {
+      console.warn(`[TranscriptTab] Bad targetSegId format: ${targetSegId}`);
+      return;
+    }
+    if (match[1] !== dateString) {
+      console.log(
+        `[TranscriptTab] target seg date (${match[1]}) != dateString (${dateString}), waiting`,
+      );
+      return;
+    }
+    // Also require that at least one rendered segment has a timestamp whose
+    // date (in the user's tz) matches — proves we're looking at the RIGHT
+    // day's data, not the previous day's lingering segments.
+    const hasCorrectDateSegments = segments.some((s) => {
+      if (!s.timestamp) return false;
+      const d = typeof s.timestamp === "string" ? new Date(s.timestamp) : s.timestamp;
+      // Cheap check: format the timestamp into YYYY-MM-DD in the user's tz
+      // and compare. Using Intl.DateTimeFormat keeps us consistent with
+      // getHourInTimezone below.
+      const parts = new Intl.DateTimeFormat("en-US", {
+        year: "numeric", month: "2-digit", day: "2-digit",
+        ...(timezone && { timeZone: timezone }),
+      }).formatToParts(d);
+      const y = parts.find((p) => p.type === "year")?.value;
+      const m = parts.find((p) => p.type === "month")?.value;
+      const dd = parts.find((p) => p.type === "day")?.value;
+      return `${y}-${m}-${dd}` === dateString;
+    });
+    if (!hasCorrectDateSegments) {
+      // Sample 3 segment timestamps so we can see what dates they DO match.
+      const sample = segments.slice(0, 3).map((s) => {
+        if (!s.timestamp) return `${s.id}:no-ts`;
+        const d = typeof s.timestamp === "string" ? new Date(s.timestamp) : s.timestamp;
+        return `${s.id}:${d.toISOString()}`;
+      }).join(", ");
+      console.log(
+        `[TranscriptTab] no segments yet match dateString=${dateString} (sample: ${sample})`,
+      );
+      return;
+    }
+    console.log(
+      `[TranscriptTab] proceeding past date gate — starting poll for segment`,
+    );
+
+    const [, , segIndexStr] = match;
+    const targetIndex = parseInt(segIndexStr, 10);
+
+    let cancelled = false;
+    let success = false;
+
+    const findSegment = (): TranscriptSegment | null => {
+      const segs = segmentsRef.current;
+      if (segs.length === 0) return null;
+      // Only consider segments whose timestamp falls on dateString (user tz).
+      // This blocks stale residual segments from a previous date from being
+      // picked up during the brief render window where they're still in state.
+      const dateSegs = segs.filter((s) => {
+        if (!s.timestamp) return false;
+        const d = typeof s.timestamp === "string" ? new Date(s.timestamp) : s.timestamp;
+        const parts = new Intl.DateTimeFormat("en-US", {
+          year: "numeric", month: "2-digit", day: "2-digit",
+          ...(timezone && { timeZone: timezone }),
+        }).formatToParts(d);
+        const y = parts.find((p) => p.type === "year")?.value;
+        const m = parts.find((p) => p.type === "month")?.value;
+        const dd = parts.find((p) => p.type === "day")?.value;
+        return `${y}-${m}-${dd}` === dateString;
+      });
+      if (dateSegs.length === 0) return null;
+
+      // Primary: exact id match.
+      let segment = dateSegs.find((s) => s.id === `seg_${segIndexStr}`);
+      // Fallback 1: numeric tail match.
+      if (!segment?.timestamp) {
+        segment = dateSegs.find((s) => {
+          const m = s.id?.match(/(\d+)$/);
+          return m ? parseInt(m[1], 10) === targetIndex : false;
+        });
+      }
+      // Fallback 2: nearest index within ±5.
+      if (!segment?.timestamp) {
+        let best: { seg: TranscriptSegment; delta: number } | null = null;
+        for (const s of dateSegs) {
+          const m = s.id?.match(/(\d+)$/);
+          if (!m) continue;
+          const delta = Math.abs(parseInt(m[1], 10) - targetIndex);
+          if (!best || delta < best.delta) best = { seg: s, delta };
+        }
+        if (best && best.delta <= 5) {
+          console.log(
+            `[TranscriptTab] Exact seg_${targetIndex} not found, using nearest (delta=${best.delta}): ${best.seg.id}`,
+          );
+          segment = best.seg;
+        }
+      }
+      return segment?.timestamp ? segment : null;
+    };
+
+    const tryOnce = () => {
+      if (cancelled || success) return true;
+      const segment = findSegment();
+      if (!segment?.timestamp) {
+        console.log(`[TranscriptTab] tryOnce: segment not found yet`);
+        return false;
+      }
+
+      const hour = getHourInTimezone(segment.timestamp);
+      const hourKey = createHourKey(hour);
+
+      const container = scrollContainerRef.current;
+      if (!container) {
+        console.log(`[TranscriptTab] tryOnce: scroll container not mounted`);
+        return false;
+      }
+      const hourSection = container.querySelector(`[data-hour-section="${hourKey}"]`);
+      if (!hourSection) {
+        console.log(`[TranscriptTab] tryOnce: hour section ${hourKey} not in DOM`);
+        return false;
+      }
+
+      console.log(
+        `[TranscriptTab] tryOnce SUCCESS: segment.id=${segment.id} hour=${hour} hourKey=${hourKey}`,
+      );
+      // Success path begins — claim the ref so later effect re-runs don't refire.
+      lastTargetSegRef.current = key;
+      success = true;
+
+      // Expand the hour.
+      setExpandedHours((prev) => {
+        if (prev.has(hourKey)) return prev;
+        const next = new Set(prev);
+        next.add(hourKey);
+        return next;
+      });
+
+      const actualSegId = (() => {
+        const m = segment.id?.match(/^seg_(\d+)$/);
+        return m ? `${dateString}-${m[1]}` : undefined;
+      })();
+
+      const attemptFlash = (attemptsLeft: number) => {
+        if (cancelled) return;
+        let el = container.querySelector<HTMLElement>(
+          `[data-seg-id="${CSS.escape(targetSegId)}"]`,
+        );
+        if (!el && actualSegId && actualSegId !== targetSegId) {
+          el = container.querySelector<HTMLElement>(
+            `[data-seg-id="${CSS.escape(actualSegId)}"]`,
+          );
+        }
+        if (!el) {
+          if (attemptsLeft > 0) {
+            setTimeout(() => attemptFlash(attemptsLeft - 1), 120);
+          } else {
+            console.warn(
+              `[TranscriptTab] Deep-link: segment DOM node never appeared for ${targetSegId} (tried actualSegId=${actualSegId})`,
+            );
+          }
+          return;
+        }
+        console.log(
+          `[TranscriptTab] Flashing DOM node: data-seg-id=${el.getAttribute("data-seg-id")} rect.top=${el.getBoundingClientRect().top}`,
+        );
+
+        // Jump directly to the segment — instant, no scroll animation.
+        el.scrollIntoView({ behavior: "instant", block: "center" });
+
+        // Flash after a beat so the scroll animation doesn't fight the class
+        // change. Color stays for 1.5s, then fades via the SegmentRow's
+        // `transition-colors duration-700`.
+        const flashEl = el;
+        setTimeout(() => {
+          if (cancelled) return;
+          flashEl.classList.add("!bg-yellow-200");
+          setTimeout(() => {
+            flashEl.classList.remove("!bg-yellow-200");
+          }, 6000);
+        }, 400);
+
+        // Re-snap once layout settles (hour-expand animations typically run
+        // ~300–500ms and the segment's final y can shift as siblings settle).
+        setTimeout(() => {
+          if (cancelled) return;
+          if (!document.body.contains(flashEl)) return;
+          flashEl.scrollIntoView({ behavior: "instant", block: "center" });
+          onDeepLinkScrolled?.();
+        }, 700);
+      };
+      requestAnimationFrame(() => attemptFlash(30));
+      return true;
+    };
+
+    // Try immediately; if not ready, poll for up to 6 seconds waiting for
+    // segments to hydrate + hour DOM to render.
+    if (tryOnce()) return;
+    let attempts = 0;
+    const maxAttempts = 60; // 60 × 100ms = 6s
+    const poller = setInterval(() => {
+      attempts++;
+      if (tryOnce() || attempts >= maxAttempts) {
+        clearInterval(poller);
+        if (!success && attempts >= maxAttempts) {
+          console.warn(
+            `[TranscriptTab] Deep-link: gave up waiting for ${targetSegId} ` +
+              `(segments=${segmentsRef.current.length})`,
+          );
+        }
+      }
+    }, 100);
+
+    return () => {
+      cancelled = true;
+      clearInterval(poller);
+    };
+    // Depending on `segments.length` is important: when isLoading flips false
+    // BEFORE the segments array has populated (e.g. slow R2 fetch arriving in
+    // a separate @synced push), the date-gate above bails. Without re-running
+    // when segments finally arrive, we'd silently give up and never scroll.
+  }, [targetSegId, dateString, isLoading, segments.length]);
+
+  // Live-follow: only today's transcript auto-scrolls to the latest segment
+  // and shows the "scroll to bottom" button. Past days are always user-driven.
+  useEffect(() => {
+    if (currentHour === undefined) return;
     const container = scrollContainerRef.current;
     if (!container) return;
 
@@ -515,7 +831,7 @@ export function TranscriptTab({
       container.removeEventListener("scroll", handleScroll);
       observer.disconnect();
     };
-  }, [isLoading]);
+  }, [isLoading, currentHour]);
 
   const scrollToBottom = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -528,22 +844,12 @@ export function TranscriptTab({
 
   if (isLoading) {
     return (
-      <div className="h-full overflow-y-auto">
-        <div className="pb-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="border-b border-zinc-100 dark:border-[#3f4147] last:border-0">
-              <div className="flex items-start gap-3 px-4 py-4">
-                <div className="flex items-center gap-2 shrink-0 w-20">
-                  <div className="h-5 w-14 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
-                </div>
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <div className="h-4 w-3/4 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
-                  <div className="h-3 w-1/2 bg-zinc-100 dark:bg-zinc-800/60 rounded animate-pulse" />
-                </div>
-                <div className="h-4 w-4 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse shrink-0 ml-auto" />
-              </div>
-            </div>
-          ))}
+      <div className="h-full flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4 py-12 px-6">
+          <Loader2 size={36} strokeWidth={2} className="text-[#B0AAA2] animate-spin" />
+          <p className="text-[13px] leading-4 text-[#A8A29E] font-red-hat">
+            Loading transcription…
+          </p>
         </div>
       </div>
     );
@@ -552,10 +858,15 @@ export function TranscriptTab({
   if (segments.length === 0 && sortedHours.length === 0) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="text-center py-12 text-zinc-400">
-          <p className="text-sm">No transcript for this day</p>
-          <p className="text-xs mt-1">
-            Transcriptions will appear here when you record
+        <div className="flex flex-col items-center gap-5 py-12 px-6">
+          <div className="flex items-center justify-center size-32 rounded-full bg-[#F5F3F0]">
+            <MessagesSquare size={56} strokeWidth={1.5} className="text-[#B0AAA2]" />
+          </div>
+          <p className="text-[15px] leading-5 text-[#1C1917] font-red-hat font-semibold">
+            No transcript yet
+          </p>
+          <p className="text-[13px] leading-4 text-[#A8A29E] font-red-hat text-center">
+            Start talking and your words will appear here
           </p>
         </div>
       </div>
@@ -615,14 +926,28 @@ export function TranscriptTab({
               data-hour-section={hourKey}
               className="flex gap-3 mb-1"
             >
-              {/* Left: hour label + vertical line */}
+              {/* Left: hour label + vertical line.
+                  Label and (when expanded) collapse affordance stay sticky to the
+                  top of the scroll viewport so the reader always knows which hour
+                  they're inside and can collapse from anywhere within it. */}
               <div className="flex flex-col items-center w-11 shrink-0">
-                <span className={clsx(
-                  "text-[12px] font-red-hat font-bold leading-4 pt-0.5 shrink-0",
-                  isCurrentHour ? "text-[#C9573A]" : "text-[#1C1917]",
-                )}>
-                  {hourLabel}
-                </span>
+                <div className="sticky top-0 z-10 bg-[#FAFAF9] pt-0.5 pb-1 flex flex-col items-center gap-1 shrink-0">
+                  <span className={clsx(
+                    "text-[12px] font-red-hat font-bold leading-4",
+                    isCurrentHour ? "text-[#C9573A]" : "text-[#1C1917]",
+                  )}>
+                    {hourLabel}
+                  </span>
+                  {isExpanded && (
+                    <button
+                      onClick={() => toggleHour(hourKey)}
+                      aria-label="Collapse hour"
+                      className="flex items-center justify-center w-5 h-5 rounded-full bg-[#F5F3F0] text-[#A8A29E] active:bg-[#E7E5E0]"
+                    >
+                      <ChevronDown size={11} className="rotate-180" />
+                    </button>
+                  )}
+                </div>
                 <div className="w-px grow mt-1.5 bg-[#E7E5E0]" />
               </div>
 
@@ -661,6 +986,7 @@ export function TranscriptTab({
                       <SegmentRow
                         key={segment.id || `prev-${idx}`}
                         segment={segment}
+                        segId={toSegId(dateString, segment.id)}
                         formatTime={formatTime}
                         getPhotoSrc={getPhotoSrc}
                       />
@@ -754,9 +1080,10 @@ export function TranscriptTab({
                             <SegmentRow
                               key={segment.id || `idx-${idx}`}
                               segment={segment}
+                              segId={toSegId(dateString, segment.id)}
                               formatTime={formatTime}
                               getPhotoSrc={getPhotoSrc}
-                              onImageLoad={(e) => handleImageLoad(e, hourKey)}
+                              onImageLoad={handleImageLoad}
                               isLive={isLiveSegment}
                             />
                           );
@@ -772,17 +1099,6 @@ export function TranscriptTab({
                           />
                         )}
 
-                        {/* Collapse button */}
-                        <button
-                          onClick={() => toggleHour(hourKey)}
-                          className="flex items-center px-1 gap-1.5 py-0.5 mt-1"
-                        >
-                          <div className="grow h-px bg-[#E7E5E0]" />
-                          <span className="text-[11px] font-red-hat text-[#A8A29E] shrink-0 flex items-center gap-1">
-                            <ChevronDown size={11} className="rotate-180" /> collapse
-                          </span>
-                          <div className="grow h-px bg-[#E7E5E0]" />
-                        </button>
                       </motion.div>
                     )}
                   </div>

@@ -11,6 +11,10 @@
   "scripts": {
     "dev": "lsof -ti:3000 | xargs kill -9 2>/dev/null; NODE_ENV=development bun --watch src/index.ts",
     "start": "bun src/index.ts",
+    "start:prod": "NODE_ENV=production bun src/index.ts",
+    "docker:build": "docker build --platform linux/amd64 -f docker/Dockerfile -t mentra-notes:local .",
+    "docker:run": "docker run --rm --platform linux/amd64 -p 8080:80 --env-file .env -e NODE_ENV=production -e PORT=80 -e HOST=0.0.0.0 mentra-notes:local bun src/index.ts",
+    "docker:test": "bun run docker:build && bun run docker:run",
     "ngrok": "ngrok http 3000 --url https://isaiah-tpa.ngrok.app",
     "test:eval:classifier": "bun test src/test/evals/classifier/triage-classifier.test.ts",
     "test:eval:classifier:easy": "EVAL_DIFFICULTY=easy bun test src/test/evals/classifier/triage-classifier.test.ts",
@@ -33,7 +37,7 @@
     "@aws-sdk/client-s3": "^3.984.0",
     "@google/genai": "^1.0.0",
     "@mentra/react": "2.1.2",
-    "@mentra/sdk": "3.0.0-hono.6",
+    "@mentra/sdk": "^3.0.0-hono.8",
     "@pdf-lib/fontkit": "^1.1.1",
     "@radix-ui/react-dialog": "^1.1.4",
     "@radix-ui/react-label": "^2.1.2",
@@ -48,6 +52,7 @@
     "@tiptap/pm": "^3.19.0",
     "@tiptap/react": "^3.19.0",
     "@tiptap/starter-kit": "^3.19.0",
+    "adm-zip": "^0.5.17",
     "bun-plugin-tailwind": "^0.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -74,6 +79,7 @@
     "wouter": "^3.9.0"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/bun": "latest",
     "@types/react": "^19",
     "@types/react-dom": "^19",

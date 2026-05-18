@@ -135,6 +135,7 @@ export interface TranscriptManagerI {
   availableDates: string[]; // Dates with transcripts (for folder list)
   isLoadingHistory: boolean; // Loading indicator for historical data
   isSyncingPhoto: boolean; // True while a photo is being uploaded/analyzed
+  isHydrated: boolean; // True once initial hydration completes
 
   // RPCs
   getRecentSegments(count?: number): Promise<TranscriptSegment[]>;
@@ -164,7 +165,7 @@ export interface NotesManagerI {
   generating: boolean;
 
   // RPCs
-  generateNote(title?: string, startTime?: Date, endTime?: Date): Promise<Note>;
+  generateNote(title?: string, startTime?: Date, endTime?: Date, existingNoteId?: string | null): Promise<Note>;
   createManualNote(title: string, content: string): Promise<Note>;
   updateNote(noteId: string, updates: Partial<Note>): Promise<Note>;
   deleteNote(noteId: string): Promise<void>;
@@ -228,6 +229,26 @@ export interface SettingsManagerI {
     topics?: string[];
     transcriptionPaused?: boolean;
   }): Promise<void>;
+
+  /** Builds a ZIP of all transcripts + notes and emails it as an attachment. */
+  sendExportAllEmail(params: {
+    to: string | string[];
+    cc?: string | string[];
+  }): Promise<{ transcriptCount: number; noteCount: number; bytes: number }>;
+
+  /** Fresh-install wipe — deletes all user-owned data except the settings document. */
+  deleteAllUserData(): Promise<{
+    deleted: {
+      notes: number;
+      transcripts: number;
+      hourSummaries: number;
+      folders: number;
+      chatHistories: number;
+      conversations: number;
+      transcriptChunks: number;
+      files: number;
+    };
+  }>;
 }
 
 /**
@@ -273,6 +294,8 @@ export interface ConversationManagerI {
   conversations: Conversation[];
   activeConversationId: string | null;
   isHydrated: boolean;
+  lastAutoNoteErrorSeq: number;
+  lastAutoNoteErrorMessage: string | null;
 
   // RPCs
   deleteConversation(conversationId: string): Promise<void>;

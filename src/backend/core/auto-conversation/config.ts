@@ -40,13 +40,13 @@ export const AUTO_NOTES_CONFIG = {
   PENDING_SILENCE_THRESHOLD: 3,
 
   /** Number of preceding chunks to pull into a new conversation as context */
-  CONTEXT_PREAMBLE_CHUNKS: 3,
+  CONTEXT_PREAMBLE_CHUNKS: 20,
 
   /** Consecutive filler chunks needed before pausing (prevents "uh-huh" from pausing) */
-  SILENCE_PAUSE_CHUNKS: 2,
+  SILENCE_PAUSE_CHUNKS: 3,
 
   /** Consecutive silent/filler chunks in PAUSED state → end conversation permanently */
-  SILENCE_END_CHUNKS: 7,
+  SILENCE_END_CHUNKS: 2,
 
   /** Max words for the running summary (compressed every 3 chunks) */
   SUMMARY_MAX_WORDS: 300,
@@ -56,6 +56,13 @@ export const AUTO_NOTES_CONFIG = {
 
   /** Window to check for resuming a paused conversation (ms) — 30 minutes */
   RESUMPTION_WINDOW_MS: 30 * 60 * 1000,
+
+  /**
+   * Hard cap on conversation duration (ms) — 2 hours. Once a conversation
+   * crosses this, the next meaningful chunk force-ends it so we don't end
+   * up with an 8-hour mega-note for an all-day wear session.
+   */
+  MAX_CONVERSATION_DURATION_MS: 2 * 60 * 60 * 1000,
 
   // =========================================================================
   // Phase 4: Note Generation

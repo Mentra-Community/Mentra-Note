@@ -8,11 +8,13 @@
  */
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useLocation, useParams } from "wouter";
+import { useParams } from "wouter";
+import { useNavigation } from "../../navigation/NavigationStack";
 import { useMentraAuth } from "@mentra/react";
 import { format } from "date-fns";
 import { useSynced } from "../../hooks/useSynced";
 import type { SessionI } from "../../../shared/types";
+import { BackChevronIcon, SparkleIcon, CheckIcon } from "../../components/shared/custom-icons";
 
 type StepStatus = "done" | "active" | "pending";
 
@@ -26,7 +28,7 @@ export function GeneratingNotePage() {
   const { id } = useParams<{ id: string }>();
   const { userId } = useMentraAuth();
   const { session } = useSynced<SessionI>(userId || "");
-  const [, setLocation] = useLocation();
+  const { replace, back } = useNavigation();
   const [activeStep, setActiveStep] = useState(0);
   const generationStartedRef = useRef(false);
   const [progressPercent, setProgressPercent] = useState(0);
@@ -79,10 +81,10 @@ export function GeneratingNotePage() {
         setGenerateDone(true);
       } catch (err) {
         console.error("[GeneratingNotePage] Note generation failed:", err);
-        setLocation(`/conversation/${id}`);
+        back();
       }
     })();
-  }, [session, conversation, chunks, id, setLocation]);
+  }, [session, conversation, chunks, id, back]);
 
   // Animate steps forward — random delay between 500ms and 2s per step
   // Steps 0-2 animate on their own schedule; step 3 waits for API to finish
@@ -100,7 +102,7 @@ export function GeneratingNotePage() {
         setProgressPercent(100);
         setActiveStep(5);
         if (generatedNoteId.current) {
-          setTimeout(() => setLocation(`/note/${generatedNoteId.current}`), 600);
+          setTimeout(() => replace(`/note/${generatedNoteId.current}`), 600);
         }
       }, 600);
       return () => clearTimeout(timer);
@@ -109,7 +111,7 @@ export function GeneratingNotePage() {
     const delay = Math.random() * 1500 + 500; // 500ms – 2000ms
     const timer = setTimeout(() => setActiveStep((s) => s + 1), delay);
     return () => clearTimeout(timer);
-  }, [activeStep, generateDone, setLocation]);
+  }, [activeStep, generateDone, replace]);
 
   // Animate progress bar — starts immediately
   useEffect(() => {
@@ -148,10 +150,8 @@ export function GeneratingNotePage() {
     <div className="flex h-full flex-col bg-[#FAFAF9] overflow-y-auto">
       {/* Header */}
       <div className="flex items-center pt-6 pb-4 gap-3 px-6 shrink-0">
-        <button onClick={() => setLocation(`/conversation/${id}`)} className="-ml-1">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="m15 18-6-6 6-6" stroke="#1C1917" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+        <button onClick={() => back()} className="-ml-1">
+          <BackChevronIcon stroke="#1C1917" />
         </button>
         <div className="text-[#1C1917] font-red-hat font-bold text-lg leading-[22px]">
           {dateLabel}
@@ -162,9 +162,7 @@ export function GeneratingNotePage() {
       <div className="flex flex-col mx-6 rounded-2xl bg-[#FAFAFA] p-5">
         {/* Card header */}
         <div className="flex items-center pb-4 gap-2">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
-          </svg>
+          <SparkleIcon />
           <div className="text-[#1C1917] font-red-hat font-bold text-sm leading-[18px]">
             {activeStep > 4 ? "Note generated" : "Generating note..."}
           </div>
@@ -183,9 +181,7 @@ export function GeneratingNotePage() {
                 step.status === "active" ? "bg-[#FEF2F2]" : "bg-[#F5F5F4]"
               }`}>
                 {step.status === "done" ? (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1C1917" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
+                  <CheckIcon size={12} stroke="#1C1917" strokeWidth={3} />
                 ) : step.status === "active" ? (
                   <div className="rounded-sm bg-[#EF4444] shrink-0 size-2 animate-pulse" />
                 ) : (

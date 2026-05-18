@@ -24,7 +24,25 @@ export {
   saveHourSummary,
   getHourSummaries,
   getHourSummary,
+  deleteHourSummariesForDate,
+  searchHourSummaries,
 } from "./hour-summary.model";
+
+// Transcript Segment Search (phrase search index)
+export {
+  TranscriptSegmentSearch,
+  type TranscriptSegmentSearchI,
+  type PhraseSearchRow,
+  type PhraseSearchResult,
+  type UpsertSegmentInput,
+  buildSegId,
+  upsertSearchSegment,
+  bulkUpsertSearchSegments,
+  deleteSearchSegmentsForDate,
+  searchSegmentsByPhrase,
+  normalizeForPhraseMatch,
+  findMatchRanges,
+} from "./transcript-segment-search.model";
 
 // Note
 export {
@@ -34,6 +52,9 @@ export {
   getNotes,
   getNoteById,
   updateNote,
+  updateNoteAuto,
+  regenerateNoteContent,
+  isNoteUserEdited,
   deleteNote,
   getNotesByDateRange,
   deleteNotesByDate,

@@ -7,12 +7,21 @@
  */
 
 import { useState, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useNavigation } from "../../navigation/NavigationStack";
 import { useMentraAuth } from "@mentra/react";
 import { useSynced } from "../../hooks/useSynced";
 import type { SessionI, FolderColor } from "../../../shared/types";
 import { NotesFABMenu } from "./NotesFABMenu";
 import { CreateFolderSheet } from "./CreateFolderSheet";
+import {
+  FavoriteStarIcon,
+  ArchiveIcon,
+  TrashIcon,
+  MenuListIcon,
+  GridIcon,
+  ChevronRightIcon,
+  PlusIcon,
+} from "../../components/shared/custom-icons";
 
 type CollectionFilter = "all" | "folders";
 
@@ -25,7 +34,7 @@ const FOLDER_COLOR_MAP: Record<FolderColor, string> = {
 export function CollectionsPage() {
   const { userId } = useMentraAuth();
   const { session } = useSynced<SessionI>(userId || "");
-  const [, setLocation] = useLocation();
+  const { push, replace, switchTab } = useNavigation();
   const [activeFilter, setActiveFilter] = useState<CollectionFilter>("all");
   const [showCreateFolder, setShowCreateFolder] = useState(false);
 
@@ -54,7 +63,7 @@ export function CollectionsPage() {
     if (!session?.notes?.createManualNote) return;
     const note = await session.notes.createManualNote("", "");
     if (note?.id) {
-      setLocation(`/note/${note.id}`);
+      push(`/note/${note.id}`);
     }
   };
 
@@ -73,34 +82,19 @@ export function CollectionsPage() {
       id: "favourites",
       label: "Favorites",
       count: favoritesCount,
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-        </svg>
-      ),
+      icon: <FavoriteStarIcon size={20} stroke="#A8A29E" className="shrink-0" />,
     },
     {
       id: "archived",
       label: "Archives",
       count: archivesCount,
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-          <path d="M21 8V21H3V8" />
-          <rect x="1" y="3" width="22" height="5" rx="1" />
-          <line x1="10" y1="12" x2="14" y2="12" />
-        </svg>
-      ),
+      icon: <ArchiveIcon size={20} stroke="#A8A29E" className="shrink-0" />,
     },
     {
       id: "trash",
       label: "Trash",
       count: trashCount,
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-          <polyline points="3 6 5 6 21 6" />
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-        </svg>
-      ),
+      icon: <TrashIcon size={20} stroke="#A8A29E" strokeWidth={2} className="shrink-0" />,
     },
   ];
 
@@ -148,22 +142,13 @@ export function CollectionsPage() {
             {/* List/Grid toggle */}
             <div className="flex items-center rounded-[10px] py-[3px] px-[3px] bg-[#F5F5F4]">
               <button
-                onClick={() => setLocation("/notes")}
+                onClick={() => replace("/notes")}
                 className="flex items-center justify-center w-8.5 h-7.5 rounded-lg shrink-0"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <line x1="3" y1="6" x2="21" y2="6" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                  <line x1="3" y1="12" x2="21" y2="12" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                  <line x1="3" y1="18" x2="21" y2="18" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                </svg>
+                <MenuListIcon />
               </button>
               <div className="flex items-center justify-center w-8.5 h-7.5 rounded-lg bg-[#1C1917] shrink-0">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="#FAFAF9" strokeWidth="2" />
-                  <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="#FAFAF9" strokeWidth="2" />
-                  <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="#FAFAF9" strokeWidth="2" />
-                  <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="#FAFAF9" strokeWidth="2" />
-                </svg>
+                <GridIcon />
               </div>
             </div>
           </div>
@@ -201,7 +186,7 @@ export function CollectionsPage() {
               return (
                 <button
                   key={collection.id}
-                  onClick={() => setLocation(`/notes?filter=${collection.id}`)}
+                  onClick={() => push(`/notes?filter=${collection.id}`)}
                   className={`flex items-center py-3.5 text-left ${
                     !isLast ? "border-b border-b-[#E7E5E4]" : ""
                   }`}
@@ -213,9 +198,7 @@ export function CollectionsPage() {
                   <div className="text-[14px] leading-[18px] text-[#A8A29E] font-red-hat">
                     {collection.count}
                   </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D6D3D1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 ml-2">
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
+                  <ChevronRightIcon className="shrink-0 ml-2" />
                 </button>
               );
             })}
@@ -242,7 +225,7 @@ export function CollectionsPage() {
                   items.push(
                     <button
                       key={folder.id}
-                      onClick={() => setLocation(`/folder/${folder.id}`)}
+                      onClick={() => push(`/folder/${folder.id}`)}
                       className="flex flex-col grow shrink basis-0 rounded-xl overflow-hidden bg-[#FAFAF9] border border-[#E7E5E4] text-left"
                     >
                       <div className="h-1 shrink-0" style={{ backgroundColor: FOLDER_COLOR_MAP[folder.color] }} />
@@ -264,10 +247,7 @@ export function CollectionsPage() {
                       onClick={() => setShowCreateFolder(true)}
                       className="flex grow shrink basis-0 items-center justify-center rounded-xl py-3 px-3.5 gap-1.5 bg-[#FAFAF9] border border-dashed border-[#D6D3D1]"
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
+                      <PlusIcon />
                       <span className="text-[13px] leading-4 text-[#A8A29E] font-red-hat font-medium">
                         New Folder
                       </span>
@@ -292,7 +272,7 @@ export function CollectionsPage() {
       {/* FAB Menu */}
       <NotesFABMenu
         onAddNote={handleAddNote}
-        onAskAI={() => setLocation("/")}
+        onAskAI={() => switchTab("transcripts")}
         onCreateFolder={() => setShowCreateFolder(true)}
       />
 

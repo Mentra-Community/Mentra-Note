@@ -6,7 +6,7 @@
  */
 
 import { SyncedManager, synced, rpc } from "../../../lib/sync";
-import { Note, createNote, getNotes, updateNote, deleteNote, getDailyTranscript, deleteTrashedNotes } from "../../models";
+import { Note, createNote, getNotes, getNoteById, updateNote, updateNoteAuto, regenerateNoteContent, isNoteUserEdited, deleteNote, getDailyTranscript, deleteTrashedNotes } from "../../models";
 import {
   createProviderFromEnv,
   isProviderAvailable,
@@ -16,6 +16,7 @@ import {
 import type { TranscriptSegment } from "./TranscriptManager";
 import type { FileManager } from "./FileManager";
 import { TimeManager } from "./TimeManager";
+import { htmlToPlainText } from "../../../shared/htmlToPlainText";
 
 // =============================================================================
 // Types
@@ -38,6 +39,104 @@ export interface NoteData {
     startTime: Date;
     endTime: Date;
   };
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+/**
+ * Convert any stray markdown syntax the LLM slipped into the note body into
+ * the HTML tags TipTap expects. Also wraps bare text lines in <p>.
+ *
+ * The prompt tells the model "HTML only, no markdown" but providers still
+ * occasionally emit `**bold**`, `## heading`, or `- item` lines. TipTap
+ * renders those as literal characters, so we normalize server-side before
+ * persisting the note.
+ */
+/**
+ * Cheap detector for note bodies that contain unrendered markdown — used to
+ * decide whether to lazy-clean an old note on hydrate. Designed for high
+ * precision: only flag patterns that don't legitimately appear in TipTap HTML.
+ */
+function hasMarkdownLeak(html: string): boolean {
+  if (!html) return false;
+  // Standalone **bold** or __bold__ pair on a single line.
+  if (/\*\*[^*\n]+\*\*/.test(html)) return true;
+  if (/(^|[^_])__[^_\n]+__([^_]|$)/.test(html)) return true;
+  // A line that starts with a markdown bullet or heading marker.
+  if (/(^|\n)\s*(?:[-*]\s+\S|#{1,6}\s+\S)/.test(html)) return true;
+  return false;
+}
+
+function normalizeToHtml(raw: string): string {
+  if (!raw) return raw;
+
+  // If the output already looks like clean HTML (has block tags and no
+  // obvious markdown markers), still run a light pass to catch inline **bold**.
+  let html = raw.trim();
+
+  // Strip any leading/trailing code fences the LLM might wrap output in.
+  html = html.replace(/^```(?:html)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
+
+  // Inline conversions — safe to run on HTML too (no `**` exists in valid HTML).
+  //   **bold** / __bold__ → <strong>bold</strong>
+  html = html.replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/__([^_\n]+?)__/g, "<strong>$1</strong>");
+  //   *italic* / _italic_ → <em>italic</em>   (skip if adjacent to word chars to avoid false positives)
+  html = html.replace(/(^|[\s>])\*([^*\n]+?)\*(?=[\s<.,!?;:]|$)/g, "$1<em>$2</em>");
+  html = html.replace(/(^|[\s>])_([^_\n]+?)_(?=[\s<.,!?;:]|$)/g, "$1<em>$2</em>");
+
+  // If the body already has block-level HTML tags, don't touch line structure.
+  const hasBlockTags = /<(h[1-6]|p|ul|ol|li|img|div)\b/i.test(html);
+  if (hasBlockTags) return html;
+
+  // Otherwise, model gave us a markdown-ish document. Convert block structure.
+  const lines = html.split(/\r?\n/);
+  const out: string[] = [];
+  let inList = false;
+
+  const closeList = () => {
+    if (inList) {
+      out.push("</ul>");
+      inList = false;
+    }
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      closeList();
+      continue;
+    }
+
+    // Headings: `# `, `## `, `### `
+    const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+    if (headingMatch) {
+      closeList();
+      const level = Math.min(headingMatch[1].length + 1, 6); // bump `#` → <h2> (we never use <h1>)
+      out.push(`<h${level}>${headingMatch[2]}</h${level}>`);
+      continue;
+    }
+
+    // Bullet list items: `- `, `* `, `• `
+    const bulletMatch = line.match(/^[-*•]\s+(.+)$/);
+    if (bulletMatch) {
+      if (!inList) {
+        out.push("<ul>");
+        inList = true;
+      }
+      out.push(`<li>${bulletMatch[1]}</li>`);
+      continue;
+    }
+
+    // Regular paragraph
+    closeList();
+    out.push(`<p>${line}</p>`);
+  }
+
+  closeList();
+  return out.join("\n");
 }
 
 // =============================================================================
@@ -173,16 +272,33 @@ export class NotesManager extends SyncedManager {
               title = plainText.split(" ").slice(0, 6).join(" ");
               if (plainText.split(" ").length > 6) title += "...";
             }
-            // Persist the recovered title back to DB
+            // Persist the recovered title back to DB. Auto-heal write so
+            // it doesn't get misread as a user edit and block regenerate.
             if (title && n._id) {
-              updateNote(userId, n._id.toString(), { title }).catch(() => {});
+              updateNoteAuto(userId, n._id.toString(), { title }).catch(() => {});
+            }
+          }
+
+          // Lazy-fix old notes generated before normalizeToHtml existed:
+          // if the body contains stray markdown markers, clean it and write
+          // back to the DB so TipTap stops rendering literal `**` etc.
+          let content = n.content || n.summary || "";
+          if (content && hasMarkdownLeak(content)) {
+            const cleaned = normalizeToHtml(content);
+            if (cleaned !== content) {
+              content = cleaned;
+              if (n._id) {
+                // Auto-heal write — bumps updatedAt AND lastAutoGeneratedAt
+                // together so regenerate-in-place still works.
+                updateNoteAuto(userId, n._id.toString(), { content }).catch(() => {});
+              }
             }
           }
 
           return {
             id: n._id?.toString() || `note_${Date.now()}`,
             title: title || "",
-            content: n.content || n.summary || "",
+            content,
             summary: n.summary,
             date: n.date || this.getTimeManager().toDateString(n.createdAt),
             isAIGenerated: n.isAIGenerated ?? false,
@@ -290,11 +406,20 @@ export class NotesManager extends SyncedManager {
   // RPC Methods
   // ===========================================================================
 
+  /**
+   * Generate (or regenerate) an AI note from a transcript range.
+   *
+   * If `existingNoteId` is passed and refers to an AI-generated note whose
+   * content has not been edited by the user, the existing note is
+   * overwritten in place (same id, title and content replaced, transcript
+   * range updated). Otherwise a brand-new note is created and inserted.
+   */
   @rpc
   async generateNote(
     title?: string,
     startTime?: Date | string,
     endTime?: Date | string,
+    existingNoteId?: string | null,
   ): Promise<NoteData> {
     this.generating = true;
 
@@ -375,15 +500,18 @@ export class NotesManager extends SyncedManager {
               role: "user",
               content: `Create a structured note from this transcript.
 
+Structure (MANDATORY — in this exact order):
+1. ONE <p> paragraph at the very top — a TIGHT 2-sentence-MAX overview of the entire conversation. Each sentence must be short and direct (aim for ~15 words per sentence, hard cap ~25). No heading above it. No meta phrases like "this note covers", "the conversation discussed", or "in this conversation" — just state what happened. This must come first, before any <h2>.
+2. THEN walk through the conversation CHRONOLOGICALLY using <h2> headings to mark each major shift in topic or activity. Within each section, preserve the order things actually happened in the transcript — earliest first, latest last. Do NOT consolidate or reorder material by theme.
+
 Requirements:
-- Between 100-500 words
-- Use <h2> headings to organize by topic
-- Use bullet lists for key points
+- Between 100-500 words total
+- Use bullet lists for key points within a section
 - Bold important terms with <strong>
 - Output valid HTML only (no markdown)
-- Do NOT include sections like "Key Decisions", "Action Items", "Conclusion", or "Next Steps" — just organize naturally by topic${photoInstruction}
+- Do NOT include sections like "Key Decisions", "Action Items", "Conclusion", or "Next Steps" — section headings should describe what was actually discussed at that point in time${photoInstruction}
 
-Transcript:
+Transcript (in chronological order — earliest first):
 ${transcriptText || "(No speech transcript - only photos captured)"}
 
 ${title ? `Title to use: "${title}"` : "Also generate an appropriate title."}
@@ -391,7 +519,7 @@ ${title ? `Title to use: "${title}"` : "Also generate an appropriate title."}
 Response format:
 TITLE: [title here]
 CONTENT:
-[HTML content here]`,
+[HTML content here — overview paragraph first, then chronological <h2> sections]`,
             },
           ];
 
@@ -399,21 +527,49 @@ CONTENT:
             tier: "fast",
             maxTokens: 2048,
             systemPrompt: `You are a note-taking assistant that creates well-structured notes from transcripts.
-Output your notes in clean HTML format using ONLY these tags:
+
+CRITICAL: Output raw HTML only. Do NOT output markdown. The output is rendered directly by a TipTap HTML editor — any markdown syntax will appear to the user as literal text (e.g. \`**word**\` renders as the four characters \`*\`, \`*\`, \`w\`…, not as bold).
+
+Allowed tags (use ONLY these):
 - <h2> for section headings
-- <p> for paragraphs
-- <strong> for bold/important text
-- <em> for italic/emphasized text
-- <ul> and <li> for bulleted lists
+- <p> for paragraphs — every paragraph MUST be wrapped in <p>...</p>
+- <strong> for bold/important text — NEVER use **text** or __text__
+- <em> for italic text — NEVER use *text* or _text_
+- <ul> and <li> for bulleted lists — NEVER use "- item" or "* item" lines
 ${photos.length > 0 ? "- <img> for photos (use the exact URLs provided, do NOT invent URLs)\n\nPhoto rules:\n- Only include a photo if it is relevant to the note content\n- Place photos near the text they relate to\n- If a photo doesn't relate to any section, leave it out" : ""}
 
+MANDATORY STRUCTURE:
+1. First output ONE <p> with a TIGHT 2-sentence-max overview of the whole conversation — no heading above it. Sentences must be short and direct (~15 words each, hard cap ~25). No meta phrases like "this note covers" or "the conversation discussed" — just state what happened.
+2. Then walk through what was discussed CHRONOLOGICALLY using <h2> headings to mark shifts.
+3. Within each <h2> section, keep events in the order they actually happened. Do NOT consolidate the same topic across the timeline — if the conversation came back to a topic later, give it its own later section.
+
+Correct example (note how tight the overview is):
+<p>Team reviewed the Q3 roadmap and assigned the notification redesign to <strong>Sarah</strong>. They also took a brief vendor demo tangent before wrapping up.</p>
+<h2>Q3 Roadmap discussion</h2>
+<p>Opened by reviewing what's already committed for Q3. <strong>Mike</strong> flagged customer complaints about notifications.</p>
+<h2>Vendor demo tangent</h2>
+<p>Brief detour to discuss the <strong>Acme analytics</strong> demo from earlier in the week.</p>
+<h2>Back to roadmap — assignments</h2>
+<ul>
+  <li><strong>Sarah</strong>: notification redesign, target mid-September.</li>
+  <li><strong>Mike</strong>: scope cut for the dashboard refresh.</li>
+</ul>
+
+Wrong example (DO NOT do this):
+## Project Overview
+The project revolves around **AI motion graphics**.
+- **Integration**: connects to Claude.
+
+Also wrong (consolidates same topic instead of preserving timeline):
+<h2>Q3 Roadmap</h2>
+<p>Discussed Q3 plans, including the vendor demo and assignments.</p>
+
 Rules:
-- Write between 100-500 words
-- Focus on key points and important details
-- Use headings to organize by topic naturally
-- Use bullet lists for multiple related items
+- Overview paragraph first, ALWAYS. Max 2 sentences.
+- Chronological order — preserve when things happened.
+- 100-500 words total
 - Bold important names, dates, or key terms
-- Do NOT add formulaic sections like "Key Decisions", "Action Items", "Conclusion", or "Next Steps"`,
+- Do NOT add formulaic sections like "Key Decisions", "Action Items", "Conclusion", or "Next Steps" — section headings describe what was actually discussed at that point in time`,
           });
 
           const responseText =
@@ -446,7 +602,16 @@ Rules:
             if (htmlStart !== -1) {
               summary = responseText.substring(htmlStart).trim();
             }
+          } else if (!contentMatch) {
+            // LLM returned markdown or plain text with no CONTENT: prefix either.
+            // Everything after the TITLE line (if any) is note body.
+            const afterTitle = responseText.replace(/^TITLE:[^\n]*\n?/i, "").trim();
+            summary = afterTitle || responseText.trim();
           }
+
+          // Safety net: normalize any stray markdown the LLM slipped in
+          // (despite the HTML-only instruction) so TipTap renders correctly.
+          summary = normalizeToHtml(summary);
 
         } catch (error) {
           console.error("[NotesManager] AI generation failed:", error);
@@ -488,6 +653,22 @@ Rules:
               : undefined,
       };
 
+      // Reopen path: overwrite an existing AI note in place if the user
+      // hasn't edited it. Caller is responsible for deciding eligibility;
+      // we double-check via isNoteUserEdited as a safety net.
+      if (existingNoteId) {
+        const reused = await this.regenerateExistingNote(
+          existingNoteId,
+          note,
+        );
+        if (reused) {
+          this.generating = false;
+          return reused;
+        }
+        // Fall through to fresh-insert if the existing note can't be reused
+        // (deleted, user-edited, etc.)
+      }
+
       const dbId = await this.persistNote(note, transcriptDate);
       note.id = dbId;
 
@@ -495,6 +676,69 @@ Rules:
       return note;
     } finally {
       this.generating = false;
+    }
+  }
+
+  /**
+   * Overwrite an existing AI note in place if the user hasn't edited it.
+   * Returns the updated NoteData on success, or null if the existing note
+   * is missing or has been user-edited (caller should fall back to a
+   * fresh insert).
+   */
+  private async regenerateExistingNote(
+    existingNoteId: string,
+    fresh: NoteData,
+  ): Promise<NoteData | null> {
+    const userId = this._session?.userId;
+    if (!userId) return null;
+
+    try {
+      const existing = await getNoteById(userId, existingNoteId);
+      if (!existing) {
+        console.log(
+          `[NotesManager] Note ${existingNoteId} not found — generating fresh note instead`,
+        );
+        return null;
+      }
+      if (isNoteUserEdited(existing)) {
+        const gap = existing.lastAutoGeneratedAt
+          ? existing.updatedAt.getTime() - existing.lastAutoGeneratedAt.getTime()
+          : null;
+        console.log(
+          `[NotesManager] Note ${existingNoteId} has user edits (updatedAt - lastAutoGeneratedAt = ${gap}ms) — generating fresh note instead`,
+        );
+        return null;
+      }
+
+      const updated = await regenerateNoteContent(userId, existingNoteId, {
+        title: fresh.title,
+        content: fresh.content,
+        transcriptRange: fresh.transcriptRange,
+      });
+      if (!updated) return null;
+
+      // Sync in-memory list
+      const reused: NoteData = {
+        ...fresh,
+        id: existingNoteId,
+        createdAt: existing.createdAt,
+        updatedAt: updated.updatedAt,
+      };
+      this.notes.mutate((notes) => {
+        const idx = notes.findIndex((n) => n.id === existingNoteId);
+        if (idx !== -1) notes[idx] = reused;
+      });
+
+      console.log(
+        `[NotesManager] Regenerated note ${existingNoteId} in place`,
+      );
+      return reused;
+    } catch (error) {
+      console.error(
+        `[NotesManager] Failed to regenerate note ${existingNoteId}:`,
+        error,
+      );
+      return null;
     }
   }
 
@@ -691,12 +935,10 @@ Rules:
     for (const id of noteIds) {
       const note = this.notes.find((n) => n.id === id);
       if (!note) continue;
-      const content = (note.content || "")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&nbsp;/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      parts.push(`# ${note.title || "Untitled Note"}\n${content}`);
+      const content = htmlToPlainText(note.content);
+      const title = note.title || "Untitled Note";
+      const firstLine = content.split("\n", 1)[0]?.trim();
+      parts.push(firstLine && firstLine === title.trim() ? content : `${title}\n\n${content}`);
     }
     return parts.join("\n\n---\n\n");
   }

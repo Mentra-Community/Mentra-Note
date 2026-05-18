@@ -6,7 +6,8 @@
  */
 
 import { useState, useMemo } from "react";
-import { useLocation, useParams } from "wouter";
+import { useParams } from "wouter";
+import { useNavigation } from "../../navigation/NavigationStack";
 import { useMentraAuth } from "@mentra/react";
 import { format, isToday, isYesterday } from "date-fns";
 import { useSynced } from "../../hooks/useSynced";
@@ -17,6 +18,7 @@ import {
   type DropdownMenuOption,
 } from "../../components/shared/DropdownMenu";
 import { BottomDrawer } from "../../components/shared/BottomDrawer";
+import { BackChevronIcon, FolderIcon, TrashIcon } from "../../components/shared/custom-icons";
 
 const FOLDER_COLOR_MAP: Record<FolderColor, string> = {
   red: "#DC2626",
@@ -45,7 +47,7 @@ export function FolderPage() {
   const { id: folderId } = useParams<{ id: string }>();
   const { userId } = useMentraAuth();
   const { session } = useSynced<SessionI>(userId || "");
-  const [, setLocation] = useLocation();
+  const { push, back } = useNavigation();
 
   const folders = session?.folders?.folders ?? [];
   const notes = session?.notes?.notes ?? [];
@@ -56,7 +58,7 @@ export function FolderPage() {
   }, [notes, folderId]);
 
   const handleSelectNote = (note: Note) => {
-    setLocation(`/note/${note.id}`);
+    push(`/note/${note.id}`);
   };
 
   const handleTrashNote = async (note: Note) => {
@@ -87,7 +89,7 @@ export function FolderPage() {
     if (!session?.folders?.deleteFolder || !folderId) return;
     setShowDeleteConfirm(false);
     await session.folders.deleteFolder(folderId);
-    setLocation("/collections");
+    back();
   };
 
   const folderColor = folder ? FOLDER_COLOR_MAP[folder.color] : "#78716C";
@@ -99,42 +101,16 @@ export function FolderPage() {
         <div className="flex items-end justify-between">
           <div className="flex items-center gap-2.5">
             <button
-              onClick={() => setLocation("/collections")}
+              onClick={() => back()}
               className="shrink-0 p-1 -ml-1"
             >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#1C1917"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
+              <BackChevronIcon stroke="#1C1917" />
             </button>
 
             <div className="flex flex-col gap-0.5">
               <div className="text-[28px] tracking-[-0.03em] leading-8 text-[#1C1917] font-red-hat font-extrabold flex flex-row items-center gap-2">
                 {folder?.name || "Folder"}
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="shrink-0"
-                >
-                  <path
-                    d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                    stroke={folderColor}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    fill="none"
-                  />
-                </svg>
+                <FolderIcon size={24} stroke={folderColor} strokeWidth={2} className="shrink-0" />
               </div>
               <div className="text-[14px] leading-[18px] text-[#A8A29E] font-red-hat">
                 {folderNotes.length}{" "}
@@ -149,22 +125,7 @@ export function FolderPage() {
                   id: "delete",
                   label: "Delete folder",
                   danger: true,
-                  icon: (
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#DC2626"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M3 6h18" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                  ),
+                  icon: <TrashIcon size={16} stroke="#DC2626" strokeWidth={2} />,
                   onClick: () => setShowDeleteConfirm(true),
                 },
               ] satisfies DropdownMenuOption[]
@@ -177,36 +138,20 @@ export function FolderPage() {
       <div className="flex flex-col flex-1 overflow-y-auto pt-4 px-6 pb-32">
         {folderNotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center flex-1 gap-3">
-            <svg
-              width="40"
-              height="40"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#D6D3D1"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
+            <FolderIcon size={40} stroke="#D6D3D1" strokeWidth={1.5} />
             <div className="text-[14px] leading-5 text-[#A8A29E] font-red-hat text-center">
               No notes in this folder yet
             </div>
           </div>
         ) : (
-          folderNotes.map((note, i) => {
-            const isLast = i === folderNotes.length - 1;
+          folderNotes.map((note) => {
             return (
               <NoteRow
                 key={note.id}
                 note={note}
-                fromLabel={null}
-                formatNoteDate={formatNoteDate}
+                meta={formatNoteDate(note)}
                 stripHtmlAndTruncate={stripHtmlAndTruncate}
                 onSelect={handleSelectNote}
-                onArchive={handleArchiveNote}
-                onDelete={handleTrashNote}
-                isLast={isLast}
               />
             );
           })
