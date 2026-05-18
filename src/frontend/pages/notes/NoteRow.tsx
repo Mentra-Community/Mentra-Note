@@ -9,6 +9,7 @@
 import { motion } from "motion/react";
 import { memo } from "react";
 import type { Note } from "../../../shared/types";
+import { CheckIcon, ChevronRightIcon } from "../../components/shared/custom-icons";
 
 interface NoteRowProps {
   note: Note;
@@ -65,9 +66,7 @@ export const NoteRow = memo(function NoteRow({
         >
           {isSelected ? (
             <div className="flex items-center justify-center w-[22px] h-[22px] rounded-md bg-[#DC2626]">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                <polyline points="6,12 10,16 18,8" stroke="#FAFAF9" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <CheckIcon size={12} stroke="#FAFAF9" strokeWidth={3} />
             </div>
           ) : (
             <div className="w-[22px] h-[22px] rounded-md border-2 border-[#D6D3D1]" />
@@ -94,19 +93,7 @@ export const NoteRow = memo(function NoteRow({
 
       {/* Chevron — hidden in selection mode (like TranscriptList) */}
       {!isSelecting && (
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#C5C0B8"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="shrink-0 mt-1"
-        >
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
+        <ChevronRightIcon size={14} stroke="#C5C0B8" className="shrink-0 mt-1" />
       )}
     </div>
   );

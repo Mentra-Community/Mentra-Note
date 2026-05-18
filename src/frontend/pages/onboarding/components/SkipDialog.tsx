@@ -3,6 +3,7 @@
  */
 
 import { motion, AnimatePresence } from "motion/react";
+import { WarningTriangleIcon, CloseIcon } from "../../../components/shared/custom-icons";
 
 interface SkipDialogProps {
   open: boolean;
@@ -30,11 +31,7 @@ export function SkipDialog({ open, onContinue, onSkip }: SkipDialogProps) {
           >
             {/* Warning icon */}
             <div className="flex items-center justify-center rounded-2xl bg-[#FEE2E2] size-14">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
+              <WarningTriangleIcon />
             </div>
 
             {/* Text */}
@@ -52,19 +49,13 @@ export function SkipDialog({ open, onContinue, onSkip }: SkipDialogProps) {
             {/* Consequences */}
             <div className="flex flex-col gap-3 w-full">
               <div className="flex items-center gap-3">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                <CloseIcon size={16} stroke="#DC2626" strokeWidth={2.5} />
                 <div className="text-[15px] leading-[20px] text-[#1C1917] dark:text-white font-['Red_Hat_Display',system-ui,sans-serif]">
                   Notes may not be personalized to your role
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                <CloseIcon size={16} stroke="#DC2626" strokeWidth={2.5} />
                 <div className="text-[15px] leading-[20px] text-[#1C1917] dark:text-white font-['Red_Hat_Display',system-ui,sans-serif]">
                   Summaries may be less accurate
                 </div>

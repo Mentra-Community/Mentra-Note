@@ -3,6 +3,7 @@
  */
 
 import { motion } from "motion/react";
+import { BackChevronIcon } from "../../../components/shared/custom-icons";
 
 interface OnboardingFooterProps {
   activeIndex: number;
@@ -51,9 +52,7 @@ export function OnboardingFooter({
               onClick={onBack}
               className="flex items-center justify-center py-3 pl-5 pr-4 active:scale-95 transition-transform"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FAFAF9" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="dark:stroke-black">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
+              <BackChevronIcon size={16} stroke="#FAFAF9" strokeWidth={2.5} className="dark:stroke-black" />
             </button>
             <div className="w-px h-5 bg-[#3f3f3f] dark:bg-zinc-300 shrink-0" />
           </>

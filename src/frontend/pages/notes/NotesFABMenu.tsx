@@ -8,6 +8,7 @@
  */
 
 import { useState } from "react";
+import { FolderPlusIcon, DocumentPlusIcon, PlusIcon } from "../../components/shared/custom-icons";
 
 interface NotesFABMenuProps {
   onAddNote: () => void;
@@ -47,11 +48,7 @@ export function NotesFABMenu({
       textColor: "text-[#1C1917]",
       fontWeight: "font-semibold",
       icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke="#1C1917" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-          <line x1="12" y1="11" x2="12" y2="17" stroke="#1C1917" strokeWidth="1.75" strokeLinecap="round" />
-          <line x1="9" y1="14" x2="15" y2="14" stroke="#1C1917" strokeWidth="1.75" strokeLinecap="round" />
-        </svg>
+        <FolderPlusIcon />
       ),
     },
     {
@@ -62,11 +59,7 @@ export function NotesFABMenu({
       textColor: "text-[#DC2626]",
       fontWeight: "font-bold",
       icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#DC2626" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-          <line x1="12" y1="11" x2="12" y2="17" stroke="#DC2626" strokeWidth="1.75" strokeLinecap="round" />
-          <line x1="9" y1="14" x2="15" y2="14" stroke="#DC2626" strokeWidth="1.75" strokeLinecap="round" />
-        </svg>
+        <DocumentPlusIcon stroke="#DC2626" />
       ),
     },
   ];
@@ -120,10 +113,7 @@ export function NotesFABMenu({
               transition: "transform 0.2s ease-in-out",
             }}
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
+            <PlusIcon size={22} stroke="#FFFFFF" />
           </button>
         </div>
       </div>

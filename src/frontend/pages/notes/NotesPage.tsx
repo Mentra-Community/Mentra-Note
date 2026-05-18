@@ -16,6 +16,7 @@ import { Drawer } from "vaul";
 import { useSynced } from "../../hooks/useSynced";
 import { useMultiSelect } from "../../hooks/useMultiSelect";
 import type { SessionI, Note } from "../../../shared/types";
+import { htmlToPlainText } from "../../../shared/htmlToPlainText";
 import { NoteRow } from "./NoteRow";
 import { SelectionHeader } from "../../components/shared/SelectionHeader";
 import { MultiSelectBar, type MultiSelectAction, ExportIcon, DeleteIcon } from "../../components/shared/MultiSelectBar";
@@ -124,7 +125,7 @@ export function NotesPage() {
     const textParts: string[] = [];
 
     for (const note of selected) {
-      const content = stripHtmlAndTruncate(note.content, 9999);
+      const content = htmlToPlainText(note.content);
       const created = note.createdAt ? new Date(note.createdAt) : null;
       const dateLabel = created
         ? created.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
@@ -138,7 +139,10 @@ export function NotesPage() {
       if (createdAt) meta += `\nCreated: ${createdAt}`;
       meta += `\nType: ${typeLabel}`;
 
-      textParts.push(`# ${note.title || "Untitled Note"}\n${meta}\n\n${content}`);
+      const title = note.title || "Untitled Note";
+      const firstLine = content.split("\n", 1)[0]?.trim();
+      const body = firstLine && firstLine === title.trim() ? content : `${title}\n\n${content}`;
+      textParts.push(`${meta}\n\n${body}`);
     }
 
     const text = textParts.join("\n\n---\n\n");
@@ -417,16 +421,10 @@ export function NotesPage() {
             <Drawer.Title className="sr-only">Delete Notes</Drawer.Title>
             <Drawer.Description className="sr-only">Confirm permanent note deletion</Drawer.Description>
             <div className="px-6 pb-10">
-              <div className="flex items-center justify-between pb-1">
+              <div className="pb-1">
                 <span className="text-xl leading-[26px] text-[#1C1917] font-red-hat font-extrabold tracking-[-0.02em]">
                   Delete {multiSelect.count} {multiSelect.count === 1 ? "Note" : "Notes"}?
                 </span>
-                <button onClick={() => setShowDeleteConfirm(false)}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <line x1="18" y1="6" x2="6" y2="18" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                    <line x1="6" y1="6" x2="18" y2="18" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </button>
               </div>
               <p className="text-[14px] leading-5 text-[#78716C] font-red-hat pb-6">
                 This will permanently delete {multiSelect.count === 1 ? "this note" : "these notes"}. This cannot be undone.

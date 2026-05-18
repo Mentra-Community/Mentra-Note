@@ -12,7 +12,6 @@ import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useNavigation } from "../../navigation/NavigationStack";
 import { useMentraAuth } from "@mentra/react";
 import { AnimatePresence } from "motion/react";
-import { Drawer } from "vaul";
 import { useSynced } from "../../hooks/useSynced";
 import { useMultiSelect } from "../../hooks/useMultiSelect";
 import type { SessionI } from "../../../shared/types";
@@ -22,6 +21,8 @@ import { SelectionHeader } from "../../components/shared/SelectionHeader";
 import { MultiSelectBar, ExportIcon, DeleteIcon } from "../../components/shared/MultiSelectBar";
 import { ExportDrawer, type ExportOptions } from "../../components/shared/ExportDrawer";
 import { EmailDrawer } from "../../components/shared/EmailDrawer";
+import { DeleteTranscriptDrawer } from "../../components/shared/DeleteTranscriptDrawer";
+import { MicrophoneHeadIcon, PauseIcon } from "../../components/shared/custom-icons";
 import { toast } from "../../components/shared/toast";
 import { useTabBar } from "../../components/layout/Shell";
 
@@ -168,21 +169,6 @@ export function HomePage() {
     transcriptSelect.cancel();
   }, [session, transcriptSelect]);
 
-  const deleteWarning = useMemo(() => {
-    const dates = [...transcriptSelect.selectedIds];
-    const affectedConvs = conversations.filter((c) => {
-      if (!c.startTime) return false;
-      const convDate = new Date(c.startTime);
-      const convDateStr = `${convDate.getFullYear()}-${String(convDate.getMonth() + 1).padStart(2, "0")}-${String(convDate.getDate()).padStart(2, "0")}`;
-      return dates.includes(convDateStr);
-    });
-
-    if (affectedConvs.length > 0) {
-      return `${affectedConvs.length} ${affectedConvs.length === 1 ? "conversation" : "conversations"} will lose ${affectedConvs.length === 1 ? "its" : "their"} linked transcript. This cannot be undone.`;
-    }
-    return "This will permanently delete the transcript data. This cannot be undone.";
-  }, [transcriptSelect.selectedIds, conversations]);
-
   const handleBatchDeleteConfirmed = useCallback(async () => {
     if (!session?.file) return;
     const dates = [...transcriptSelect.selectedIds];
@@ -245,7 +231,7 @@ export function HomePage() {
         >
           <div className="flex items-center gap-2.5">
             <div
-              className={`rounded-[5px] shrink-0 size-2.5 ${
+              className={`rounded-[5px] shrink-0 size-2.5 ml-[2px] ${
                 transcriptionPaused
                   ? "bg-[#B0AAA2]"
                   : "bg-[#D32F2F] animate-pulse [box-shadow:#D32F2F2E_0px_0px_0px_3px]"
@@ -274,20 +260,14 @@ export function HomePage() {
           >
             {transcriptionPaused ? (
               <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                </svg>
+                <MicrophoneHeadIcon style={{ flexShrink: 0 }} />
                 <span className="text-[13px] leading-4 text-white font-red-hat font-bold">
                   Resume
                 </span>
               </>
             ) : (
               <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3D3832" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                  <rect x="6" y="4" width="4" height="16" rx="1" />
-                  <rect x="14" y="4" width="4" height="16" rx="1" />
-                </svg>
+                <PauseIcon style={{ flexShrink: 0 }} />
                 <span className="text-[13px] leading-4 text-[#3D3832] font-red-hat font-bold">
                   Pause
                 </span>
@@ -339,51 +319,13 @@ export function HomePage() {
       />
 
       {/* Delete Confirmation */}
-      <Drawer.Root open={showDeleteConfirm} onOpenChange={(open) => !open && setShowDeleteConfirm(false)}>
-        <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-black/30 backdrop-blur-[6px] z-50" />
-          <Drawer.Content className="flex flex-col rounded-t-[20px] fixed bottom-0 left-0 right-0 z-50 bg-[#FAFAF9] outline-none">
-            <div className="flex justify-center pt-3 pb-4">
-              <div className="w-9 h-1 rounded-xs bg-[#D6D3D1] shrink-0" />
-            </div>
-            <Drawer.Title className="sr-only">Delete Transcripts</Drawer.Title>
-            <Drawer.Description className="sr-only">Confirm transcript deletion</Drawer.Description>
-            <div className="px-6 pb-10">
-              <div className="flex items-center justify-between pb-1">
-                <span className="text-xl leading-[26px] text-[#1C1917] font-red-hat font-extrabold tracking-[-0.02em]">
-                  Delete Transcripts?
-                </span>
-                <button onClick={() => setShowDeleteConfirm(false)}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <line x1="18" y1="6" x2="6" y2="18" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                    <line x1="6" y1="6" x2="18" y2="18" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </button>
-              </div>
-              <p className="text-[14px] leading-5 text-[#78716C] font-red-hat pb-6">
-                {deleteWarning}
-              </p>
-              <button
-                onClick={handleBatchDeleteConfirmed}
-                className="flex items-center justify-center w-full rounded-xl bg-[#DC2626] p-3.5 mb-3"
-              >
-                <span className="text-[16px] leading-5 text-white font-red-hat font-bold">
-                  Delete Transcripts
-                </span>
-              </button>
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex items-center justify-center w-full rounded-xl border border-[#E7E5E4] p-3.5"
-              >
-                <span className="text-[16px] leading-5 text-[#1C1917] font-red-hat font-bold">
-                  Cancel
-                </span>
-              </button>
-            </div>
-            <div className="h-safe-area-bottom" />
-          </Drawer.Content>
-        </Drawer.Portal>
-      </Drawer.Root>
+      <DeleteTranscriptDrawer
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleBatchDeleteConfirmed}
+        dates={[...transcriptSelect.selectedIds]}
+        conversations={conversations}
+      />
     </div>
   );
 }

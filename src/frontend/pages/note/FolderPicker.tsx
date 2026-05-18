@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import type { Folder, FolderColor } from "../../../shared/types";
+import { FolderIcon, ChevronDownIcon } from "../../components/shared/custom-icons";
 
 const FOLDER_COLOR_MAP: Record<FolderColor, string> = {
   red: "#DC2626",
@@ -33,32 +34,12 @@ export function FolderPicker({ folders, currentFolderId, onSelect }: FolderPicke
         className="flex items-center justify-between w-full rounded-[10px] py-3 px-3.5 bg-[#F5F5F4] text-left"
       >
         <div className="flex items-center gap-2.5">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-              stroke={currentFolder ? FOLDER_COLOR_MAP[currentFolder.color] : "#78716C"}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-          </svg>
+          <FolderIcon size={16} stroke={currentFolder ? FOLDER_COLOR_MAP[currentFolder.color] : "#78716C"} strokeWidth={2} />
           <span className="text-[14px] leading-[18px] text-[#1C1917] font-red-hat font-medium">
             {currentFolder?.name || "No folder"}
           </span>
         </div>
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          style={{
-            transform: `rotate(${isOpen ? 180 : 0}deg)`,
-            transition: "transform 0.15s ease",
-          }}
-        >
-          <polyline points="6,9 12,15 18,9" stroke="#78716C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <ChevronDownIcon size={16} style={{ transform: `rotate(${isOpen ? 180 : 0}deg)`, transition: "transform 0.15s ease" }} />
       </button>
 
       {/* Dropdown */}
@@ -71,9 +52,7 @@ export function FolderPicker({ folders, currentFolderId, onSelect }: FolderPicke
               !currentFolderId ? "bg-[#F5F5F4]" : ""
             }`}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke="#A8A29E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            </svg>
+            <FolderIcon size={16} stroke="#A8A29E" strokeWidth={2} />
             <span className="text-[14px] leading-[18px] text-[#78716C] font-red-hat font-medium">
               No folder
             </span>

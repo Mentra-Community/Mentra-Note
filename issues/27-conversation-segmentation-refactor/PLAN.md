@@ -1,0 +1,268 @@
+# Plan: Conversation Segmentation Refactor — Stop fragmenting continuous speech
+
+## TL;DR
+
+The auto-notes pipeline currently fragments a single continuous conversation
+into multiple notes when the topic drifts mid-speech. User reported: a single
+30-minute conversation produced one good note plus a separate note covering
+just the last ~15 minutes.
+
+**Root cause** is the `NEW_CONVERSATION` verdict from the fast-tier LLM at
+[ConversationTracker.ts:770](../../src/backend/core/auto-conversation/ConversationTracker.ts#L770).
+The LLM sees only the running summary + a new chunk, has no timing/silence
+signal, and gets asked a question with no real-world ground truth ("is this
+a new conversation?" mid-speech, no pause).
+
+**Fix:** delete `NEW_CONVERSATION` entirely. Conversation boundaries become
+silence-based only. Topic is *tracked* (used for titles and summaries) but
+never used as a *splitting signal*. Resumption-after-silence is allowed and
+regenerates the existing note in place — unless the user has edited the
+note, in which case a fresh note is created so their work isn't blown away.
+
+## Locked decisions (from conversation with user)
+
+1. **Continuous speech never splits.** No code path may end a conversation
+   while speech is flowing. The PAUSED → ENDED silence path is the only way
+   a conversation closes naturally.
+2. **One conversation = one note.** Always. The note can contain multiple
+   `<h2>` topic sections inside it — the existing note-generation prompt
+   already does this. No `noteIds: string[]` schema change. No two-pass
+   topic-split LLM call. No "Part 1/3" UI badges.
+3. **Resumption after silence is allowed and reopens the conversation.**
+   When new speech arrives after a conversation has closed:
+   - If within 30 min AND topic-related AND **note is unedited** → reopen,
+     append chunks, regenerate the note in place (same noteId, content
+     replaced).
+   - If within 30 min AND topic-related AND **note was edited by user** →
+     don't touch their work. Start a fresh conversation/note.
+   - If not related, or past 30 min → start fresh.
+4. **Hard cap at 2 hours.** Force-end any conversation that hits 2 hours of
+   total wall-clock duration, regardless of silence. Safety valve for
+   all-day wear so we don't end up with an 8-hour mega-note.
+5. **No feature flag.** Ship it directly. The old behavior was wrong; we
+   don't need to keep it around.
+6. **No backfill of old fragmented notes.** Going-forward only.
+
+## Where this plugs into existing code
+
+- **Tracker classifier** at
+  [ConversationTracker.ts:770](../../src/backend/core/auto-conversation/ConversationTracker.ts#L770)
+  (`classifyChunkInContext`) — 3-way prompt becomes 2-way
+  (`CONTINUATION` vs `FILLER`).
+- **`TrackingDecision` type** at
+  [ConversationTracker.ts:35-38](../../src/backend/core/auto-conversation/ConversationTracker.ts#L35-L38)
+  — drop `"NEW_CONVERSATION"` from the union. TypeScript will surface every
+  consumer.
+- **`handleTrackingMeaningful`** at
+  [ConversationTracker.ts:244-254](../../src/backend/core/auto-conversation/ConversationTracker.ts#L244-L254)
+  — delete the entire `case "NEW_CONVERSATION":` branch.
+- **`handlePausedMeaningful`** at
+  [ConversationTracker.ts:272-303](../../src/backend/core/auto-conversation/ConversationTracker.ts#L272-L303)
+  — already handles resumption. We extend the IDLE handler to also check
+  recently-ENDED conversations, not just PAUSED ones.
+- **`handleIdleMeaningful`** at
+  [ConversationTracker.ts:161-194](../../src/backend/core/auto-conversation/ConversationTracker.ts#L161-L194)
+  — already calls `getResumableConversations` and `checkResumption`. Verify
+  the DB query returns recently-ENDED conversations too, not just PAUSED.
+- **`getResumableConversations`** in
+  [conversation.model.ts](../../src/backend/models/conversation.model.ts)
+  — confirm/extend to include `status: "ended"` within the resumption window.
+- **Note regeneration on reopen** — needs new logic in
+  [ConversationManager.ts](../../src/backend/session/managers/ConversationManager.ts).
+  When a conversation reopens, the existing note's `updatedAt` tells us
+  whether the user has touched it since generation. If not, regenerate.
+  If yes, the next `endConversation` call generates a brand-new note
+  instead of replacing.
+- **Hard 2-hour cap** — new check inside `addChunkToConversation` at
+  [ConversationTracker.ts:600](../../src/backend/core/auto-conversation/ConversationTracker.ts#L600).
+  Compute `now - conversation.startTime`; if ≥ 2 hours, call
+  `endConversation()` before appending.
+- **Config** at
+  [config.ts](../../src/backend/core/auto-conversation/config.ts) — add
+  `MAX_CONVERSATION_DURATION_MS = 2 * 60 * 60 * 1000`. The existing
+  `RESUMPTION_WINDOW_MS = 30 min` is reused as-is.
+
+## Detection: was the note edited by the user?
+
+We need to know whether the user has manually edited the note since the
+last auto-generation, so we know whether it's safe to overwrite.
+
+**Approach:** add a field `lastAutoGeneratedAt: Date | null` to the note.
+- Set it whenever `generateNote()` or a regeneration writes the content.
+- On every manual `updateNote()` from the frontend, leave it alone (so
+  `updatedAt` will diverge from `lastAutoGeneratedAt`).
+- When reopening a conversation: if `note.updatedAt > note.lastAutoGeneratedAt`,
+  the user has edits. Don't overwrite. Start fresh note.
+
+This is the simplest change — one new optional field, no separate "is dirty"
+boolean to keep in sync.
+
+## Implementation steps
+
+### Step 1 — Strip `NEW_CONVERSATION` from the tracker
+
+Files: [ConversationTracker.ts](../../src/backend/core/auto-conversation/ConversationTracker.ts)
+
+- `TrackingDecision` union → `"CONTINUATION" | "FILLER"`.
+- Rewrite the `classifyChunkInContext` prompt as a 2-way decision.
+- Delete the `case "NEW_CONVERSATION":` branch in `handleTrackingMeaningful`.
+- Verify all callers compile (TypeScript will catch consumers).
+
+### Step 2 — Allow resumption from ENDED conversations
+
+Files: [conversation.model.ts](../../src/backend/models/conversation.model.ts),
+[ConversationTracker.ts](../../src/backend/core/auto-conversation/ConversationTracker.ts)
+
+- `getResumableConversations` currently returns PAUSED conversations within
+  the window. Extend to also return ENDED conversations whose `endedAt` is
+  within `RESUMPTION_WINDOW_MS`.
+- `handleIdleMeaningful` already calls this and falls through if no match.
+  Behavior automatically extends to ENDED conversations once the query does.
+- Add `reopenConversation()` helper next to `resumeConversation()`. Same as
+  resume but:
+  - Sets `status: "active"`, clears `endedAt`.
+  - Tracks whether the existing note should be regenerated or replaced
+    (see Step 4).
+
+### Step 3 — Hard 2-hour cap
+
+File: [ConversationTracker.ts](../../src/backend/core/auto-conversation/ConversationTracker.ts),
+[config.ts](../../src/backend/core/auto-conversation/config.ts)
+
+- Add `MAX_CONVERSATION_DURATION_MS = 2 * 60 * 60 * 1000` to config.
+- In `addChunkToConversation`, check `Date.now() - startTime.getTime() ≥
+  MAX_CONVERSATION_DURATION_MS`. If yes, call `endConversation()` first.
+  The new chunk will then go through `handleIdleMeaningful` → fresh
+  conversation (or resumption check, depending on silence).
+
+### Step 4 — Edit-aware note regeneration on reopen
+
+Files: [note.model.ts](../../src/backend/models/note.model.ts),
+[NotesManager.ts](../../src/backend/session/managers/NotesManager.ts),
+[ConversationManager.ts](../../src/backend/session/managers/ConversationManager.ts)
+
+- Add `lastAutoGeneratedAt: Date | null` to the Note schema.
+- `generateNote` and any regeneration path sets this field to `now()`.
+- Manual `updateNote` from RPC leaves it alone.
+- New method on `NotesManager`: `regenerateNoteForConversation(noteId,
+  conversationId)`. Loads the conversation's full transcript range and
+  re-runs the note-generation prompt, overwriting `content` and `title`
+  and updating `lastAutoGeneratedAt`.
+- New helper: `isNoteUserEdited(note): boolean` =
+  `note.lastAutoGeneratedAt && note.updatedAt > note.lastAutoGeneratedAt`.
+- When a reopened conversation closes:
+  - Find the linked note (`conversation.noteId`).
+  - If `isNoteUserEdited(note)` → call `generateNote()` fresh (new noteId,
+    `conversation.noteId` gets reassigned to the new note).
+  - Otherwise → call `regenerateNoteForConversation(note.id, conversationId)`.
+
+### Step 5 — Wire `endConversation` to know whether to generate or regenerate
+
+File: [ConversationManager.ts:103-117](../../src/backend/session/managers/ConversationManager.ts#L103-L117)
+
+- `onConversationEnd` callback currently always calls
+  `autoGenerateNoteForConversation(convId)`.
+- Change to: if `conversation.noteId` exists AND the conversation was just
+  reopened/extended, route through the edit-aware logic from Step 4.
+- The "was just reopened" signal can be inferred from
+  `conversation.noteId !== null` at end time — if there's already a note,
+  this is a reopen-and-reclose cycle.
+
+### Step 6 — Instrumentation
+
+Add structured log lines (no metrics infra needed):
+
+- Every conversation-end: `[ConvManager] Conversation ended: ${convId},
+  duration=${min}m, chunks=${n}, reopened=${bool}, action=${generate|regenerate|fresh}`.
+- Every reopen attempt: `[Tracker] Reopen check: convId=${id},
+  related=${bool}, gap=${min}m, userEdited=${bool}`.
+- Every 2-hour cap trigger: `[Tracker] Hard cap reached: convId=${id},
+  duration=${min}m — force-ending`.
+
+### Step 7 — Dead-code cleanup
+
+- Remove `NEW_CONVERSATION` references and any comments mentioning it.
+- Remove any test cases exercising the deleted branch.
+- Remove `runningSummary` compression at
+  [ConversationTracker.ts:639](../../src/backend/core/auto-conversation/ConversationTracker.ts#L639)
+  **IF** the simpler 2-way tracker prompt no longer needs the summary at
+  all. Check during Step 1 — if the new prompt just looks at the latest
+  chunk in isolation, the running summary becomes dead weight. If we still
+  use it, leave compression alone.
+
+## What we are NOT doing
+
+- **Not** adding two-pass topic splitting at note time. One conversation =
+  one note, with internal `<h2>` sections if needed.
+- **Not** changing the triage classifier
+  ([TriageClassifier.ts](../../src/backend/classifier/TriageClassifier.ts)).
+- **Not** changing the state machine shape (IDLE → PENDING → TRACKING →
+  PAUSED stays).
+- **Not** touching the manual `/notes/generate` route or conversation-detail UI.
+- **Not** backfilling fragmented historical notes.
+- **Not** adding a feature flag — ship direct.
+
+## Risks and open questions
+
+**Risk: longer conversations under a 2-hour cap.** A typical wear day may
+produce a few notes that are each a tighter version of an old "morning
+session," "afternoon session." Probably fine. If users complain notes are
+too long, we revisit by adding the topic-split-at-note-time logic later.
+
+**Risk: regeneration cost.** Every reopen triggers a full smart-tier
+note-generation call. If a user has 5 silence gaps in a 30-min meeting,
+that's 5 regenerations of the same note. Acceptable trade for the bug fix.
+If it becomes an issue, debounce: don't regenerate until silence threshold
+has been met for ≥ 1 min (i.e. only regenerate on "real" closes).
+
+**Risk: the `lastAutoGeneratedAt` field on existing notes will be null.**
+For backwards compat, treat null as "never auto-generated" → safe to
+overwrite (the old auto-gen pre-dates this field; user hasn't touched it
+*since this field existed* but if they had, we'd see `updatedAt` newer).
+Actually safer: treat null as "we don't know, don't overwrite." That way
+old notes are never auto-regenerated.
+
+**Open question: what does the title become on regeneration?** If the
+conversation grows from 10 to 30 min, the topic mix may shift. Two
+options:
+- (a) Regenerate title from full transcript (may change in user's notes
+  list — could be jarring).
+- (b) Keep the original title, only update content (consistent UI but
+  title may stop reflecting content).
+
+Recommend (a) — if the conversation extended, the new title should reflect
+the new reality. The note's `updatedAt` already bumps so the user sees
+"updated just now" anyway.
+
+## Acceptance criteria
+
+1. The user's reported failure mode — continuous 30-min speech producing 2
+   notes — cannot happen anymore. There is no code path that ends a
+   conversation while speech is flowing.
+2. A conversation with a 5-min silence gap, where the second half is on
+   the same topic, produces **1 note** (reopened + regenerated in place).
+3. Same scenario but the user edited the note during the silence gap →
+   produces **2 notes** (their edit is preserved on note #1; note #2
+   covers the resumed speech only).
+4. A conversation with a 5-min silence gap where the second half is a
+   *different* topic produces **2 notes** (resumption check returns
+   false → fresh conversation).
+5. A conversation past 2 hours of wall-clock time force-ends and any
+   further speech starts a fresh conversation.
+6. No regression for the normal short-conversation case: one chat
+   under SILENCE_END_CHUNKS of silence → one note, same as before.
+7. Fast-tier LLM is called at most once per meaningful chunk
+   (the 2-way classifier).
+
+## Rough effort
+
+- Step 1 (strip NEW_CONVERSATION): ~30 min
+- Step 2 (reopen ENDED conversations): ~1 hr (DB query + handler logic)
+- Step 3 (2-hour cap): ~15 min
+- Step 4 (edit-aware regeneration): ~1.5 hr (schema + method + flow)
+- Step 5 (wire endConversation): ~30 min
+- Step 6 (instrumentation): ~30 min
+- Step 7 (cleanup): ~15 min
+- Manual end-to-end test: ~1 hr
+
+**Total: ~5.5 hours.**

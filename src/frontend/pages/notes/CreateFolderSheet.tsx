@@ -8,6 +8,7 @@
 import { useState, useEffect } from "react";
 import type { FolderColor } from "../../../shared/types";
 import { BottomDrawer } from "../../components/shared/BottomDrawer";
+import { CheckIcon } from "../../components/shared/custom-icons";
 
 const COLORS: { value: FolderColor; hex: string }[] = [
   { value: "red", hex: "#DC2626" },
@@ -94,9 +95,7 @@ export function CreateFolderSheet({ isOpen, onClose, onCreate, existingNames = [
                 }}
               >
                 {color === c.value && (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
+                  <CheckIcon stroke="#FFFFFF" strokeWidth={3} />
                 )}
               </button>
             ))}

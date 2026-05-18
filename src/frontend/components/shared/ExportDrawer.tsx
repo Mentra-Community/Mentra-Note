@@ -7,6 +7,7 @@
 
 import { useState, useCallback } from "react";
 import { Drawer } from "vaul";
+import { ClipboardPlusIcon, EmailEnvelopeIcon } from "./custom-icons";
 
 export interface ExportOptions {
   includeContent: boolean;
@@ -78,16 +79,10 @@ export function ExportDrawer({
 
           <div className="px-6 pb-10">
             {/* Header */}
-            <div className="flex items-center justify-between pb-1">
+            <div className="pb-1">
               <span className="text-xl leading-[26px] text-[#1C1917] font-red-hat font-extrabold tracking-[-0.02em]">
                 {title}
               </span>
-              <button onClick={onClose}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <line x1="18" y1="6" x2="6" y2="18" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                  <line x1="6" y1="6" x2="18" y2="18" stroke="#78716C" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </button>
             </div>
 
             {/* Subtitle */}
@@ -238,21 +233,9 @@ function DestinationCard({
 // ── Icons ──
 
 function ClipboardIcon({ selected }: { selected: boolean }) {
-  const color = selected ? "#1C1917" : "#78716C";
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="3" width="18" height="18" rx="2" stroke={color} strokeWidth="1.75" />
-      <path d="M8 12h8M12 8v8" stroke={color} strokeWidth="1.75" strokeLinecap="round" />
-    </svg>
-  );
+  return <ClipboardPlusIcon stroke={selected ? "#1C1917" : "#78716C"} />;
 }
 
 function EmailIcon({ selected }: { selected: boolean }) {
-  const color = selected ? "#1C1917" : "#78716C";
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <rect x="2" y="4" width="20" height="16" rx="2" stroke={color} strokeWidth="1.75" />
-      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  return <EmailEnvelopeIcon stroke={selected ? "#1C1917" : "#78716C"} />;
 }

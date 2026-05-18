@@ -2,7 +2,7 @@
  * Eval: Conversation Tracker
  *
  * Evaluates the three LLM calls made by ConversationTracker:
- *   1. Chunk-in-context: CONTINUATION / NEW_CONVERSATION / FILLER
+ *   1. Chunk-in-context: CONTINUATION / FILLER (topic shifts never split — see issue 27)
  *   2. Resumption check: YES / NO
  *   3. Summary compression: preserves key info under word limit
  *
@@ -25,7 +25,7 @@ import summaryCases from "./fixtures/summary-compression.json";
 // Types
 // ---------------------------------------------------------------------------
 
-type TrackingDecision = "CONTINUATION" | "NEW_CONVERSATION" | "FILLER";
+type TrackingDecision = "CONTINUATION" | "FILLER";
 
 interface ContextCase {
   summary: string;
@@ -82,7 +82,9 @@ async function classifyChunkInContext(
 
   const domainContext = getDomainPromptContext("general");
 
-  const prompt = `You are a conversation tracker. You're monitoring an ongoing conversation and a new chunk of transcript has arrived.
+  const prompt = `You are a conversation tracker. A user is mid-conversation and a new chunk of transcript just arrived. Decide whether this chunk is part of the active conversation or whether it's filler that doesn't add to it.
+
+Topic drift is NOT a reason to classify as FILLER. People naturally shift between related topics in the same conversation — that is still CONTINUATION.
 
 Domain context: ${domainContext}
 
@@ -92,12 +94,11 @@ Current conversation summary:
 New chunk:
 "${chunk}"
 
-Classify this new chunk as one of:
-- CONTINUATION: Same conversation topic, continue tracking
-- NEW_CONVERSATION: Clearly a different topic/conversation has started
-- FILLER: Background noise, small talk, or silence that interrupts the conversation
+Classify as:
+- CONTINUATION: Real speech the user is part of, regardless of topic shift. Default to this when in doubt.
+- FILLER: Background noise, transcription artifacts, one-way audio (TV/podcast), or near-empty acknowledgments ("yeah", "mmhmm") with nothing else. Only use FILLER when the chunk genuinely has no conversational content.
 
-Respond with exactly one word: CONTINUATION, NEW_CONVERSATION, or FILLER`;
+Respond with exactly one word: CONTINUATION or FILLER`;
 
   const response = await provider.chat(
     [{ role: "user", content: prompt }],
@@ -116,7 +117,6 @@ Respond with exactly one word: CONTINUATION, NEW_CONVERSATION, or FILLER`;
       .trim()
       .toUpperCase() || "CONTINUATION";
 
-  if (text.includes("NEW_CONVERSATION")) return "NEW_CONVERSATION";
   if (text.includes("FILLER")) return "FILLER";
   return "CONTINUATION";
 }

@@ -76,7 +76,7 @@ function EmailTagInput({ emails, onChange, placeholder }: EmailTagInputProps) {
   return (
     <div
       onClick={() => inputRef.current?.focus()}
-      className="flex flex-wrap gap-1.5 px-3 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl min-h-11 cursor-text focus-within:ring-2 focus-within:ring-zinc-900 dark:focus-within:ring-white"
+      className="flex flex-wrap gap-1.5 px-3 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl min-h-11 cursor-text focus-within:ring-2 focus-within:ring-inset focus-within:ring-zinc-900 dark:focus-within:ring-white focus-within:border-transparent"
     >
       <AnimatePresence mode="popLayout">
         {emails.map((email) => (
@@ -247,7 +247,7 @@ export function EmailDrawer({
                 onChange={(e) => handleToChange(e.target.value)}
                 placeholder="email@example.com"
                 autoFocus
-                className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white transition-shadow"
+                className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-zinc-900 dark:focus:ring-white focus:border-transparent transition-shadow"
               />
             </motion.div>
 

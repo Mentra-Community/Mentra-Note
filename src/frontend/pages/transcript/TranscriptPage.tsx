@@ -5,11 +5,22 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useParams } from "wouter";
+import { DeleteTranscriptDrawer } from "../../components/shared/DeleteTranscriptDrawer";
+import {
+  BackChevronIcon,
+  ExportIcon,
+  EmailIcon,
+  CopyIcon,
+  TrashIcon,
+  MicrophoneSolidIcon,
+  StopRecordingIcon,
+} from "../../components/shared/custom-icons";
 import { useNavigation } from "../../navigation/NavigationStack";
 import { useMentraAuth } from "@mentra/react";
 import { format, parse } from "date-fns";
 import { toast } from "../../components/shared/toast";
 import { useSynced } from "../../hooks/useSynced";
+import { useRecordingElapsed } from "../../hooks/useRecordingElapsed";
 import type { SessionI } from "../../../shared/types";
 import { TranscriptTab } from "../day/components/tabs/TranscriptTab";
 import { EmailDrawer } from "../../components/shared/EmailDrawer";
@@ -75,7 +86,6 @@ export function TranscriptPage() {
   const allSegments = session?.transcript?.segments ?? [];
   const hourSummaries = session?.summary?.hourSummaries ?? [];
   const interimText = session?.transcript?.interimText ?? "";
-  const isRecording = session?.transcript?.isRecording ?? false;
   const transcriptionPaused = session?.settings?.transcriptionPaused ?? false;
   const isSyncingPhoto = session?.transcript?.isSyncingPhoto ?? false;
   const loadedDate = session?.transcript?.loadedDate ?? "";
@@ -115,6 +125,18 @@ export function TranscriptPage() {
     }, 300);
   }, [isCompactMode, session?.settings]);
 
+  // Deep-link reveal gate: when the URL has #seg- or #hour-, we hold the page
+  // behind a skeleton until the target is scrolled into view, so the user
+  // never sees the transcript jump around. Capped at 12s as a safety net so
+  // slow R2 fetches or hour-summary backfills don't leave the user stuck.
+  const hasDeepLink = targetHour !== undefined || targetSegId !== undefined;
+  const [deepLinkReady, setDeepLinkReady] = useState(!hasDeepLink);
+  useEffect(() => {
+    if (!hasDeepLink) return;
+    const t = setTimeout(() => setDeepLinkReady(true), 12000);
+    return () => clearTimeout(t);
+  }, [hasDeepLink]);
+
   // Stop transcription confirmation dialog
   const [showStopConfirm, setShowStopConfirm] = useState(false);
 
@@ -126,13 +148,15 @@ export function TranscriptPage() {
   // Email drawer
   const [showEmailDrawer, setShowEmailDrawer] = useState(false);
 
-  // Elapsed time for live recording
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  useEffect(() => {
-    if (!isToday || !isRecording) return;
-    const interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
-    return () => clearInterval(interval);
-  }, [isToday, isRecording]);
+  // Delete transcript confirmation drawer
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Elapsed time for live recording — persisted across mounts via localStorage.
+  // Ticks while unpaused, freezes (still visible) while paused, resets at midnight.
+  const elapsedSeconds = useRecordingElapsed({
+    isToday,
+    isPaused: transcriptionPaused,
+  });
 
   const formatElapsed = (secs: number) => {
     const h = Math.floor(secs / 3600);
@@ -206,17 +230,22 @@ export function TranscriptPage() {
 
   const daySegments = useMemo(() => {
     if (isDataLoading) return [];
-    let filtered: typeof allSegments;
-    if (loadedDate === dateString) {
-      if (!isToday && historicalSegmentCountRef.current !== null) {
-        filtered = allSegments.slice(0, historicalSegmentCountRef.current);
-      } else if (isToday) {
-        filtered = allSegments.filter((s) => !s.timestamp || getSegmentDate(s.timestamp) === dateString);
-      } else {
-        filtered = allSegments;
-      }
-    } else {
-      filtered = allSegments.filter((s) => s.timestamp && getSegmentDate(s.timestamp) === dateString);
+    // Hard guard: until the server's loadedDate matches the route, treat the
+    // segments array as stale — it may still hold the previous day's payload
+    // from before we navigated.
+    if (loadedDate !== dateString) return [];
+
+    // Belt-and-suspenders: even when loadedDate matches, the client mirror of
+    // `segments` can lag behind for a render or two after a date switch (the
+    // server clears segments first, then streams the new day's via @synced —
+    // those arrive in separate frames). Filter by timestamp so stale segments
+    // from another day get dropped regardless of what the array still holds.
+    let filtered = allSegments.filter(
+      (s) => !s.timestamp || getSegmentDate(s.timestamp) === dateString,
+    );
+
+    if (!isToday && historicalSegmentCountRef.current !== null) {
+      filtered = filtered.slice(0, historicalSegmentCountRef.current);
     }
 
     // Dedupe by id. R2 transcript files from older sessions can contain
@@ -255,13 +284,21 @@ export function TranscriptPage() {
     }
   }, [daySegments, isToday, date]);
 
-  const handleDeleteTranscript = useCallback(async () => {
+  const handleDeleteTranscript = useCallback(() => {
     if (!session?.file || !session?.transcript) return;
-    if (!confirm(`Delete the transcript for ${isToday ? "today" : format(date, "MMMM d, yyyy")}? This cannot be undone.`)) return;
+    setShowDeleteConfirm(true);
+  }, [session?.file, session?.transcript]);
+
+  const handleDeleteConfirmed = useCallback(async () => {
+    if (!session?.file || !session?.transcript) {
+      setShowDeleteConfirm(false);
+      return;
+    }
     await session.file.trashFile(dateString);
     await session.transcript.removeDates([dateString]);
+    setShowDeleteConfirm(false);
     back();
-  }, [session?.file, session?.transcript, dateString, isToday, date, back]);
+  }, [session?.file, session?.transcript, dateString, back]);
 
   const handleEmailSend = useCallback(async (to: string, cc: string) => {
     const finalSegments = daySegments
@@ -314,7 +351,14 @@ export function TranscriptPage() {
   })();
 
   return (
-    <div className="h-full flex flex-col bg-[#FCFBFA]">
+    <div className="relative h-full flex flex-col bg-[#FCFBFA]">
+      {/* Deep-link reveal gate — keeps the page invisible until the target
+          segment/hour has been scrolled into view (capped at 4s). */}
+      {!deepLinkReady && (
+        <div className="absolute inset-0 z-20 bg-[#FCFBFA]">
+          <DayPageSkeleton />
+        </div>
+      )}
       {/* Header */}
       <div className="shrink-0 flex items-end justify-between pt-4 pb-4 px-6">
         <div className="flex items-center grow gap-3">
@@ -322,9 +366,7 @@ export function TranscriptPage() {
             onClick={() => back()}
             className="p-1 -ml-1 text-[#1A1A1A]"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
+            <BackChevronIcon style={{ flexShrink: 0 }} />
           </button>
           <div className="flex flex-col gap-3">
             <div className="text-[22px] leading-7 tracking-[-0.4px] text-[#1A1A1A] font-red-hat font-extrabold">
@@ -340,34 +382,20 @@ export function TranscriptPage() {
             align="right"
             trigger={
               <button className="p-1" aria-label="Share transcript">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B655D" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                  <polyline points="16 6 12 2 8 6" />
-                  <line x1="12" y1="2" x2="12" y2="15" />
-                </svg>
+                <ExportIcon />
               </button>
             }
             options={[
               {
                 id: "email",
                 label: "Email transcript",
-                icon: (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#52525B" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                    <polyline points="22,6 12,13 2,6" />
-                  </svg>
-                ),
+                icon: <EmailIcon />,
                 onClick: () => setShowEmailDrawer(true),
               },
               {
                 id: "copy",
                 label: "Copy to clipboard",
-                icon: (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#52525B" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                  </svg>
-                ),
+                icon: <CopyIcon />,
                 onClick: () => { handleCopyTranscript(); },
               },
             ]}
@@ -377,10 +405,7 @@ export function TranscriptPage() {
             className="p-1"
             aria-label="Delete transcript"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B655D" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            </svg>
+            <TrashIcon />
           </button>
         </div>
       </div>
@@ -400,6 +425,7 @@ export function TranscriptPage() {
           isLoading={isDataLoading}
           targetHour={targetHour}
           targetSegId={targetSegId}
+          onDeepLinkScrolled={() => setDeepLinkReady(true)}
         />
       </div>
 
@@ -414,7 +440,7 @@ export function TranscriptPage() {
             />
             <span className="text-[13px] leading-4 text-[#6B655D] font-red-hat font-medium">
               {transcriptionPaused
-                ? "Paused"
+                ? `Paused · ${formatElapsed(elapsedSeconds)}`
                 : `Transcribing · ${formatElapsed(elapsedSeconds)}`}
             </span>
           </div>
@@ -426,11 +452,7 @@ export function TranscriptPage() {
                   className="w-13 h-13 flex items-center justify-center rounded-[26px] bg-[#1C1917] shrink-0"
                   aria-label="Resume transcription"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" y1="19" x2="12" y2="23" />
-                  </svg>
+                  <MicrophoneSolidIcon />
                 </button>
               ) : (
                 <button
@@ -438,9 +460,7 @@ export function TranscriptPage() {
                   className="w-13 h-13 flex items-center justify-center rounded-[26px] bg-[#D32F2F] shrink-0"
                   aria-label="Stop transcription"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="#FFFFFF" stroke="none">
-                    <rect x="4" y="4" width="16" height="16" rx="3" />
-                  </svg>
+                  <StopRecordingIcon />
                 </button>
               )}
               <span
@@ -467,6 +487,14 @@ export function TranscriptPage() {
         onSend={handleEmailSend}
         defaultEmail={userId || ""}
         itemLabel="Transcript"
+      />
+
+      <DeleteTranscriptDrawer
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteConfirmed}
+        dates={[dateString]}
+        conversations={session?.conversation?.conversations ?? []}
       />
     </div>
   );

@@ -19,6 +19,7 @@ import { WaveIndicator } from "../../components/shared/WaveIndicator";
 import type { SessionI, TranscriptSegment } from "../../../shared/types";
 import { ArrowDown } from "lucide-react";
 import { StopTranscriptionDialog } from "../home/components/StopTranscriptionDialog";
+import { BackChevronIcon, MicrophoneSolidIcon } from "../../components/shared/custom-icons";
 
 /** Stable speakerId string → sequential color index */
 function buildSpeakerMap(segments: TranscriptSegment[]): Map<string, number> {
@@ -106,9 +107,7 @@ export function ConversationTranscriptPage() {
       {/* Header */}
       <div className="flex items-center gap-3 pt-6 pb-4 px-6 shrink-0">
         <button onClick={() => back()} className="-ml-1 p-1 shrink-0">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="m15 18-6-6 6-6" stroke="#1C1917" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <BackChevronIcon stroke="#1C1917" />
         </button>
         <div className="flex flex-col grow min-w-0">
           <div className="text-[17px] font-red-hat font-bold text-[#1C1917] leading-5 truncate">
@@ -204,11 +203,7 @@ export function ConversationTranscriptPage() {
           onClick={() => setShowStopDrawer(true)}
           className="w-13 h-13 flex items-center justify-center rounded-full bg-[#DC2626] shrink-0"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" fill="#FFFFFF" />
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
-            <line x1="12" y1="19" x2="12" y2="23" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
-          </svg>
+          <MicrophoneSolidIcon size={20} />
         </button>
       </div>
 

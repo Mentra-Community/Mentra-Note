@@ -15,6 +15,12 @@ import { useNavigation } from "../../navigation/NavigationStack";
 import { useMentraAuth } from "@mentra/react";
 import { format, isToday, isYesterday } from "date-fns";
 import { LoadingState } from "../../components/shared/LoadingState";
+import {
+  SearchIcon,
+  CloseIcon,
+  ChevronRightIcon,
+  ClockIcon,
+} from "../../components/shared/custom-icons";
 
 const RECENT_SEARCHES_KEY = "mentra_recent_searches";
 const MAX_RECENT = 5;
@@ -79,6 +85,22 @@ type SentenceRow = {
   after?: { text: string; segId: string };
   hourTitle?: string;
 };
+
+// Strip raw markdown artifacts (leading "## ", "**bold**", "Title:" prefix, etc.)
+// that the LLM sometimes leaks into hour-summary titles. Conservative — only
+// touches obvious markdown syntax.
+function stripMarkdown(s: string): string {
+  if (!s) return s;
+  return s
+    .replace(/^\s*#{1,6}\s+/, "")
+    .replace(/^\s*(?:title|summary)\s*:\s*/i, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/(^|\s)\*([^*\s][^*]*?)\*(\s|$|[.,!?;:])/g, "$1$2$3")
+    .replace(/(^|\s)_([^_\s][^_]*?)_(\s|$|[.,!?;:])/g, "$1$2$3")
+    .replace(/^\s*[-*+]\s+/, "")
+    .trim();
+}
 
 function stripHtml(html: string, maxWords = 30): string {
   if (!html) return "";
@@ -176,24 +198,38 @@ function truncateAroundMatch(
   return { text: prefix + text.slice(start, end) + suffix, ranges: nextRanges };
 }
 
+// Module-level cache: restores search state when user navigates back to /search.
+// Lives only in memory — cleared on full page reload (intentional).
+interface SearchCache {
+  query: string;
+  results: SearchResult[];
+  hasSearched: boolean;
+  sentences: SentenceRow[];
+  sentenceOffset: number;
+  sentenceHasMore: boolean;
+  scrollTop: number;
+}
+let searchCache: SearchCache | null = null;
+
 export function SearchPage() {
   const { push } = useNavigation();
   const { userId } = useMentraAuth();
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [query, setQuery] = useState(() => searchCache?.query ?? "");
+  const [results, setResults] = useState<SearchResult[]>(() => searchCache?.results ?? []);
   const [isSearching, setIsSearching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
+  const [hasSearched, setHasSearched] = useState(() => searchCache?.hasSearched ?? false);
   const [loadingKey, setLoadingKey] = useState(0);
   const [recentSearches, setRecentSearches] = useState<string[]>(getRecentSearches);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Transcript-sentence phrase search — independent from the main results state
   // because it paginates and can balloon past 50 rows.
-  const [sentences, setSentences] = useState<SentenceRow[]>([]);
-  const [sentenceOffset, setSentenceOffset] = useState(0);
-  const [sentenceHasMore, setSentenceHasMore] = useState(false);
+  const [sentences, setSentences] = useState<SentenceRow[]>(() => searchCache?.sentences ?? []);
+  const [sentenceOffset, setSentenceOffset] = useState(() => searchCache?.sentenceOffset ?? 0);
+  const [sentenceHasMore, setSentenceHasMore] = useState(() => searchCache?.sentenceHasMore ?? false);
   const [sentenceLoading, setSentenceLoading] = useState(false);
   const [sentenceLoadingMore, setSentenceLoadingMore] = useState(false);
   // Debug-only: isolate the hour-level "Transcripts" section so you can see
@@ -203,6 +239,34 @@ export function SearchPage() {
   const sentenceQueryRef = useRef<string>("");
   const sentenceSentinelRef = useRef<HTMLDivElement | null>(null);
   const [backfillInProgress, setBackfillInProgress] = useState(false);
+
+  // Persist search state to the module cache so it survives unmount/remount
+  // (e.g. when the user taps a result, then hits Back).
+  useEffect(() => {
+    searchCache = {
+      query,
+      results,
+      hasSearched,
+      sentences,
+      sentenceOffset,
+      sentenceHasMore,
+      scrollTop: searchCache?.scrollTop ?? 0,
+    };
+  }, [query, results, hasSearched, sentences, sentenceOffset, sentenceHasMore]);
+
+  // Restore scroll position on mount; save it on unmount.
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (el && searchCache && searchCache.scrollTop > 0) {
+      el.scrollTop = searchCache.scrollTop;
+    }
+    return () => {
+      const node = scrollContainerRef.current;
+      if (node && searchCache) {
+        searchCache.scrollTop = node.scrollTop;
+      }
+    };
+  }, []);
 
   // Kick the backfill check once per mount. The endpoint itself fires the job
   // in the background if the user isn't yet backfilled.
@@ -353,6 +417,7 @@ export function SearchPage() {
     setSentenceHasMore(false);
     sentenceAbortRef.current?.abort();
     sentenceQueryRef.current = "";
+    searchCache = null;
     inputRef.current?.focus();
   };
 
@@ -406,10 +471,7 @@ export function SearchPage() {
       <div className="pb-2 px-6 shrink-0">
         <div className="flex items-center justify-between rounded-[14px] py-3.25 px-4 bg-[#F5F3F0] border border-[#E8E5E1]">
           <div className="flex items-center gap-2.5 grow min-w-0">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9C958D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
+            <SearchIcon size={16} stroke="#9C958D" strokeWidth={2.5} className="shrink-0" />
             <input
               ref={inputRef}
               type="text"
@@ -421,10 +483,7 @@ export function SearchPage() {
           </div>
           {query && (
             <button onClick={handleClear} className="shrink-0 ml-2" aria-label="Clear search">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9C958D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
+              <CloseIcon size={16} stroke="#9C958D" />
             </button>
           )}
         </div>
@@ -437,7 +496,7 @@ export function SearchPage() {
             {totalCount} {totalCount === 1 ? "result" : "results"}
           </span>
           {/* Debug-only isolate toggle — shows ONLY the hour-level Transcripts block */}
-          <button
+          {/* <button
             onClick={() => setIsolateHourTranscripts((v) => !v)}
             className={`text-[11px] font-red-hat font-medium rounded-md px-2 py-1 border ${
               isolateHourTranscripts
@@ -446,12 +505,12 @@ export function SearchPage() {
             }`}
           >
             {isolateHourTranscripts ? "Isolate: on" : "Isolate hour-transcripts"}
-          </button>
+          </button> */}
         </div>
       )}
 
       {/* Scrollable results — pb-24 keeps the last row clear of the bottom nav bar */}
-      <div className="flex-1 overflow-y-auto flex flex-col pb-24">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto flex flex-col pb-24">
         {/* Loading */}
         {isSearching && (
           <div className="flex flex-col items-center justify-center flex-1 min-h-[300px]">
@@ -475,7 +534,7 @@ export function SearchPage() {
               >
                 <div className="flex flex-col grow shrink basis-0 gap-1 min-w-0">
                   <div className="text-[#1A1A1A] font-red-hat font-bold text-[15px] leading-[18px] truncate">
-                    {result.title || "Untitled"}
+                    {stripMarkdown(result.title) || "Untitled"}
                   </div>
                   <div className="text-[#6B655D] font-red-hat text-[13px] leading-[17px] line-clamp-2">
                     {stripHtml(result.summary || result.content || "")}
@@ -484,9 +543,7 @@ export function SearchPage() {
                     {formatNoteDate(result.date)}
                   </div>
                 </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C5C0B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
+                <ChevronRightIcon size={14} stroke="#C5C0B8" className="shrink-0" />
               </button>
             ))}
           </div>
@@ -526,7 +583,7 @@ export function SearchPage() {
                       <div className="flex flex-col grow shrink basis-0 gap-1 min-w-0">
                         {row.hourTitle && (
                           <div className="text-[#1A1A1A] font-red-hat font-bold text-[15px] leading-[18px] truncate">
-                            {row.hourTitle}
+                            {stripMarkdown(row.hourTitle)}
                           </div>
                         )}
                         {row.before?.text && (
@@ -557,19 +614,7 @@ export function SearchPage() {
                           {formatSentenceDate(row.date, row.timestamp)}
                         </div>
                       </div>
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="#C5C0B8"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="shrink-0"
-                      >
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
+                      <ChevronRightIcon size={14} stroke="#C5C0B8" className="shrink-0" />
                     </button>
                   );
                 })}
@@ -685,10 +730,7 @@ export function SearchPage() {
                       i < recentSearches.length - 1 ? "border-b border-[#F0EDEA]" : ""
                     }`}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0">
-                      <circle cx="12" cy="12" r="9" stroke="#C5C0B8" strokeWidth="1.75" />
-                      <polyline points="12,7 12,12 15,15" stroke="#C5C0B8" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
+                    <ClockIcon stroke="#C5C0B8" className="shrink-0" />
                     <button
                       onClick={() => handleRecentTap(term)}
                       className="text-[15px] leading-5 grow shrink basis-0 text-left text-[#1A1A1A] font-red-hat"
@@ -696,10 +738,7 @@ export function SearchPage() {
                       {term}
                     </button>
                     <button onClick={() => handleRecentRemove(term)} className="shrink-0 p-1" aria-label="Remove recent">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                        <line x1="18" y1="6" x2="6" y2="18" stroke="#C5C0B8" strokeWidth="2" strokeLinecap="round" />
-                        <line x1="6" y1="6" x2="18" y2="18" stroke="#C5C0B8" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
+                      <CloseIcon size={14} stroke="#C5C0B8" />
                     </button>
                   </div>
                 ))}
@@ -707,10 +746,7 @@ export function SearchPage() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center flex-1 min-h-[300px] gap-3">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#C5C0B8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
+              <SearchIcon size={32} stroke="#C5C0B8" strokeWidth={1.5} />
               <span className="text-[14px] text-[#B0AAA2] font-red-hat">Search across all your notes and transcripts</span>
             </div>
           )

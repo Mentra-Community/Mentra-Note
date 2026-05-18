@@ -14,6 +14,7 @@ import { useMentraAuth } from "@mentra/react";
 import { format } from "date-fns";
 import { useSynced } from "../../hooks/useSynced";
 import type { SessionI } from "../../../shared/types";
+import { BackChevronIcon, SparkleIcon, CheckIcon } from "../../components/shared/custom-icons";
 
 type StepStatus = "done" | "active" | "pending";
 
@@ -150,9 +151,7 @@ export function GeneratingNotePage() {
       {/* Header */}
       <div className="flex items-center pt-6 pb-4 gap-3 px-6 shrink-0">
         <button onClick={() => back()} className="-ml-1">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="m15 18-6-6 6-6" stroke="#1C1917" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <BackChevronIcon stroke="#1C1917" />
         </button>
         <div className="text-[#1C1917] font-red-hat font-bold text-lg leading-[22px]">
           {dateLabel}
@@ -163,9 +162,7 @@ export function GeneratingNotePage() {
       <div className="flex flex-col mx-6 rounded-2xl bg-[#FAFAFA] p-5">
         {/* Card header */}
         <div className="flex items-center pb-4 gap-2">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
-          </svg>
+          <SparkleIcon />
           <div className="text-[#1C1917] font-red-hat font-bold text-sm leading-[18px]">
             {activeStep > 4 ? "Note generated" : "Generating note..."}
           </div>
@@ -184,9 +181,7 @@ export function GeneratingNotePage() {
                 step.status === "active" ? "bg-[#FEF2F2]" : "bg-[#F5F5F4]"
               }`}>
                 {step.status === "done" ? (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1C1917" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
+                  <CheckIcon size={12} stroke="#1C1917" strokeWidth={3} />
                 ) : step.status === "active" ? (
                   <div className="rounded-sm bg-[#EF4444] shrink-0 size-2 animate-pulse" />
                 ) : (
