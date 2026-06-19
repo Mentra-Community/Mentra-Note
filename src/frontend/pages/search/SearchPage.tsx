@@ -213,7 +213,12 @@ let searchCache: SearchCache | null = null;
 
 export function SearchPage() {
   const { push } = useNavigation();
-  const { userId } = useMentraAuth();
+  const { userId, frontendToken } = useMentraAuth();
+  // Authenticate requests with the MentraOS-verified frontend token. The server
+  // derives the userId from this token; it no longer trusts a userId query param.
+  const authHeaders: Record<string, string> = frontendToken
+    ? { Authorization: `Bearer ${frontendToken}` }
+    : {};
   const [query, setQuery] = useState(() => searchCache?.query ?? "");
   const [results, setResults] = useState<SearchResult[]>(() => searchCache?.results ?? []);
   const [isSearching, setIsSearching] = useState(false);
@@ -271,9 +276,11 @@ export function SearchPage() {
   // Kick the backfill check once per mount. The endpoint itself fires the job
   // in the background if the user isn't yet backfilled.
   useEffect(() => {
-    if (!userId) return;
-    const userParam = `?userId=${encodeURIComponent(userId)}`;
-    fetch(`/api/search/backfill-status${userParam}`, { credentials: "include" })
+    if (!userId || !frontendToken) return;
+    fetch(`/api/search/backfill-status`, {
+      credentials: "include",
+      headers: authHeaders,
+    })
       .then((r) => r.json())
       .then((data) => {
         setBackfillInProgress(!!data.inProgress && !data.backfilled);
@@ -281,14 +288,14 @@ export function SearchPage() {
       .catch(() => {
         // Silent — banner is nice-to-have
       });
-  }, [userId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, frontendToken]);
 
   const fetchSentencePage = useCallback(
     async (q: string, offset: number, signal: AbortSignal): Promise<void> => {
-      const userParam = userId ? `&userId=${encodeURIComponent(userId)}` : "";
       const res = await fetch(
-        `/api/search/sentences?q=${encodeURIComponent(q)}&offset=${offset}&limit=${SENTENCE_PAGE_SIZE}${userParam}`,
-        { credentials: "include", signal },
+        `/api/search/sentences?q=${encodeURIComponent(q)}&offset=${offset}&limit=${SENTENCE_PAGE_SIZE}`,
+        { credentials: "include", headers: authHeaders, signal },
       ).then((r) => r.json());
       if (signal.aborted) return;
 
@@ -301,7 +308,8 @@ export function SearchPage() {
       setSentenceHasMore(!!res?.hasMore);
       setSentenceOffset(typeof res?.nextOffset === "number" ? res.nextOffset : offset + rows.length);
     },
-    [userId],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [userId, frontendToken],
   );
 
   const doSearch = useCallback(async (q: string) => {
@@ -339,10 +347,9 @@ export function SearchPage() {
     const shouldSearchSentences = trimmed.length >= PHRASE_MIN_QUERY;
 
     try {
-      const userParam = userId ? `&userId=${encodeURIComponent(userId)}` : "";
       const mainPromise = fetch(
-        `/api/search?q=${encodeURIComponent(trimmed)}&limit=10${userParam}`,
-        { credentials: "include", signal: abortController.signal },
+        `/api/search?q=${encodeURIComponent(trimmed)}&limit=10`,
+        { credentials: "include", headers: authHeaders, signal: abortController.signal },
       ).then((r) => r.json());
 
       setSentenceLoading(shouldSearchSentences);
@@ -370,7 +377,8 @@ export function SearchPage() {
         setSentenceLoading(false);
       }
     }
-  }, [userId, fetchSentencePage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, frontendToken, fetchSentencePage]);
 
   // Infinite scroll: load next page when sentinel enters viewport.
   useEffect(() => {
