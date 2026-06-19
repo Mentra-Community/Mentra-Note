@@ -25,6 +25,7 @@ import { rewriteR2Urls } from "../../shared/constants";
 const API_KEY = process.env.MENTRAOS_API_KEY || "";
 const PACKAGE_NAME = process.env.PACKAGE_NAME || "";
 const COOKIE_SECRET = process.env.COOKIE_SECRET || API_KEY;
+const IS_DEVELOPMENT = process.env.NODE_ENV === "development";
 
 export const api = new Hono();
 
@@ -129,6 +130,11 @@ api.get("/health", (c) => {
  *     -d '{"userId":"test@example.com"}'
  */
 api.post("/test/simulate-transcript", async (c) => {
+  // Dev-only test tooling — must not be reachable in production. (Injects
+  // transcript into an arbitrary user's session with no auth.)
+  if (!IS_DEVELOPMENT) {
+    return c.json({ error: "Not Found" }, 404);
+  }
   const { userId, text } = await c.req.json();
   if (!userId || !text) {
     return c.json({ error: "userId and text required" }, 400);
@@ -150,6 +156,10 @@ api.post("/test/simulate-transcript", async (c) => {
 });
 
 api.post("/test/simulate-conversation", async (c) => {
+  // Dev-only test tooling — must not be reachable in production.
+  if (!IS_DEVELOPMENT) {
+    return c.json({ error: "Not Found" }, 404);
+  }
   const { userId } = await c.req.json();
   if (!userId) {
     return c.json({ error: "userId required" }, 400);
@@ -1211,12 +1221,10 @@ api.get("/conversations/:date", authMiddleware, async (c) => {
  */
 api.get("/search", authMiddleware, async (c) => {
   try {
-    // Try standard auth first, fall back to userId query param
-    // (cookie auth may not work in all browser contexts through ngrok)
-    const userId = getUserId(c) || c.req.query("userId") as string;
-    if (!userId) {
-      throw { error: "Unauthorized", status: 401 };
-    }
+    // Identity comes ONLY from the verified auth token. Never fall back to a
+    // client-supplied userId query param — that's an IDOR (any caller could
+    // read another user's notes/transcripts).
+    const userId = requireAuth(c);
     const query = c.req.query("q");
     const limitParam = c.req.query("limit");
     const aiParam = c.req.query("ai");
@@ -1251,8 +1259,7 @@ api.get("/search", authMiddleware, async (c) => {
  */
 api.get("/search/backfill-status", authMiddleware, async (c) => {
   try {
-    const userId = getUserId(c) || (c.req.query("userId") as string);
-    if (!userId) throw { error: "Unauthorized", status: 401 };
+    const userId = requireAuth(c);
     const { getBackfillStatus, backfillUserSearchIndex } = await import(
       "../services/searchBackfill.service"
     );
@@ -1280,10 +1287,7 @@ api.get("/search/backfill-status", authMiddleware, async (c) => {
  */
 api.get("/search/sentences", authMiddleware, async (c) => {
   try {
-    const userId = getUserId(c) || (c.req.query("userId") as string);
-    if (!userId) {
-      throw { error: "Unauthorized", status: 401 };
-    }
+    const userId = requireAuth(c);
     const query = c.req.query("q");
     if (!query || !query.trim()) {
       return c.json({ error: "Query parameter 'q' is required" }, 400);

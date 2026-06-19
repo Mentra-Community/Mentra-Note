@@ -14,7 +14,8 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 import { NotesApp } from "./backend/NotesApp";
 import { api } from "./backend/api/router";
-import { createMentraAuthRoutes } from "@mentra/sdk";
+import { createMentraAuthRoutes, generateFrontendToken } from "@mentra/sdk";
+import { timingSafeEqual } from "crypto";
 import indexDev from "./frontend/index.html";
 import indexProd from "./frontend/index.prod.html";
 import { sessions } from "./backend/session";
@@ -88,6 +89,28 @@ console.log("");
 // Determine environment
 const isDevelopment = process.env.NODE_ENV === "development";
 
+/**
+ * Verifies a MentraOS frontend token and returns the embedded userId, or null.
+ *
+ * A frontend token has the form `userId:sha256(userId + sha256(apiKey))`. We
+ * never trust a client-supplied userId directly (that would be an IDOR — any
+ * caller could read/write another user's notes & transcripts). Instead we split
+ * out the claimed userId, regenerate the token the SDK would have issued for it,
+ * and constant-time compare. Only a token signed with our API key validates.
+ */
+function verifyFrontendToken(token: string | null | undefined): string | null {
+  if (!token) return null;
+  const sep = token.indexOf(":");
+  if (sep <= 0) return null;
+  const claimedUserId = token.slice(0, sep);
+  // API_KEY is guaranteed non-null here (validated above on startup).
+  const expected = generateFrontendToken(claimedUserId, API_KEY as string);
+  const a = Buffer.from(token);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return null;
+  return timingSafeEqual(a, b) ? claimedUserId : null;
+}
+
 // Start Bun server with HMR support and WebSocket
 Bun.serve({
   port: PORT,
@@ -123,11 +146,21 @@ Bun.serve({
       return new Response("Not found", { status: 404 });
     }
 
-    // WebSocket upgrade for synced clients
+    // WebSocket upgrade for synced clients.
+    // Identity is taken ONLY from a verified frontend token — never from a
+    // client-supplied userId, which would let anyone read/write another user's
+    // notes and live transcripts (IDOR).
     if (url.pathname === "/ws/sync") {
-      const userId = url.searchParams.get("userId");
+      const token =
+        url.searchParams.get("aos_frontend_token") ||
+        // EventSource/WebSocket can't set headers, but accept Authorization too
+        // for non-browser clients.
+        request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+        null;
+
+      const userId = verifyFrontendToken(token);
       if (!userId) {
-        return new Response("userId required", { status: 400 });
+        return new Response("Unauthorized", { status: 401 });
       }
 
       const upgraded = server.upgrade(request, {

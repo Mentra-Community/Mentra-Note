@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useMentraAuth } from "@mentra/react";
 import type { WSMessageToClient, WSMessageToServer } from "../../shared/types";
 
 // =============================================================================
@@ -28,13 +29,15 @@ class SyncClient<T> {
   private _isReconnecting = false;
   private _hasConnectedOnce = false;
   private userId: string;
+  private frontendToken: string;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private _version = 0;
   private _notifyScheduled = false;
   private _visibilityHandler: (() => void) | null = null;
 
-  constructor(userId: string) {
+  constructor(userId: string, frontendToken: string) {
     this.userId = userId;
+    this.frontendToken = frontendToken;
     this.connect();
     this.setupVisibilityHandler();
   }
@@ -43,7 +46,9 @@ class SyncClient<T> {
     if (this.ws?.readyState === WebSocket.OPEN) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${window.location.host}/ws/sync?userId=${encodeURIComponent(this.userId)}`;
+    // Authenticate with the MentraOS-verified frontend token. The server derives
+    // the userId from this token — it never trusts a raw userId (IDOR risk).
+    const url = `${protocol}//${window.location.host}/ws/sync?aos_frontend_token=${encodeURIComponent(this.frontendToken)}`;
 
     console.log("[Synced] Connecting...");
     this.ws = new WebSocket(url);
@@ -281,18 +286,24 @@ export interface UseSyncedResult<T> {
 /**
  * React hook that connects to backend and returns a typed session.
  *
+ * The WebSocket connection is authenticated with the MentraOS-verified frontend
+ * token (read internally from the auth context) — the server derives the userId
+ * from that token and never trusts a client-supplied userId (IDOR protection).
+ * The connection is not established until the token is available.
+ *
  * @param userId - The user ID to connect as
  * @returns Session object with synced state and RPC methods
  */
 export function useSynced<T>(userId: string): UseSyncedResult<T> {
+  const { frontendToken } = useMentraAuth();
   const clientRef = useRef<SyncClient<T> | null>(null);
   const [version, setVersion] = useState(0);
 
-  // Get or create client (only if userId is provided)
-  if (userId && !clientRef.current) {
+  // Get or create client (only once we have both a userId and an auth token)
+  if (userId && frontendToken && !clientRef.current) {
     let client = clientCache.get(userId);
     if (!client) {
-      client = new SyncClient<T>(userId);
+      client = new SyncClient<T>(userId, frontendToken);
       clientCache.set(userId, client);
     }
     clientRef.current = client;
